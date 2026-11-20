@@ -1,12 +1,13 @@
 # The C engine (c/): compiled and checked against the reference values of the Julia engine (c/test/*_ref.txt) on
 # Linux, macOS and Windows, all the tests that c/build.sh builds (the applications, the linear form U - aV and the
-# power envelope: dfl_test_app); mex.yml builds the MATLAB MEX file from it.  Started by hand (Actions tab, "Run
-# workflow", or gh workflow run c.yml) and on a tag v*: the account's Actions minutes are limited, so nothing runs on
-# a push to a branch or on a pull request.
+# power envelope: dfl_test_app); mex.yml builds the MATLAB MEX file from it.  Runs on a push to main that changes c/ or this file, on a tag v*,
+# and by hand (Actions tab, "Run workflow", or gh workflow run c.yml).
 name: C engine
 on:
   push:
+    branches: [main]
     tags: ['v*']
+    paths: ['c/**', '.github/workflows/c.yml']
   workflow_dispatch:
 jobs:
   build:

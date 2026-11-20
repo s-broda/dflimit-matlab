@@ -52,8 +52,8 @@ Clone the repository (or download it as a zip) and add the folder `matlab` to th
 
 The MEX file needs nothing else: no compiler, no runtime, one file of about 2.5 MB. There are two ways to get it.
 
-1. Download a built one. The workflow "MATLAB MEX" (`.github/workflows/mex.yml`), started by hand from the Actions tab
-   ("Run workflow") or by a tag `v*`, builds one zip per platform (`ltratio-linux-x86_64.zip`, `ltratio-macos.zip`
+1. Download a built one. The workflow "MATLAB MEX" (`.github/workflows/mex.yml`), which runs on a push that changes `c/`, on a tag `v*`
+   and by hand from the Actions tab ("Run workflow"), builds one zip per platform (`ltratio-linux-x86_64.zip`, `ltratio-macos.zip`
    with the Apple silicon and the Intel MEX files, `ltratio-windows-x86_64.zip`) and attaches them to the run as
    artifacts; on a tag it also attaches them to a GitHub release of the repository
    (https://github.com/s-broda/dflimit-matlab/releases). Unzip, and add the folder to the

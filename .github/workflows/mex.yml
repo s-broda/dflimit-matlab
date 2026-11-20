@@ -2,12 +2,14 @@
 # compiled against c/mex/mexstub.h (no MATLAB on the runners), packages it with the m-files (ltratio.m and the
 # engine replacements dfx_core.m, tr_limdist.m, tr_limmom.m, tr_adfmax.m, tr_region.m, tr_gilpelaez.m, tr_contour.m) as one zip per
 # platform, uploaded as a workflow artifact; on a tag v* the zips are attached to a GitHub release.  The engine itself is checked against the Julia
-# reference values by c.yml.  Started by hand (Actions tab, "Run workflow", or gh workflow run mex.yml) and on a tag v*:
-# the account's Actions minutes are limited, so nothing runs on a push to a branch or on a pull request.
+# reference values by c.yml.  Runs on a push to main that changes c/ or this file, on a tag v*,
+# and by hand (Actions tab, "Run workflow", or gh workflow run mex.yml).
 name: MATLAB MEX
 on:
   push:
+    branches: [main]
     tags: ['v*']
+    paths: ['c/**', '.github/workflows/mex.yml']
   workflow_dispatch:
 env:
   CSRC: dfl_special dfl_mgf dfl_single dfl_gen dfl_moments dfl_double dfl_gilpelaez dfl_api dfl_threads tables
