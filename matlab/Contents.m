@@ -142,10 +142,10 @@
 %                   the timings behind the automatic choice of the representation and the reference
 %                   values of dfx_test
 %
-% Reproduction of the paper: not part of this package.  The paper's repository
-% has the scripts that recompute its tables, the numbers it quotes and the data
-% of its figures on these programs (matlab/replication/ltratio_paper.m, with
-% mackinnon94_p.m) and on the Julia package DFLimit.jl (julia/replication/).
+% Reproduction of the paper: not part of this package.  The paper's replication
+% package has the scripts that recompute its tables, the numbers it quotes and
+% the data of its figures on these programs (ltratio_paper.m, with
+% mackinnon94_p.m) and on the Julia package DFLimit.jl.
 %
 % Example
 %   ltratio_icdf([0.01 0.05 0.10],'DU')              % asymptotic critical values of tau_mu
