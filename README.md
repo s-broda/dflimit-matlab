@@ -1,5 +1,7 @@
 # dflimit-matlab
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24404382.svg)](https://doi.org/10.5281/zenodo.24404382)
+
 The exact limiting distribution of the Dickey-Fuller t-ratio in MATLAB, and the C engine of the R and Python packages.
 
 The programs compute the distribution function, density, quantiles and moments of the limits of the Dickey-Fuller
