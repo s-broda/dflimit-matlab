@@ -1,0 +1,41 @@
+# built products of the C engine and the MEX file
+*.o
+*.obj
+*.mex*
+*.dylib
+*.so
+*.dll
+*.exe
+*.exp
+*.lib
+build/
+c/dfl_test_prim
+c/dfl_test_single
+c/dfl_test_gen
+c/dfl_test_mom
+c/dfl_test_dbl
+c/dfl_test_fixed
+c/dfl_test_app
+c/dfl_test_vmath
+c/dfl_probe
+*.dSYM/
+
+# the Julia environment of the reference scripts (c/test/Project.toml) is resolved locally
+Manifest.toml
+
+# LaTeX build files of the manual
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+# but the logs that method_sweep_summary.py reads are part of the validation
+!/matlab/validation/method_sweep_*.log
+
+# MATLAB and Octave scratch, Python caches
+*.asv
+octave-workspace
+__pycache__/
+.DS_Store

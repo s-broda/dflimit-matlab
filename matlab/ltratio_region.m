@@ -1,0 +1,30 @@
+function [P,info] = ltratio_region(bnd,cas,c,opts)
+%LTRATIO_REGION  The limiting probability of a region {U <= g(V)} of the plane.
+%
+%   P = LTRATIO_REGION(bnd,cas,c,opts) is P{U <= g(V)} under phi = 1 + c/n, no drift, zero start, case 'DK' (no
+%   deterministic terms; also the constant case with GLS demeaning), with U = int J dJ and V = int J^2 as in
+%   LTRATIO_CDF.  Every test of the unit root in the limit experiment of case DK rejects on such a region (the paper's
+%   section on the weighted-average-power test), and the first part of the conditional integral representation, the
+%   probability of a region of the plane, gives its probability for every boundary g, by one outer integral over V
+%   (TR_REGION).
+%   bnd is a structure with the field type and its parameters:
+%      'line'      g(v) = b + a v           (fields a, b: the point-optimal test, U - aV <= b)
+%      'parabola'  g(v) = x sqrt(v) + c0 v  (fields x, c0: the t-ratio, P = LTRATIO_CDF(x,'DK',c) with c0)
+%      'wap'       the weighted-average-power test with the half-normal weight of scale omega on c < 0,
+%                  (1 + omega^2 V)^(-1/2) erfcx(U/sqrt(2 (V + 1/omega^2))) >= k   (fields k, omega)
+%      'fun'       g a function handle, elementwise in v (field g; the MATLAB engine only)
+%   and optionally v0 (g = +Inf on (0, v0), whose probability P(V < v0) is added) and brks (kinks of g, as
+%   breakpoints of the outer rule).  Accurate to about 1e-11; 0.2 to 1 s per probability on the MATLAB engines.
+%
+%   Example: ltratio_region(struct('type','wap','k',3.6658,'omega',10),'DK',0)   % 0.05 (the critical values of the weighted-average-power test in the paper)
+%
+%   See also LTRATIO_LINCDF, POWER_ENVELOPE, LTRATIO_CDF, TR_REGION.
+if nargin < 2 || isempty(cas), cas = 'DK'; end
+if nargin < 3 || isempty(c), c = 0; end
+if nargin < 4 || isempty(opts), opts = struct; end
+if ~(ischar(cas) || isstring(cas)) || ~strcmpi(cas,'DK'), error('ltratio:args','ltratio_region: the case must be DK (zero start).'); end
+if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:args','ltratio_region: c must be a finite real scalar.'); end
+if c < -550, error('ltratio:args','ltratio_region: c must be at least -550 (the range in which the programs are checked).'); end
+if ~isstruct(bnd) || ~isfield(bnd,'type'), error('ltratio:args','ltratio_region: bnd must be a structure with the field type.'); end
+[P,info] = tr_region(bnd,c,opts);
+end

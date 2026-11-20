@@ -1,0 +1,7 @@
+[deps]
+DFLimit = "58f37745-981a-4134-ad52-43795e4fe489"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[sources]
+DFLimit = {url = "https://github.com/s-broda/DFLimit.jl"}
