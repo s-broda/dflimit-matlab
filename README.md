@@ -74,7 +74,7 @@ for t in prim single gen fixed mom dbl app; do ./dfl_test_$t test/${t}_ref.txt; 
 
 Every program ends with a line that counts the checks and the failures (`dfl_test_fixed` also reads
 `test/contour_ref.txt`, the reference values of the contour integral). The workflow "C engine" (`.github/workflows/c.yml`)
-runs the same tests on Linux, macOS and Windows, started by hand or by a tag `v*`.
+runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on a tag `v*` and by hand.
 
 The MATLAB programs: `ltratio_test` runs 262 checks in about five minutes and returns the number of failures
 (`ltratio_test(true)` is the quick version, `ltratio_test(false, true)` raises an error on a failure); `dfx_test` checks
