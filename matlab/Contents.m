@@ -144,7 +144,7 @@
 %
 % Reproduction of the paper: not part of this package.  The paper's repository
 % has the scripts that recompute its tables, the numbers it quotes and the data
-% of its figures on these programs (public/replication/ltratio_paper.m, with
+% of its figures on these programs (matlab/replication/ltratio_paper.m, with
 % mackinnon94_p.m) and on the Julia package DFLimit.jl (julia/replication/).
 %
 % Example

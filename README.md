@@ -100,7 +100,7 @@ engine is made here, tested here, and then synced into the two packages. The Jul
 port, lives in the Julia package [`DFLimit.jl`](https://github.com/s-broda/DFLimit.jl), which also has the same
 functions with the same names and arguments.
 
-The scripts that reproduce the tables and figures of the paper are in the paper's repository (`public/replication/` on
+The scripts that reproduce the tables and figures of the paper are in the paper's repository (`matlab/replication/` on
 these MATLAB programs, `julia/replication/` on DFLimit.jl).
 
 ## Licence and citation

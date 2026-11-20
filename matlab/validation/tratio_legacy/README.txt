@@ -7,4 +7,4 @@ in that version (quantiles and local power, the Larsson comparison, the checks
 of the double integral against finer rules and a one-dimensional inversion, the
 sign conditions on the parabola, the moments and their checks), not as
 runnable code.  The corresponding current scripts are ltratio_test.m,
-public/replication/ltratio_paper.m of the paper's repository and acc_table.m.
+matlab/replication/ltratio_paper.m of the paper's repository and acc_table.m.
