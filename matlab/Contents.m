@@ -1,5 +1,5 @@
 % The exact limiting distribution of the Dickey-Fuller t-ratio
-% Version 0.4.0 20-Nov-2026
+% Version 0.4.1 20-Nov-2026
 %
 % MATLAB programs accompanying
 %

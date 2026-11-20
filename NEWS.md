@@ -1,5 +1,12 @@
 # News
 
+## 0.4.1
+
+Documentation only; the programs and the values are those of 0.4.0. The README gives the paper's address on SSRN;
+`CITATION.cff` names the paper as the suggested citation, and `.zenodo.json` describes the package for its archive on
+Zenodo; the pointers to the reproduction of the paper name the paper's replication package; the workflows run again on a
+push that changes `c/`.
+
 ## 0.4.0
 
 The first release as a repository of its own. The MATLAB programs, their manual and validation material, the C
