@@ -35,6 +35,7 @@ MEX_IMPORT int mxGetString_800(const mxArray *pa, char *buf, mwSize buflen);
 MEX_IMPORT char *mxArrayToString_800(const mxArray *pa);
 MEX_IMPORT void mxFree_800(void *ptr);
 MEX_IMPORT void mexErrMsgIdAndTxt_800(const char *identifier, const char *err_msg, ...);
+MEX_IMPORT void mexWarnMsgIdAndTxt_800(const char *warningid, const char *warningmsg, ...);
 MEX_IMPORT int mexCallMATLAB_800(int nlhs, mxArray *plhs[], int nrhs, mxArray *prhs[], const char *fcn_name);
 MEX_IMPORT void mexLock_800(void);
 
@@ -53,6 +54,7 @@ MEX_IMPORT void mexLock_800(void);
 #define mxArrayToString mxArrayToString_800
 #define mxFree mxFree_800
 #define mexErrMsgIdAndTxt mexErrMsgIdAndTxt_800
+#define mexWarnMsgIdAndTxt mexWarnMsgIdAndTxt_800
 #define mexCallMATLAB mexCallMATLAB_800
 #define mexLock mexLock_800
 

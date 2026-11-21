@@ -3,7 +3,9 @@
  * the MATLAB engines, so that ltratio_cdf, ltratio_pdf, ltratio_icdf, ltratio_mom and ltratio_test run unchanged on
  * top of it, and ltratio.m is a self-contained wrapper.  All arguments are double arrays (logical flags as 0/1):
  *
- *   F = ltratio_mex('single', kind, x, model, c, c0, g0, stat, sopt)    the single integral; kind 1 density, 2 cdf
+ *   F = ltratio_mex('single', kind, x, model, c, c0, g0, stat, sopt)    the single integral; kind 1 density, 2 cdf; at a
+ *                     point beyond the bounds of the engine the error dfx:bound:rule or dfx:bound:path (as the MATLAB
+ *                     engine), which LTRATIO_DIST routes to the conditional integral
  *   [F, err, status, nbad, nunres, nrefine] = ltratio_mex('double', kind, x, model, c, c0, g0, stat, dopt)    dopt(14):
  *                     verified (0: one evaluation, the default; 1: the agreement of two paths and the refinements)
  *   [F, err, status, nodes, level] = ltratio_mex('contour', kind, x, model, c, c0, g0, verified)    the contour integral, a
@@ -12,7 +14,9 @@
  *                     and the level of the inner rules (1..4) per point
  *   [F, nstatus] = ltratio_mex('dist', kind, x, model, c, c0, g0, stat, method, verified)    method 0 automatic, 1 single,
  *                     2 double, 3 contour (a fixed start in models 2, 3; also the automatic choice there); verified 0
- *                     (default) one evaluation by one method, 1 the estimates, fallbacks and tail recomputation (dfl_dist)
+ *                     (default) one evaluation by one method, 1 the estimates, fallbacks and tail recomputation (dfl_dist);
+ *                     the warning ltratio:bound where the line integral refused points whose values are flagged
+ *                     (dfl_warning), the error ltratio:bound where it refused a point with method 1
  *   [q, F, iter, conv] = ltratio_mex('icdf', p, model, c, c0, g0, stat, method, tol, verified)    as in 'dist'
  *   msg = ltratio_mex('brittle', kind, model, c, c0, g0, stat, method)    the warning of a brittle regime of the
  *                     one-evaluation default ('' if none; dfl_brittle)
@@ -109,6 +113,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         dfl_single_opts o = sopts(nrhs > 8 ? prhs[8] : NULL);
         int rc = dfl_single(intarg(prhs[1], "kind"), n, mxGetPr(xa), intarg(prhs[3], "model"), scalar(prhs[4], "c"), nrhs > 5 ? scalar(prhs[5], "c0") : 0.0,
                             nrhs > 6 ? scalar(prhs[6], "g0") : 0.0, nrhs > 7 && scalar(prhs[7], "stat") != 0, &o, mxGetPr(plhs[0]), err, sizeof err);
+        /* a point that the line integral refuses (its paths would exceed the bounds of the engine): the identifiers of the
+         * MATLAB engine, dfx:bound:rule and dfx:bound:path, so that LTRATIO_DIST routes it as there */
+        if (rc == 10 + DFL_BOUND_RULE) mexErrMsgIdAndTxt("dfx:bound:rule", "%s", err);
+        if (rc == 10 + DFL_BOUND_PATH) mexErrMsgIdAndTxt("dfx:bound:path", "%s", err);
         if (rc) mexErrMsgIdAndTxt("ltratio:engine", "%s", err);
         return;
     }
@@ -152,7 +160,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         int rc = dfl_dist(intarg(prhs[1], "kind"), n, mxGetPr(xa), intarg(prhs[3], "model"), scalar(prhs[4], "c"), nrhs > 5 ? scalar(prhs[5], "c0") : 0.0,
                           nrhs > 6 ? scalar(prhs[6], "g0") : 0.0, nrhs > 7 && scalar(prhs[7], "stat") != 0, nrhs > 8 ? intarg(prhs[8], "method") : 0,
                           NULL, &dv, mxGetPr(plhs[0]), &ns, err, sizeof err);
-        if (rc) mexErrMsgIdAndTxt("ltratio:engine", "%s", err);
+        if (rc) mexErrMsgIdAndTxt(rc > 10 ? "ltratio:bound" : "ltratio:engine", "%s", err);
+        if (dfl_warning()) mexWarnMsgIdAndTxt("ltratio:bound", "%s", dfl_warning());   /* (refused points whose values are flagged) */
         if (nlhs > 1) plhs[1] = mxCreateDoubleScalar(ns);
         return;
     }
@@ -174,6 +183,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         for (int k = 0; k < n; k++) { mxGetPr(it)[k] = iter[k]; mxGetPr(cv)[k] = conv[k]; }
         free(iter); free(conv);
         if (rc) mexErrMsgIdAndTxt("ltratio:engine", "%s", err);
+        if (dfl_warning()) mexWarnMsgIdAndTxt("ltratio:bound", "%s", dfl_warning());
         if (nlhs > 1) plhs[1] = Fq; if (nlhs > 2) plhs[2] = it; if (nlhs > 3) plhs[3] = cv;
         return;
     }

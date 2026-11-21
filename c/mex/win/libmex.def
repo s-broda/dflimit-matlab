@@ -2,4 +2,5 @@ LIBRARY libmex.dll
 EXPORTS
 mexCallMATLAB_800
 mexErrMsgIdAndTxt_800
+mexWarnMsgIdAndTxt_800
 mexLock_800
