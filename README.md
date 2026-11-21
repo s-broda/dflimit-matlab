@@ -72,10 +72,13 @@ reference values of the Julia engine in `c/test/`:
 cd c
 for t in prim single gen fixed mom dbl app; do ./dfl_test_$t test/${t}_ref.txt; done
 ./dfl_test_vmath
+./dfl_test_bounds
 ```
 
 Every program ends with a line that counts the checks and the failures (`dfl_test_fixed` also reads
-`test/contour_ref.txt`, the reference values of the contour integral). The workflow "C engine" (`.github/workflows/c.yml`)
+`test/contour_ref.txt`, the reference values of the contour integral; `dfl_test_bounds` has its reference values in
+the source: the points of the repairs of 0.5.0, where the line integral exceeds the bounds of the engine or, with a
+fixed start, climbed). The workflow "C engine" (`.github/workflows/c.yml`)
 runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on a tag `v*` and by hand.
 
 The MATLAB programs: `ltratio_test` runs 262 checks in about five minutes and returns the number of failures

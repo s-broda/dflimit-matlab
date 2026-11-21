@@ -27,7 +27,7 @@ jobs:
           c++ -std=c++11 -O2 -c faddeeva/Faddeeva.cc -o Faddeeva.o
           c++ -std=c++11 -O2 -c faddeeva/faddeeva_shim.cpp -o faddeeva_shim.o
           OBJ="dfl_special.o dfl_mgf.o dfl_single.o dfl_gen.o dfl_moments.o dfl_double.o dfl_gilpelaez.o dfl_api.o dfl_threads.o tables.o Faddeeva.o faddeeva_shim.o"
-          for t in prim single gen fixed vmath mom dbl app; do cc $CFLAGS -c dfl_test_$t.c -o dfl_test_$t.o; c++ -o dfl_test_$t dfl_test_$t.o $OBJ -lm -lpthread; done
+          for t in prim single gen fixed vmath mom dbl app bounds; do cc $CFLAGS -c dfl_test_$t.c -o dfl_test_$t.o; c++ -o dfl_test_$t dfl_test_$t.o $OBJ -lm -lpthread; done
           ./dfl_test_prim test/prim_ref.txt
           ./dfl_test_single test/single_ref.txt
           ./dfl_test_gen test/gen_ref.txt
@@ -36,6 +36,7 @@ jobs:
           ./dfl_test_mom test/mom_ref.txt
           ./dfl_test_dbl test/dbl_ref.txt
           ./dfl_test_app test/app_ref.txt
+          ./dfl_test_bounds
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
       - name: build and test (Windows)
@@ -60,3 +61,5 @@ jobs:
           dfl_test_dbl.exe test\dbl_ref.txt
           cl /nologo /O2 /std:c11 /Fe:dfl_test_app.exe dfl_test_app.c %SRC%
           dfl_test_app.exe test\app_ref.txt
+          cl /nologo /O2 /std:c11 /Fe:dfl_test_bounds.exe dfl_test_bounds.c %SRC%
+          dfl_test_bounds.exe

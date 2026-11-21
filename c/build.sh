@@ -8,4 +8,4 @@ cc $CFLAGS -O3 -c dfl_gen.c -o dfl_gen.o            # -O3: the l-rule of the non
 c++ -std=c++11 -O2 -c faddeeva/Faddeeva.cc -o Faddeeva.o
 c++ -std=c++11 -O2 -c faddeeva/faddeeva_shim.cpp -o faddeeva_shim.o
 OBJ="dfl_special.o dfl_mgf.o dfl_single.o dfl_gen.o dfl_moments.o dfl_double.o dfl_gilpelaez.o dfl_api.o dfl_threads.o tables.o Faddeeva.o faddeeva_shim.o"
-for t in ${TESTS:-prim single gen fixed vmath mom dbl app}; do cc $CFLAGS -c dfl_test_$t.c -o dfl_test_$t.o; c++ -o dfl_test_$t dfl_test_$t.o $OBJ -lm -lpthread; done
+for t in ${TESTS:-prim single gen fixed vmath mom dbl app bounds}; do cc $CFLAGS -c dfl_test_$t.c -o dfl_test_$t.o; c++ -o dfl_test_$t dfl_test_$t.o $OBJ -lm -lpthread; done

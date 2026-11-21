@@ -17,6 +17,7 @@ c/dfl_test_dbl
 c/dfl_test_fixed
 c/dfl_test_app
 c/dfl_test_vmath
+c/dfl_test_bounds
 c/dfl_probe
 *.dSYM/
 
