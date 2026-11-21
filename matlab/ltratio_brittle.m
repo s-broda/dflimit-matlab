@@ -22,9 +22,13 @@ function msg = ltratio_brittle(cas,c,c0,g0,used)
 %   opts.verified = true checks each value.
 %   LTRATIO_ICDF and COEF_ICDF give it once per call.
 %
+%   LTRATIO_BRITTLE('warn',id,msg) gives the warning id with the text msg under the same rule (once per call of
+%   LTRATIO_ICDF, COEF_CDF, COEF_ICDF): the warning ltratio:bound of LTRATIO_DIST, where the line integral refused points
+%   whose values from the conditional integral are flagged.
+%
 %   See also LTRATIO_CDF, LTRATIO_METHOD.
-persistent depth seen
-if isempty(depth), depth = 0; seen = {}; end
+persistent depth seen seenid
+if isempty(depth), depth = 0; seen = {}; seenid = {}; end
 if nargin == 1
     % ltratio_brittle('begin') ... ltratio_brittle('end'): the messages in between are given once each at the end
     % (LTRATIO_ICDF, COEF_CDF, COEF_ICDF evaluate the distribution many times)
@@ -32,9 +36,17 @@ if nargin == 1
         case 'begin', depth = depth + 1;
         case 'end'
             depth = max(depth - 1, 0);
-            if depth == 0, u = unique(seen,'stable'); seen = {}; for k = 1:numel(u), warning('ltratio:brittle','%s',u{k}); end, end
+            if depth == 0
+                [u, iu] = unique(seen,'stable'); ids = seenid(iu); seen = {}; seenid = {};
+                for k = 1:numel(u), warning(ids{k},'%s',u{k}); end
+            end
     end
     msg = ''; return
+end
+if nargin == 3 && strcmp(cas,'warn')
+    msg = c0;
+    if depth > 0, seen{end+1} = msg; seenid{end+1} = c; else, warning(c,'%s',msg); end
+    return
 end
 msg = '';
 hint = '; opts.verified = true checks each value';
@@ -60,6 +72,6 @@ elseif any(strcmp(used,'double'))
     if ~isempty(reg), msg = sprintf('%s, %s: the conditional integral by one evaluation may be off by more than 1e-5%s',cas,reg,hint); end
 end
 if ~isempty(msg)
-    if depth > 0, seen{end+1} = msg; else, warning('ltratio:brittle','%s',msg); end
+    if depth > 0, seen{end+1} = msg; seenid{end+1} = 'ltratio:brittle'; else, warning('ltratio:brittle','%s',msg); end
 end
 end

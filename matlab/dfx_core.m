@@ -527,7 +527,11 @@ acc = sum(f(y) .* wt);
 end
 
 function n = nodes(n, osc, L)
-n = max(n, 16 * ceil(ceil(1.2 * osc * L) / 16));
+% the node count of an outer piece of RAYINT, at most 0.85 rad per node; a rule beyond the bound of the engine (4096 nodes,
+% GLRULE) raises the error dfx:bound:rule
+m = 1.2 * osc * L;
+if m > 4096, error('dfx:bound:rule', 'a Gauss-Legendre rule of the inner integrals needs %.3g nodes, at most 4096', m); end
+n = max(n, 16 * ceil(ceil(m) / 16));
 end
 
 function acc = rayint(f, R, l, n1, n2, p, osc)
@@ -839,6 +843,7 @@ if q > 0 && max(phase_steps(psi)) > 0.25
     end
     ts = tau + 1i * [0; wn];
     [P, s1, s2, M0] = tparts(model, c, ts, stat);
+    gauss_check(kern, q, ts, s1, s2);
     gs = zeros(numel(wn), 1);
     for j = 1:numel(wn)
         Is = inner(ts(j+1), s1(j+1), s2(j+1), M0(j+1), 1);
@@ -846,6 +851,7 @@ if q > 0 && max(phase_steps(psi)) > 0.25
     end
     val = sum(gs) / pi;
 else
+    gauss_check(kern, q, ts, s1, s2);
     gs = zeros(numel(ts), 1);
     for j = 1:numel(ts)
         Is = inner(ts(j), s1(j), s2(j), M0(j), 1);
@@ -902,6 +908,37 @@ for p = 1:np
     acc = acc + filon_panel(G((p-1)*N+1:p*N), edges(p), edges(p+1), y, N);
 end
 val = val + real(exp(-tau * y) * acc) / pi;
+end
+
+function m = gauss_nmax(kern, t, q, s1, s2)
+% The largest node count of a piece of the segment to the saddle that GAUSSEXP takes for the inner integrals of the
+% central kernels at t and q > 0 (INNER_DENSITY, INNER_CDF), before rounding; 0 where they take another path.  Its phase
+% 2 Im u0, u0 = -sd^2 q^2/(4t), grows like q^2, and RAYINT gives every piece 1.2 nodes per radian: at c = 7 in case DT
+% the largest piece has more than 4096 nodes from q ~ 660 (gauss_nmax of DFExact.jl and the C engine)
+EXPO = 60;
+if kern == 1, sd = s1; lA = 1 / (abs(s1) + 2); else, sd = s2; lA = 1 / (abs((s2 - s1) / 2) + 2); end
+at = abs(t); e = exp(-1i * angle(t) / 2);
+m = 0;
+if q <= 0 || ray_ok(sd, e, q, at) || real(sd * e) >= 0, return; end
+x0 = -sd * q * q / (2 * t); u0 = -sd * sd * q * q / (4 * t);
+ru = real(u0); if ru > EXPO, R = 1 - sqrt(1 - EXPO / ru); else, R = 1; end
+l = min(lA / abs(x0), 1 / (2 * abs(u0) + 1)); osc = 2 * abs(imag(u0));
+a = min(R, 8 * l);
+while a < R
+    b = min(R, 4 * a); m = max(m, 1.2 * osc * (b - a)); a = b;
+end
+end
+
+function gauss_check(kern, q, ts, s1, s2)
+% the error dfx:bound:rule before the smooth part of OUTER is evaluated when the inner integrals at one of its nodes ts
+% need a rule beyond 4096 nodes (GAUSS_NMAX; only for q > 0, where GAUSSEXP serves)
+if ~(q > 0), return; end
+m = 0;
+for j = 1:numel(ts), m = max(m, gauss_nmax(kern, ts(j), q, s1(j), s2(j))); end
+if m > 4096
+    error('dfx:bound:rule', ['the segment to the saddle of the Gaussian factor of the inner integrals, whose phase grows ' ...
+          'like x^2, needs %.3g nodes, at most 4096'], m);
+end
 end
 
 function v = uniform(model, c, tau, stat, inner, weight, hw)
@@ -1195,6 +1232,11 @@ dega = 80; fa = ella / 2; if ka == 0, dega = 45; fa = ella; end
 degb = 80; fb = ellb / 2; if kb == 0, degb = 45; fb = ellb; end
 [ua, la] = descent(-2 * tj * a - sd * R.dX(a), alpha, 1, L, dep, sg, EXPO, dega);
 [ub, lb] = descent(-2 * tj * b - sd * R.dX(b), alpha, -1, L, dep, sg, EXPO, degb);
+% a descent piece that climbs above the larger end of the segment is cut back (NOCLIMB): its terms would cancel against
+% the connection's
+if isnan(real(Ea)) || isnan(real(Eb)), Etop = NaN; else, Etop = max(real(Ea), real(Eb)) + 4; end
+la = noclimb(@(z) Ez(z * ua, a), la, Etop, L);
+lb = noclimb(@(z) Ez(z * ub, b), lb, Etop, L);
 pa_ = a + la * ua; pb_ = b + lb * ub;
 % the three pieces: the integrand at the nodes (from the offsets along the two descent pieces,
 % so that X is exact near the ends) and the partition
@@ -1229,6 +1271,20 @@ end
 if wr, vr = sum(fv .* cw); end
 end
 
+function l = noclimb(Ef, l, Etop, L)
+% The length l of a descent piece of SEGINT, halved until the real part of its exponent Ef (at 8 points along it) is at
+% most Etop, the larger exponent of the two ends of the segment plus 4; unchanged where it is (a descent piece normally
+% falls).  Where the exponent rises into the segment at an end, the steepest descent points out of the segment and
+% DESCENT clamps it to 80 degrees from the segment, where e^(-t v^2) grows like e^(Re(t) Im(v)^2); in the Julia and C
+% engines the noncentral kernel of a fixed start (which these programs do not have) climbed so to e^213 and cancelled
+% against the connection (F off by 6e74 in case DK at c = 0, c0 = -0.01, g0 = 1, x = 1.5; noclimb of DFExact.jl)
+while l > 1e-12 * L
+    E = real(Ef(l * (1:8)' / 8));
+    if any(isnan(E)) || ~(max(E) > Etop), break; end
+    l = l / 2;
+end
+end
+
 function y = Fnear(v, a, b, Fz)
 % the integrand at v, from the nearer end of [a, b]
 nb = abs(v - b) < abs(v - a); y = complex(zeros(size(v)));
@@ -1245,13 +1301,26 @@ if nargin > 0, T = varargin{1}; end
 v = T;
 end
 
+function n = NODEMAX()
+% The most nodes on one path of the general kernel's inner integrals (PIECES_NODES, PHASE_NODES; NODEMAX of DFExact.jl,
+% DFL_NODEMAX of the C engine).  The paths follow the phase of the exponent -t v^2 - s_d X(v) with about 1.2 nodes per
+% radian, and on a long segment between the support edges (a root b of X far out, as with c0 < 0 near zero at x > 0,
+% where b ~ x/|c0|) that phase grows like Im(t) b^2: about 6e11 nodes at c0 = -1e-4, x = 1.  Beyond NODEMAX the path is
+% refused (the error dfx:bound:path) before anything is evaluated on it.
+n = 2e6;
+end
+
+function path_refuse(n)
+error('dfx:bound:path', 'a path of the inner integrals of the general kernel needs %.3g nodes, at most 2000000', n);
+end
+
 function [y, wt] = pieces_nodes(Ef, L, first, p, nmin)
 % nodes and weights for int_0^L: the first piece [0, first] (shortened, by halving, until the
 % exponent falls by at most 4 and its phase changes by at most 40 rad across it) with nmin
 % nodes and the substitution p, then pieces growing by the factor 4, with the node counts set
 % by the change of the phase of the exponent across each piece (at most 0.85 rad per node, in
 % sub-pieces of at most 160 nodes), until the exponent is below -EXPO
-EXPO = 60; T = tune(); NGROW = T(1);
+EXPO = 60; T = tune(); NGROW = T(1); NF = nodefac();
 first = min(first, L);
 for k = 1:60
     E = Ef(first * (0:8)' / 8);
@@ -1259,14 +1328,18 @@ for k = 1:60
     first = first / 2;
 end
 [y, wt] = glnodes(0, first, nmin, p);
+tot = nmin * NF;                                          % the nodes of the path so far (at most NODEMAX)
 a = first;
 while a < L
     bn = min(L, 4 * a);
     dd = a + (bn - a) * (0:8)' / 8; E = Ef(dd);
     if all(real(E) < -EXPO), break; end
     dph = sum(abs(diff(E)));                              % the change of the exponent (phase and modulus)
+    if tot + (1.2 * dph + 16) * NF > NODEMAX, path_refuse(tot + (1.2 * dph + 16) * NF); end
     n = max(NGROW, 16 * ceil((1.2 * dph + 16) / 16));
     m = ceil(n / 160); n = 16 * ceil(n / m / 16);                % at most 160 nodes per sub-piece
+    tot = tot + m * n * NF;
+    if tot > NODEMAX, path_refuse(tot); end
     for k = 1:m
         [y2, w2] = glnodes(a + (bn - a) * (k - 1) / m, a + (bn - a) * k / m, n, 1);
         y = [y; y2]; wt = [wt; w2]; %#ok<AGROW>
@@ -1283,16 +1356,19 @@ function [y, wt] = phase_nodes(Ef, E1, E2, EXPO)
 % point of the phase inside is seen), skipping sub-pieces on which the exponent is below
 % max(E1, E2) - EXPO (up to 2: the descent pieces end where the exponent has fallen by EXPO),
 % E1 and E2 the exponents at the two ends of the segment
-T = tune(); NLEV = T(2); NCON = T(3);
+T = tune(); NLEV = T(2); NCON = T(3); NF = nodefac();
 g = 2 .^ (-NLEV:-1); ss = [0 g 1 - g(end-1:-1:1) 1]'; ns = numel(ss) - 1;
 Emax = max(real(E1), real(E2)) - EXPO + 2;
-y = zeros(0, 1); wt = zeros(0, 1);
+y = zeros(0, 1); wt = zeros(0, 1); tot = 0;
 for k = 1:ns
     E = Ef(ss(k) + (ss(k+1) - ss(k)) * (0:8)' / 8);
     if max(real(E)) < Emax, continue; end
     dph = sum(abs(diff(E)));
+    if tot + (1.2 * dph + 16) * NF > NODEMAX, path_refuse(tot + (1.2 * dph + 16) * NF); end
     n = max(NCON, 8 * ceil((1.2 * dph + 16) / 8));          % (+16: a stationary point of the phase inside)
     m = ceil(n / 160); n = 8 * ceil(n / m / 8);
+    tot = tot + m * n * NF;
+    if tot > NODEMAX, path_refuse(tot); end
     for i = 1:m
         [y2, w2] = glnodes(ss(k) + (ss(k+1) - ss(k)) * (i - 1) / m, ss(k) + (ss(k+1) - ss(k)) * i / m, n, 1);
         y = [y; y2]; wt = [wt; w2]; %#ok<AGROW>
@@ -1372,6 +1448,13 @@ end
 psi(m) = imag(z2(m));
 end
 
+function j = lastfirst(n)
+% the order of the nodes of OUTER_GEN: the last first (the paths of the inner integrals grow with Im t, so that a point
+% whose paths exceed the bounds of the engine raises the error at its last node, before the other nodes are evaluated;
+% tmap_last! of DFExact.jl), then the others in order; the values do not depend on the order
+j = [n, 1:n-1]; if n == 0, j = []; end
+end
+
 function val = outer_gen(model, c, q, c0, R, tau, inner, weight, o, stat)
 % the outer integral for the general kernel: the smooth part as in OUTER, and one Filon part
 % per breakpoint, with its frequency y_k = b_k^2
@@ -1410,14 +1493,14 @@ if max(phase_steps(psi)) > 0.25
     ts = tau + 1i * [0; wn];
     [P, s1, s2, M0] = tparts(model, c, ts, stat);
     gs = zeros(numel(wn), 1);
-    for j = 1:numel(wn)
+    for j = lastfirst(numel(wn))
         Is = inner(ts(j+1), s1(j+1), s2(j+1), M0(j+1), 1);
         gs(j) = real(P(j+1) * Is * weight(ts(j+1))) * wt(j);
     end
     val = sum(gs) / pi;
 else
     gs = zeros(numel(ts), 1);
-    for j = 1:numel(ts)
+    for j = lastfirst(numel(ts))
         Is = inner(ts(j), s1(j), s2(j), M0(j), 1);
         gs(j) = real(P(j) * Is * weight(ts(j))) * cde * cosh(us(j));
     end
@@ -1463,7 +1546,7 @@ for k = 1:R.ne
     te = tau + 1i * [0; wn];
     [P, s1, s2, M0] = tparts(model, c, te, stat);
     G = complex(zeros(numel(wn), 1));
-    for j = 1:numel(wn)
+    for j = lastfirst(numel(wn))
         t = te(j+1);
         [~, Ie] = inner(t, s1(j+1), s2(j+1), M0(j+1), 10 + k);
         G(j) = P(j+1) * Ie(k) * weight(t) * exp(t * y);
