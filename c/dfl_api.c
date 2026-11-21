@@ -55,8 +55,10 @@ static int single_point(int kind, double x, int model, double c, double c0, doub
  * one: (a) c0 < 0 near zero with x > 0, where the root b = (x + (x^2 + 2|c0|)^(1/2))/(2|c0|) ~ x/|c0| of
  * X(v) = 1/2 + x v + c0 v^2 lies far out and the paths of the general kernel's inner integrals follow the phase of e^{-t v^2}
  * up to it: more than DFL_NODEMAX nodes on one path at c0 = -1e-4 from x = 0.05, at c0 = -1e-3 at x = 1.5 (at x = 0.5 too in
- * case SK and at c = 2), at c0 = -1e-2 in case SK for -0.4 <= c < 0 and at c = 2 in cases DK, DU, and not at c0 = -0.1;
- * the size is set by c0 and x much more than by c, the case or the start, and c0 > 0 and x <= 0 are not affected; (b) above
+ * case SK and at c = 2), at c0 = -1e-2 in case SK for -0.4 <= c < 0 and at c = 2 in cases DK, DU, and not at c0 = -0.1
+ * (a scan of c from -60 to 2 and x up to 1.5; far above the unit root c0 = -0.1 is affected too: case DK at c = 5,
+ * x = 14.17); the size is set by c0 and x much more than by c, the case or the start, and c0 > 0 and x <= 0 are not
+ * affected; (b) above
  * the unit root at large x, where the segment to the saddle of the central kernel's Gaussian factor needs a rule of more
  * than DFL_RULEMAX nodes: at c = 7 from x ~ 750 (case DK), 780 (DU), 660 (DT), at c = 10 from 815, 715, 650, not up to
  * x = 5000 for c <= 5. */
