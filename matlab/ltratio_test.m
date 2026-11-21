@@ -355,6 +355,23 @@ check('region of the parabola x = -1.94087, c=-7: the t-ratio (line integral)', 
       abs(ltratio_region(struct('type','parabola','x',-1.94087),'DK',-7) - ltratio_cdf(-1.94087,'DK',-7,S)),1e-11);
 check('power envelope DK c=-7 vs Julia',abs(power_envelope(-7,'DK') - 0.49940198260314117),1e-10);
 if ~quick, check('power envelope DG c=-13.5 vs Julia',abs(power_envelope(-13.5,'DG') - 0.51441347319065545),1e-10); end
+% the linear form where the inversion of Gil-Pelaez is not trusted (small |a|, c > 0): the conditional integrals (the
+% region in case DK, the conditional integral given R = U + 1/2 in case DG); at a = 0 the closed form P(U <= b) =
+% erf(sqrt(kappa (b + 1/2))), kappa = 2c/(e^(2c) - 1), 0 below the support
+w = 0;
+for c = [-5 0 2]
+    if c == 0, kap = 1; else, kap = 2*c/expm1(2*c); end
+    b = -0.5 + [-0.1 1e-6 1e-3 0.05 0.5 2]/kap;
+    w = max(w,max(abs(ltratio_lincdf(b,0,'DK',c) - erf(sqrt(max(kap*(b + 0.5),0))))));
+end
+check('linear form a = 0, case DK, c in {-5, 0, 2}: the closed form',w,1e-13);
+check('linear form a = 0, case DK: 0 below the support',ltratio_lincdf(-0.6,0,'DK',-5),0);
+check('linear form DG a = 0.3, c = -5, b = -0.51 vs Julia (the conditional integral given R)',abs(ltratio_lincdf(-0.51,0.3,'DG',-5) - 0.291315235195),1e-11);
+P = ltratio_lincdf(-0.7:0.1:1,1e-3,'DG',2);
+check('linear form DG a = 1e-3, c = 2: in [0, 1] and nondecreasing',double(any(P < 0 | P > 1) || any(diff(P) < 0)),0);
+if ~quick, check('power envelope DK c = -0.01 (the conditional integral) vs Julia',abs(power_envelope(-0.01,'DK') - 0.050249919491),1e-10); end
+e = 0; try, ltratio_lincdf(0,0,'DK',-600); catch err, e = contains(err.message,'at least -550'); end
+check('linear form: c = -600 rejected',double(~e),0);
 
 fprintf('\n=== 11. the contour integral (a fixed start in cases DU, DT) ===\n');
 % the reference values of c/test/contour_ref.txt (DFExact.tr_contour of the Julia engine; the same file checks the C

@@ -2,7 +2,9 @@
  * julia/DFExact.jl (test/app_ref.txt, written by test/app_ref.jl): F and f of the ADFmax statistic to 1e-10, the probability
  * of a region to 1e-10, the distribution function of U - aV and of V and the power envelope to 1e-10 (all the points of a
  * line in one call, on the threads over the points, and the first point alone, on the threads within the point; the two
- * must agree exactly), and the limits of the distribution function at -Inf, Inf and NaN */
+ * must agree exactly), and the limits of the distribution function at -Inf, Inf and NaN; the linear form also where the
+ * inversion of Gil-Pelaez is not trusted (small |a|, c > 0: the conditional integrals) and the errors at the ends of its range
+ * (c below -550, case DG at c = 6) */
 #include "dflimit.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +52,14 @@ int main(int argc, char **argv)
         } else { printf("unknown tag %s\n", tag); return 1; }
         tt += dfl_wtime() - t0; n++; if (d > w) w = d;
     }
+    fclose(f);
+    /* the errors at the ends of the range of the linear form */
+    { double b = -0.3, P; int rc;
+      rc = dfl_lincdf(1, &b, 0.0, 1, -600, DFL_CBAR_GLS, NULL, &P, err, sizeof err);
+      if (!rc || !strstr(err, "c must be at least -550")) { fails++; printf("FAIL lincdf at c = -600: rc %d, %s\n", rc, err); }
+      rc = dfl_lincdf(1, &b, 0.0, 4, 6, DFL_CBAR_GLS, NULL, &P, err, sizeof err);
+      if (!rc || !strstr(err, "case DG is available for c up to about 3.5")) { fails++; printf("FAIL lincdf case DG at c = 6: rc %d, %s\n", rc, err); }
+      n += 2; }
     printf("%d points, %d failed, worst difference %.1e, %.0f ms per point (%d threads)\n", n, fails, w, 1e3 * tt / n, dfl_nworkers());
     return fails ? 1 : 0;
 }

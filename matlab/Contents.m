@@ -112,8 +112,12 @@
 %   tr_region     - its engine (the conditional integral with the boundary
 %                   a(V) = 1/2 + g(V))
 %   ltratio_lincdf - the distribution of the linear form U - aV, or of V,
-%                   case DK or the GLS trend case DG (inversion formula)
+%                   case DK or the GLS trend case DG (inversion formula;
+%                   for small |a| and c > 0 a conditional integral)
 %   tr_gilpelaez  - its engine (Gil-Pelaez)
+%   tr_linexact   - its route where the inversion is not trusted: the region
+%                   {U <= aV + b} (case DK), tr_lincond (case DG)
+%   tr_lincond    - the conditional integral given R = U + 1/2
 %   power_envelope - the asymptotic power envelope of Elliott, Rothenberg and
 %                   Stock (1996), case DK (= DU) or DG
 %   ltratio_bisect - bisection (as ltratio_bisect of julia/DFExact.jl)

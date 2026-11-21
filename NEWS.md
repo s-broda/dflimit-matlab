@@ -2,7 +2,7 @@
 
 ## 0.5.0
 
-Three errors are repaired, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB
+Four errors are repaired, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB
 programs, as in DFLimit.jl 0.5.0. Values outside the regions named below are unchanged.
 
 **Large x above the unit root.** In the bulk of the distribution at c = 7 and beyond (x in the hundreds) the inner
@@ -45,6 +45,33 @@ to 4e-9 (the density of case SK at c = c0 = -1e-3, x = 0.05, which is off by 1.2
 `dfl_test_bounds` checks the repaired points. The MEX file gives the warning of `dfl_warning` and passes the refusals
 of the line integral to the MATLAB programs as `dfx:bound:rule` and `dfx:bound:path`, so that `ltratio_dist` routes
 them as it does those of the MATLAB engine.
+
+**The linear form for small |a|.** `ltratio_lincdf` (`dfl_lincdf`) inverted the characteristic function of U - aV by
+the formula of Gil-Pelaez on a grid that ends at u = 4000. At a = 0 (the law of U, whose density is infinite at the edge
+b = -1/2 of its support) the transform decays only like u^(-1/2), and the values were off by up to 7e-2 within 1e-3 of
+the edge, 1e-2 within 1e-2 of it and 1e-4 in the bulk, in cases DK and DG alike, as low as -1.5e-2 below the support
+(where the value is 0) and above 1 by up to 5e-5 (2380 of 12541 values of a map over a, b and c lay outside [0, 1]).
+The error stays at that size for |a| up to about 3e-3, falls to 1e-3 in case DK (4e-5 in case DG) at |a| = 0.3 and to
+3e-8 at |a| = 1, and is larger where U and V are concentrated (1.3e-3 at c = -50 for small |a|; at c = -200 and -500
+even for |a| of 3 to 10) and where U - aV is wide (up to 1.2e-2 in case DK at c = 5). P(V <= b) (a = NaN) was off by
+8e-8 at c = -50, 4e-2 at c = -200, 8e-2 at c = -500 and 1.2e-5 at c = 5. The C engine and the MATLAB programs agreed
+with DFLimit.jl to 1e-14 in these errors. Where the transform has not fallen below 5e-9 on the last 101 points of the
+grid, or c > 0, the value now comes from a conditional integral: in case DK that of the region {U <= aV + b}
+(`dfl_region`, `tr_region`), in case DG the conditional integral given R = U + 1/2, whose law is a gamma law of shape 1/2
+under every tilt in V (`lc_x` in `c/dfl_gilpelaez.c`, `tr_lincond`), with outer panels that are halved where 24 and 12
+Gauss-Legendre points disagree: to about 1e-10, within [0, 1] and 0 below the support (against the closed form at a = 0
+within 3e-15, against a converged inversion within 3e-13). P(V <= b) takes a longer grid for c <= -50 and a finer one
+for c > 2 (`dfl_vgrid`). `power_envelope` near c = 0, where its weight a is small, takes the conditional integral with
+a bisection in x = b + 1/2 (in case DG it fell below alpha there; now alpha + O(c^2), 0.0500000034 at c = -1e-3; at
+c = -1 0.0531924225 for 0.0531924279). `ltratio_lincdf` requires c >= -550, case DG c up to about 3.5 at cbar = -13.5
+(less for cbar nearer 0) and a = NaN c up to about 7, with an error beyond; b = -Inf, Inf give 0, 1 in the MATLAB
+programs too. `ltratio_region` with v0 > 0 changes with P(V < v0) at c <= -50 and c > 2. In the C engine and the
+MATLAB programs the values agree with DFLimit.jl within 6e-14 (`dfl_test_app`, which now includes such points, and the
+MATLAB programs on the same points within 2e-14). Of 6849 values of the C engine across its functions 6764 are
+unchanged bit for bit; the 85 others are values of the linear form and of the envelope, of which 84 are closer to a
+reference (the closed form at a = 0, an inversion on 1.2e6 nodes up to u = 1e5 elsewhere) than before, within 3e-13
+of it, and one, 1 - 2.2e-14 before, moves by 1.5e-14. The MATLAB programs other than these four are not touched, and
+`ltratio_test` (now 268 checks) passes, also on the MEX file.
 
 ## 0.4.1
 

@@ -6,7 +6,7 @@ DFLimit.jl, checked against its values by the tests in `c/test/`).  It needs not
 - **Self-contained**: `ltratio.m` offers the functions of the MATLAB programs in `matlab/` with the same arguments.
 - **Under the MATLAB programs**: `dfx_core.m`, `tr_limdist.m`, `tr_contour.m` and `tr_limmom.m` have the names and
   signatures of the engines in `matlab/`; with this folder ahead of `matlab/` on the path, `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`,
-  `ltratio_mom`, `ltratio_test` and the paper's replication script `ltratio_paper` (in the paper's replication package) run unchanged on the C engine (`ltratio_test` passes all 262
+  `ltratio_mom`, `ltratio_test` and the paper's replication script `ltratio_paper` (in the paper's replication package) run unchanged on the C engine (`ltratio_test` passes all 268
   checks in about 30 s instead of about five minutes, when started from a folder other than `matlab/`: the current folder
   comes first on MATLAB's path).  In the repository this folder also has `tr_adfmax.m`, `tr_region.m` and
   `tr_gilpelaez.m`, the replacements of the engines of the applications in `matlab/`: `adfmax_cdf`, `adfmax_pdf`,
@@ -15,7 +15,8 @@ DFLimit.jl, checked against its values by the tests in `c/test/`).  It needs not
   form U - aV) and `power_envelope` (the envelope of Elliott, Rothenberg and Stock) then run on the C engine
   (`dfl_adfmax`, `dfl_region` in `c/dfl_double.c`, `dfl_lincdf`, `dfl_power_envelope` in `c/dfl_gilpelaez.c`; the
   replacement `tr_gilpelaez.m` computes the characteristic function anew at every call of the bisection of
-  `power_envelope`, which `ltratio('envelope', ...)` does not).
+  `power_envelope`, which `ltratio('envelope', ...)` does not; near c = 0, where the envelope's critical value comes
+  from the conditional integral, `power_envelope` calls `ltratio_mex('envelope', ...)` itself).
 
 ```matlab
 addpath ltratio-macos                                 % the unpacked zip (see below)
