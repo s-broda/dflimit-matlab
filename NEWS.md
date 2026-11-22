@@ -48,6 +48,43 @@ the two MATLAB engines; 'classical'; 'general') and a design in place of the cas
 against 1113 values of the Julia engine (within 1.3e-11 in distribution functions and densities, 2.2e-11 in
 quantiles); the values of the classical programs are unchanged where they compute.
 
+**Repairs of the general engine (November 2026), in C and in MATLAB, as in DFLimit.jl 6e3109e to f824375.** The LM
+statistic's edge t_* of its transform is estimated from the quadratic form of its own denominator (the estimate of the
+orthogonal projection was up to 2.3 times too large, and above the unit root the LM functions failed, Perron's model A at
+c = 3 to 5); above the unit root the LM statistic takes the path of its denominator alone, a hyperbola, in place of the
+vertical line of the t-ratio (P(V <= y) was off by 6e-3 at c = 5 with a linear trend), and it refuses c > 10, where the
+contours disagree. The point-optimal statistic refuses where the grid of its inversion does not resolve the transform
+(far above the unit root: with a linear trend and cbar = -13.5 from c = 3.7, where the distribution function had come out
+between -0.1 and 3.4 at c = 5; the error names the grid size that serves) and at |q| beyond 0.15/h (1000 with the default
+grid); 0, 1 and NaN at -Inf, Inf and NaN. The U-shapes of the zero and the stationary start stop with an error beyond 1e6
+nodes, as those of the fixed start did (the design (1 + r, 1{r < 0.4}), whose positive root runs off on the vertical
+line, took gigabytes within seconds; it is now refused at every c). The checked computation (`verified`) falls back to the
+variant at the default angle after any error of the steeper variant, except an exhausted memory. Values at c <= 0
+unchanged (bit for bit in the reference values of both tests).
+
+**Defects of the C interface (the R and Python wrappers).** `dfl_warning()` and `dfl_det_warning()` are cleared at the
+start of every `dfl_engine_*` function and of `dfl_design_from_matrix` (a warning of an earlier call was read again), and
+the new public functions `dfl_warning_clear()` and `dfl_det_warning_clear()` clear each; the router's quantile search
+kept its hold on the general engine's warnings when it refused p outside (0, 1), after which that thread's warnings were
+never cleared again (every return releases it now). ADFmax with a fixed start through the router computed the zero start of the classical ADFmax:
+it takes the general engine; ADFmax with GLS detrending or c0 != 0 (dropped without notice) and a case code with gls
+other than NaN are refused. The quantile functions of the general engine (`dfl_det_lin_quantile`,
+`dfl_det_adfmax_quantile`, `dfl_det_pt_quantile`) and the levels of the power functions refuse p outside (0, 1) instead
+of growing the bracket (`dfl_det_lin_quantile` at p = 1.5 had exhausted the memory). The law of V is 0 at b <= 0, the
+envelopes of the general engine are NaN at c = NaN, as the classical envelope, and MSB is NaN at NaN.
+
+**The MATLAB router.** The regions and the linear form with no deterministic terms and a fixed start take the general
+engine (the classical programs have the zero start only, and the start was dropped: 0.285 for 0.975), ADFmax with a
+fixed start too; `opts.start` or `opts.gls` with a case string, a zero start named with `g0 ~= 0`, `opts.g0` with the
+cases of the linear form, the regions and the envelope, and `opts.c0` where there is no local null value are errors
+(they were dropped without notice). With the folder of the MEX file ahead of `matlab/` on the path, the user-level
+routines hand their calls with a design, or with a case string and `opts.engine`, without options of the MATLAB
+engines to the C router (`ltratio_croute`): its rule and both engines in C; before, the classical engine was taken
+throughout and the designs went to the general engine in MATLAB (a case string without `opts.engine` keeps the
+classical programs, as `ltratio.m` does).
+The MEX file's `route` operation has ADFmax, the linear form, the envelope and the regions, and gives the warning
+`ltratio:brittle` where it takes the classical engine in a brittle regime.
+
 ## 0.5.0
 
 Four errors are repaired, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB
