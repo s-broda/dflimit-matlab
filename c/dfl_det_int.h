@@ -118,6 +118,7 @@ typedef struct {
     double cbar;                     /* NaN: least squares */
     unsigned long long key;          /* the hash of the design and cbar */
     int kind;                        /* 0 prep, 1 prep_gls, 2 prep_pt, 3 prep_lm */
+    int refs;                        /* references (the cache, the models; det_prep_make gives one) */
 } det_prep;
 void det_prep_free(det_prep *P);
 /* the prepared design of D (cbar NaN) or GLS-detrended at cbar < 0 */
@@ -127,6 +128,7 @@ int det_prep_lm(const dfl_design *D, det_prep **out, double *a1norm, char *err, 
 /* the cached prepared design (prep_cached); release with det_prep_release */
 det_prep *det_prep_cached(const dfl_design *D, double cbar, char *err, size_t errlen);
 unsigned long long det_design_key(const dfl_design *D, double cbar);
+void det_prep_release(det_prep *P);
 /* the design's values at r */
 void det_dval(const dfl_design *D, double r, double *out);
 /* Gram matrix of the columns of the piecewise polynomials F[j] ((deg+1) x n each, np blocks) on [0, 1] */
@@ -201,6 +203,7 @@ typedef struct det_model_ref { det_prep *P; det_model Mo; int refs; } det_model_
 /* the cached outer path of the design with its start at c (cpath_cached): phi NaN and hfac 1 for the default */
 det_path *det_path_cached(const dfl_design *D, double cbar, int start, double g0, double c, double phi, double hfac, char *err, size_t errlen);
 void det_path_release(det_path *CP);
+det_path *det_path_prep(det_prep *P, int start, double g0, double c, char *err, size_t errlen);
 /* a line refined for |x| <= max |xs| and the constants amax of the kernels (line_refined); the path itself (with a new
  * reference) where nothing is refined */
 det_path *det_line_refined(det_path *CP, int nx, const double *xs, int na, const double *amax, char *err, size_t errlen);

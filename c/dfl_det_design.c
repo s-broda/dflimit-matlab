@@ -644,7 +644,7 @@ int det_prep_make(const dfl_design *D, double cbar, det_prep **out, char *err, s
     for (int j = 0; j < D->np; j++) if (!(D->br[j + 1] > D->br[j])) { snprintf(err, errlen, "the break points of the design must increase"); return 1; }
     if (D->br[0] != 0 || D->br[D->np] != 1) { snprintf(err, errlen, "the break points of the design must run from 0 to 1"); return 1; }
     int rc = isnan(cbar) ? prep_ols(D, out, err, errlen) : prep_gls(D, cbar, out, err, errlen);
-    if (!rc) (*out)->key = det_design_key(D, cbar);
+    if (!rc) { (*out)->key = det_design_key(D, cbar); (*out)->refs = 1; }
     return rc;
 }
 

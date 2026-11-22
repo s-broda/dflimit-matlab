@@ -180,6 +180,78 @@ int main(int argc, char **argv)
             det_model_free(&Mo); det_prep_free(P);
             continue;
         }
+        if (!strcmp(tag, "path")) {
+            int id = inum(&p); double cb = num(&p); int st = inum(&p); double g0 = num(&p), c = num(&p);
+            double tau = num(&p), ts = num(&p), a = num(&p), b = num(&p), h = num(&p), phi = num(&p); int K = inum(&p); double mnp = num(&p), mxn = num(&p); int nk = inum(&p);
+            det_path *CP = det_path_cached(&DS[id], cb, st, g0, c, NAN, 1.0, err, sizeof err);
+            snprintf(what, sizeof what, "design %d cbar %g start %d g0 %g c %g", id, cb, st, g0, c);
+            if (!CP) { grp("path")->fail++; printf("FAIL path %s: %s\n", what, err); continue; }
+            int r = CP->r;
+            double vals[64 * 1024]; int nv = 0;
+            for (int j = 0; j < nk; j++) { int k = inum(&p); vals[nv++] = k; vals[nv++] = num(&p); vals[nv++] = num(&p); for (int i = 0; i < 2 * r; i++) vals[nv++] = num(&p); }
+            double tol = num(&p);
+            char w2[300];
+            snprintf(w2, sizeof w2, "%s: K (%d vs %d), phi (%g vs %g)", what, CP->K, K, CP->phi, phi);
+            check("path", CP->K, K, 0, w2); check("path", CP->phi, phi, 1e-14, w2);
+            snprintf(w2, sizeof w2, "%s: tau, t_*, a, b, h", what);
+            check("path", CP->tau, tau, tol * fmax(1, tau), w2); check("path", CP->tstar, ts, tol * fmax(1, ts), w2);
+            check("path", CP->a, a, tol * fmax(1, fabs(a)), w2); check("path", CP->b, b, tol * fmax(1, fabs(b)), w2);
+            if (!(isnan(h) && isnan(CP->h))) check("path", CP->h, h, tol * fmax(1, fabs(h)), w2);
+            snprintf(w2, sizeof w2, "%s: minpos, maxneg", what);
+            check("path", CP->minpos, mnp, tol * fmax(1, fabs(mnp)), w2); if (isfinite(mxn)) check("path", CP->maxneg, mxn, tol * fmax(1, fabs(mxn)), w2);
+            if (CP->K == K) for (int j = 0, q = 0; j < nk; j++) {
+                int k = (int) vals[q++]; double lr = vals[q++], li = vals[q++];
+                snprintf(w2, sizeof w2, "%s: log P and roots at node %d", what, k);
+                double sc = fmax(1, hypot(lr, li));
+                check("path", cabs(csub(CP->lP[k], CPX(lr, li))), 0, tol * sc, w2);
+                for (int i = 0; i < r; i++) { double rr = vals[q++], ri = vals[q++]; check("path", cabs(csub(CP->R[(size_t) k * r + i], CPX(rr, ri))), 0, tol * fmax(1, hypot(rr, ri)), w2); }
+            }
+            det_path_release(CP);
+            continue;
+        }
+        if (!strcmp(tag, "val")) {
+            char fn[32]; int k2; sscanf(p, "%31s%n", fn, &k2); p += k2;
+            int id = inum(&p); double cb = num(&p); int st = inum(&p); double g0 = num(&p), c = num(&p), c0 = num(&p); int ver = inum(&p); double par = num(&p); int n = inum(&p);
+            double *x = malloc(n * sizeof(double)), *want = malloc((n + 8) * sizeof(double)), *got = malloc((n + 8) * sizeof(double));
+            for (int i = 0; i < n; i++) x[i] = num(&p);
+            int nw = n;
+            for (int i = 0; i < nw; i++) want[i] = num(&p);
+            double tol = num(&p);
+            int brittle = strstr(p, "brittle") != NULL;
+            dfl_det_opts o; dfl_det_defaults(&o); o.c0 = c0; o.start = st; o.gamma0 = g0; o.gls = cb; o.verified = ver;
+            double t1 = dfl_wtime(); int rc = 1;
+            if (!strcmp(fn, "cdf")) rc = dfl_det_dist(2, &DS[id], n, x, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "pdf")) rc = dfl_det_dist(1, &DS[id], n, x, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "quant")) rc = dfl_det_quantile(&DS[id], n, x, c, par, 1e-9, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "coefcdf")) rc = dfl_det_coef(2, &DS[id], n, x, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "coefpdf")) rc = dfl_det_coef(1, &DS[id], n, x, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "coefq")) rc = dfl_det_coef_quantile(&DS[id], n, x, c, par, 1e-9, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "coefgp")) rc = dfl_det_coef_cdf_gp(&DS[id], n, x, c, &o, 60000, 4000, got, err, sizeof err);
+            else if (!strcmp(fn, "mom")) rc = dfl_det_moments(&DS[id], c, n, &o, got, NULL, err, sizeof err);
+            else if (!strcmp(fn, "lpow")) { o.c0 = 0; rc = dfl_det_local_power(&DS[id], n, x, 0.05, (int) par, &o, got, err, sizeof err); }
+            else if (!strcmp(fn, "lincdf")) rc = dfl_det_lin(2, &DS[id], n, x, par, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "linpdf")) rc = dfl_det_lin(1, &DS[id], n, x, par, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "linq")) rc = dfl_det_lin_quantile(&DS[id], x[0], par, c, 0.0, 1e-10, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "adfcdf")) rc = dfl_det_adfmax(2, &DS[id], n, x, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "adfpdf")) rc = dfl_det_adfmax(1, &DS[id], n, x, c, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "adfq")) rc = dfl_det_adfmax_quantile(&DS[id], x[0], c, par, 1e-10, &o, got, err, sizeof err);
+            else if (!strcmp(fn, "env")) rc = dfl_det_power_envelope(&DS[id], n, x, par, got, err, sizeof err);
+            else { printf("unknown value function %s\n", fn); }
+            double dt = dfl_wtime() - t1;
+            char gname[48]; snprintf(gname, sizeof gname, "%s%s", fn, brittle ? "*" : "");
+            snprintf(what, sizeof what, "%s design %d cbar %g start %d g0 %g c %g c0 %g%s", fn, id, cb, st, g0, c, c0, ver ? " verified" : "");
+            if (rc) { grp(gname)->fail++; grp(gname)->n++; printf("FAIL %s: %s\n", what, err); }
+            else for (int i = 0; i < nw; i++) {
+                char w2[400]; snprintf(w2, sizeof w2, "%s at %g", what, x[i < n ? i : 0]);
+                double tl = tol;
+                if (!strcmp(fn, "mom")) tl = tol * fmax(1, fabs(want[i]));
+                check(gname, got[i], want[i], tl, w2);
+            }
+            if (VERB) printf("     %.1f ms %s%s%s\n", 1e3 * dt, what, dfl_det_warning() ? " warning: " : "", dfl_det_warning() ? dfl_det_warning() : "");
+            free(x); free(want); free(got);
+            dfl_det_empty_caches();
+            continue;
+        }
     }
     fclose(f);
     int fails = 0, n = 0;
