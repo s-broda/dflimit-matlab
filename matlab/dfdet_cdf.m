@@ -28,6 +28,9 @@ function F = dfdet_cdf(x,D,c,opts)
 %   where the computation is known to be brittle; true: the checked
 %   computation of DFDET_VERIFY, about twice the cost); vtol (1e-9); and the
 %   rules phi, hfac, n, ntail, alpha, filon, tol (DFDET_CPATH, DFDET_CONTOUR).
+%   method: 'auto' (the default) or 'paths', the inversion on paths; 'line',
+%   the line integral with the explicit kernel, is in the MEX file only
+%   (DFDET_METHOD).
 %   Non-finite x: F = 0 at -Inf, 1 at +Inf, NaN at NaN.
 %
 %   Examples

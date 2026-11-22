@@ -78,6 +78,8 @@ if exist('ltratio_croute', 'file') == 2 && ltratio_croute('on')
     [nf, nc] = chk(nf, nc, adfmax_cdf(x3, 'DU', -5, struct('g0', 1.5)), ltratio('det', 'adfcdf', D0, x3, -5, struct('g0', 1.5)), 1e-12, 'adfmax_cdf with a fixed start on the C router');
     [nf, nc] = chk(nf, nc, ltratio_lincdf(-0.2639, -3.5, dfdet_trend(-1), -5, struct('g0', 1.5)), ltratio('det', 'lincdf', ltratio('design', 'trend', -1), -0.2639, -3.5, -5, struct('g0', 1.5)), 1e-12, 'ltratio_lincdf of a design with a fixed start on the C router');
     [nf, nc] = chk(nf, nc, power_envelope([-5 -10], 'DG'), ltratio('envelope', [-5 -10], 'DG'), 1e-8, 'power_envelope on the C router');
+    [nf, nc] = chk(nf, nc, ltratio_cdf(xt, dfdet_trend(2), -5, struct('method', 'line')), Fl, 0, 'ltratio_cdf with a design and method line on the C router');
+    [nf, nc] = chk(nf, nc, ltratio_icdf(0.05, dfdet_trend(2), -5, struct('method', 'paths')), ltratio('icdf', 0.05, T2, -5, struct('method', 'paths')), 0, 'ltratio_icdf with a design and method paths on the C router');
     id = ''; try, ltratio_cdf(-20, 'DU', -551); catch e, id = e.identifier; end
     [nf, nc] = chk(nf, nc, double(strcmp(id, 'ltratio:args')), 1, 0, 'the checks of the MATLAB routines before the C router');
 end

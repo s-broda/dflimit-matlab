@@ -59,6 +59,16 @@ switch op
         % programs, as LTRATIO of the MEX folder, the Julia package and the R and Python packages do)
         cas = varargin{1}; opts = varargin{2}; extra = {}; if numel(varargin) > 2, extra = varargin{3}; end %#ok<NASGU>
         varargout = {ltratio_croute('plain',opts,extra) && ltratio_croute('on')};
+    case 'usemethod'
+        % (ltratio_dist, ltratio_icdf: a design, or engine = 'general', with opts.method 'line' or 'paths', the general
+        % engine's line integral with the explicit kernel or its inversion on paths, otherwise plain: the C router, method
+        % 1 or 4 of dfl_engine_dist)
+        cas = varargin{1}; opts = varargin{2}; extra = {}; if numel(varargin) > 2, extra = varargin{3}; end
+        m = 'auto'; if isfield(opts,'method') && ~isempty(opts.method), m = opts.method; end
+        en = 'auto'; if isfield(opts,'engine') && ~isempty(opts.engine), en = opts.engine; end
+        gen = ~(ischar(cas) || isstring(cas)) || ((ischar(en) || isstring(en)) && strcmpi(char(en),'general'));
+        ok = gen && (ischar(m) || isstring(m)) && any(strcmpi(char(m),{'line','paths'})) && ltratio_croute('plain',rmf_(opts,'method'),extra) && ltratio_croute('on');
+        varargout = {ok};
     case 'plain'
         opts = varargin{1}; extra = {}; if numel(varargin) > 1, extra = varargin{2}; end
         if ~isstruct(opts), varargout = {false}; return, end
@@ -76,14 +86,15 @@ switch op
         [x,cas,c,opts,mode] = varargin{:}; t0 = tic;
         [spec,e,c0] = spec_(cas,c,opts);
         if ~(isnumeric(x) && isreal(x)), error('ltratio:args','ltratio_%s: x must be real.',mode); end
-        F = reshape(ltratio_mex('route',mode,e,spec{:},double(x),double(c),double(c0)),size(x));
-        varargout = {F,struct('method','auto','engine','C router','ndouble',NaN,'ncontour',NaN,'ngeneral',NaN,'time',toc(t0))};
+        F = reshape(ltratio_mex('route',mode,e,spec{:},double(x),double(c),double(c0),gmethod_(opts)),size(x));
+        mth = {'auto','line','','','paths'}; mth = mth{gmethod_(opts) + 1};
+        varargout = {F,struct('method',mth,'engine','C router','ndouble',NaN,'ncontour',NaN,'ngeneral',NaN,'time',toc(t0))};
     case 'icdf'
         [p,cas,c,opts] = varargin{:};
         [spec,e,c0] = spec_(cas,c,rmf_(opts,'tol'));
         if ~(isnumeric(p) && isreal(p) && all(p(:) > 0 & p(:) < 1)), error('ltratio:args','ltratio_icdf: p must lie in (0,1).'); end
         tol = getf_(opts,'tol',1e-10);
-        q = reshape(ltratio_mex('route','icdf',e,spec{:},double(p),double(c),double(c0),double(tol)),size(p));
+        q = reshape(ltratio_mex('route','icdf',e,spec{:},double(p),double(c),double(c0),double(tol),gmethod_(opts)),size(p));
         info = struct('engine','C router');
         if nargout > 1
             ws = warning('off','ltratio:brittle');       % (the regime was named by the quantile search)
@@ -194,7 +205,7 @@ oc = rmf_(rmf_(rmf_(opts,'engine'),'start'),'gls');
 c0 = getf_(opts,'c0',0); g0 = getf_(opts,'g0',0);
 if ischar(cas) || isstring(cas)
     cs = upper(char(cas));
-    if isempty(what), ltratio_args(cs,c,oc); end        % (the errors of the MATLAB routines; ADFmax: adfmax_dist checks)
+    if isempty(what), ltratio_args(cs,c,rmf_(oc,'method')); end        % (the errors of the MATLAB routines; ADFmax: adfmax_dist checks; the general engine's methods checked by the router)
     if strcmp(cs,'DG'), spec = {[4 0 0]}; return, end
     if ~(numel(cs) == 2 && any(cs(1) == 'DS') && any(cs(2) == 'KUT')), error('ltratio:args','ltratio: the case must be one of DK, DU, DT, SK, SU, ST, DG.'); end
     st = 0; if cs(1) == 'S', st = 2; elseif g0 ~= 0, st = 1; end
@@ -203,12 +214,19 @@ if ischar(cas) || isstring(cas)
 end
 S = ltratio_spec(cas,opts);
 sc = struct('zero',0,'fixed',1,'stationary',2);
-if ~isempty(S.case) && ltratio_route('valid',S,c,oc)
+if ~isempty(S.case) && gmethod_(opts) ~= 4 && ltratio_route('valid',S,c,oc)
     spec = spec_(S.case,c,setfield(oc,'g0',S.g0),'checked'); %#ok<SFLD>
     return
 end
 d = design_(S.D); gls = NaN; if ~isempty(S.gls), gls = S.gls; end
 spec = [{0} d {sc.(S.start), S.g0, gls}];
+end
+
+function m = gmethod_(opts)
+% the method of the router for the general engine's opts.method: 0 'auto', 1 'line' (the line integral; for a classical
+% case the classical one), 4 'paths' (the general engine's inversion on paths)
+m = 0; s = 'auto'; if isfield(opts,'method') && ~isempty(opts.method), s = opts.method; end
+if (ischar(s) || isstring(s)) && strcmpi(char(s),'line'), m = 1; elseif (ischar(s) || isstring(s)) && strcmpi(char(s),'paths'), m = 4; end
 end
 
 function d = design_(D)

@@ -260,6 +260,7 @@ if any(strcmp(dtok,{'DK','DU','DT','SK','SU','ST','DG'})), D = dtok; else, D = d
 eng = getf(o,'engine','');
 ro = struct; if ~isempty(eng), ro.engine = eng; end
 for f = {'c0','g0','start','gls'}, if isfield(o,f{1}), ro.(f{1}) = o.(f{1}); end, end
+if isfield(o,'method'), go.method = o.method; ro.method = o.method; end   % (the general engine's method: 'auto', 'paths'; 'line' refused)
 switch func
     case 'prep'
         if isempty(gls), P = dfdet_prep(D); else, P = dfdet_prep(D,'gls',gls); end

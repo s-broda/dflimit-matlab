@@ -214,6 +214,23 @@ line("vpdf", "t-1", -5.0, (;), [-0.1, 0.0, NaN, Inf, -Inf], [0.0, 0.0, NaN, 0.0,
 line("msbcdf", "pB0.5", 0.0, (gls = -17.8,), [NaN, Inf, -1.0], [NaN, 1.0, 0.0])
 line("env", "t-1", 0.0, (;), [NaN, -7.0], [NaN; G.power_envelope(designs["t-1"], [-7.0])])
 line("ptenv", "pC0.5", 0.0, (;), [NaN, 1.0], [NaN, 0.05])
+# the line integral with the explicit kernel for the designs of rank one or two (method = :line of the Julia engine, the
+# default at c0 = 0), which the MATLAB programs do not have: their inversion on paths (opts.method 'paths', and 'auto')
+# against its values, polynomial trends of order 2 to 4, the intercept with the first sine and cosine, the statistic that
+# detrends first, zero and stationary start; opts.method = 'line' refused (DFDET_METHOD)
+for d in ("t2", "t3", "t4", "fourier", "df"), c in (0.0, -5.0, -13.5, -20.0, -50.0, 2.0)
+    D = designs[d]; Dm = d == "df" ? G.perron(:B, 0.5) : D
+    m = G.dist_moments(Dm, c; p = 2)[1]; sd = sqrt(m[2] - m[1]^2); xs = m[1] .+ sd .* [-2.0, 0.0, 2.0]
+    line("cdf", d, c, (method = :paths,), xs, G.dist_cdf(D, xs, c; method = :line))
+    line("pdf", d, c, (method = :auto,), xs, G.dist_pdf(D, xs, c; method = :line))
+end
+for d in ("t2", "fourier"), c in (-5.0, -13.5)
+    D = designs[d]
+    m = G.dist_moments(D, c; p = 2, start = :stationary)[1]; sd = sqrt(m[2] - m[1]^2); xs = m[1] .+ sd .* [-2.0, 0.0, 2.0]
+    line("cdf", d, c, (start = :stationary, method = :paths), xs, G.dist_cdf(D, xs, c; start = :stationary, method = :line))
+end
+line("err", "t2", 0.0, (fn = :cdf, method = :line, txt = Symbol("not_available_in_the_MATLAB_programs")), [-2.0], Float64[])
+line("rcdf", "t2", -5.0, (method = :paths,), [-3.5, -2.5], DFLimit.ltratio_cdf([-3.5, -2.5], designs["t2"], -5.0; method = :line))
 # the router: the linear form and the regions of no deterministic terms with a fixed start (the general engine; the
 # classical programs dropped the start), ADFmax with a fixed start (the general engine)
 for eng in (:auto, :general)

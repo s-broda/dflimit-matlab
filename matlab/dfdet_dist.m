@@ -17,6 +17,7 @@ function F = dfdet_dist(x,D,c,opts,mode)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 [c,c0,start,g0,gls,o] = dfdet_args(D,c,opts);
+dfdet_method(opts,['dfdet_' mode]);
 if ~(isnumeric(x) && isreal(x)), error('dfdet:args','dfdet_%s: x must be real.',mode); end
 x = double(x);
 F = zeros(size(x)); fin = isfinite(x);

@@ -83,7 +83,7 @@ if ~isstruct(opts), error('ltratio:args','ltratio: opts must be a structure.'); 
 engine = 'auto'; if isfield(opts,'engine') && ~isempty(opts.engine), engine = lower(char(opts.engine)); end
 if ~any(strcmp(engine,{'auto','classical','general'})), error('ltratio:args','ltratio: opts.engine must be ''auto'', ''classical'' or ''general''.'); end
 ltratio_route('case',cas,opts);                         % (a case string: no opts.start, opts.gls)
-if ltratio_croute('use',cas,opts), [F,info] = ltratio_croute('dist',x,cas,c,opts,mode); return, end   % (the C router)
+if ltratio_croute('use',cas,opts) || ltratio_croute('usemethod',cas,opts), [F,info] = ltratio_croute('dist',x,cas,c,opts,mode); return, end   % (the C router)
 oc = rmfield_safe(opts,{'engine','start','gls'});
 if ~(ischar(cas) || isstring(cas))
     % a design of the general engine: its classical case where the classical programs accept the arguments
@@ -223,7 +223,7 @@ end
 function F = general_values(x,S,c,opts,mode)
 % the general engine at the points x (a density below the error of the method returned as zero)
 o = struct('start',S.start,'g0',S.g0,'gls',S.gls);
-for f = {'c0','verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol'}
+for f = {'c0','verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol','method'}
     if isfield(opts,f{1}), o.(f{1}) = opts.(f{1}); end
 end
 F = dfdet_dist(x,S.D,c,o,mode);
@@ -251,9 +251,7 @@ if isfield(opts,'verified') && ~isempty(opts.verified), ok = ok && ~logical(opts
 end
 
 function nomethod(opts)
-if isfield(opts,'method') && ~isempty(opts.method) && ~strcmpi(char(opts.method),'auto')
-    error('ltratio:args','ltratio: opts.method = ''%s'' names a representation of the classical programs; it does not apply with engine = ''general''.',char(opts.method));
-end
+ltratio_route('nomethod',opts);
 end
 
 function [F,info] = contour_auto(F,info,x,ctr,tails,cas,c,c0,g0,opts,mode)

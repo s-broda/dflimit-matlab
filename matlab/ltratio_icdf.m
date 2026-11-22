@@ -21,7 +21,7 @@ function [q,info] = ltratio_icdf(p,cas,c,opts)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 ltratio_route('case',cas,opts);
-if ltratio_croute('use',cas,opts,{'tol'})                % (the C router; info, the distribution function at q, only if asked for)
+if ltratio_croute('use',cas,opts,{'tol'}) || ltratio_croute('usemethod',cas,opts,{'tol'})                % (the C router; info, the distribution function at q, only if asked for)
     if nargout > 1, [q,info] = ltratio_croute('icdf',p,cas,c,opts); else, q = ltratio_croute('icdf',p,cas,c,opts); end
     return
 end

@@ -52,8 +52,9 @@ switch op
         varargout = {ok};
     case 'nomethod'
         opts = varargin{1};
-        if isfield(opts,'method') && ~isempty(opts.method) && ~strcmpi(char(opts.method),'auto')
-            error('ltratio:args','ltratio: opts.method = ''%s'' names a representation of the classical programs; it does not apply with engine = ''general''.',char(opts.method));
+        % (the general engine's own methods pass: 'auto', 'paths', and 'line', which DFDET_METHOD refuses in these programs)
+        if isfield(opts,'method') && ~isempty(opts.method) && ~any(strcmpi(char(opts.method),{'auto','line','paths'}))
+            error('ltratio:args','ltratio: opts.method = ''%s'' names a representation of the classical programs; it does not apply with engine = ''general'' (whose methods are ''auto'', ''line'' and ''paths'').',char(opts.method));
         end
     case 'case'
         cas = varargin{1}; opts = varargin{2};
@@ -71,7 +72,7 @@ switch op
     case 'gopts'
         S = varargin{1}; opts = varargin{2};
         o = struct('start',S.start,'g0',S.g0,'gls',S.gls);
-        for f = {'c0','verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol'}
+        for f = {'c0','verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol','method'}
             if isfield(opts,f{1}), o.(f{1}) = opts.(f{1}); end
         end
         varargout = {o};

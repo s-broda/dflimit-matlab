@@ -135,7 +135,10 @@
 %   dfdet_cdf, dfdet_pdf, dfdet_icdf, dfdet_mom
 %                 - distribution function, density, quantiles and moments of the limiting t-ratio for a design
 %                   (options c0, start 'zero', 'fixed' with g0, 'stationary', gls = cbar for GLS detrending,
-%                   verified)
+%                   verified, method 'auto' or 'paths'; 'line', the line integral with the explicit kernel for
+%                   designs of rank one or two, is in the MEX file only: dfdet_method)
+%   dfdet_method  - the option method of dfdet_cdf, dfdet_pdf, dfdet_icdf (the inversion on paths; why the
+%                   line integral of the C engine is not ported to these programs)
 %   dfdet_coef_cdf, dfdet_coef_pdf, dfdet_coef_icdf - the coefficient statistic
 %   dfdet_lin_cdf, dfdet_lin_pdf, dfdet_lin_icdf - the linear form U - aV
 %   dfdet_v_cdf, dfdet_v_pdf - the denominator V

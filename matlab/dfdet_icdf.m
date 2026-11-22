@@ -20,6 +20,7 @@ function q = dfdet_icdf(p,D,c,opts)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 [c,c0,start,g0,gls,o] = dfdet_args(D,c,opts);
+dfdet_method(opts,'dfdet_icdf');
 if ~(isnumeric(p) && isreal(p) && all(p(:) > 0 & p(:) < 1)), error('dfdet:args','dfdet_icdf: p must lie in (0,1).'); end
 tol = getf(opts,'tol',1e-10);
 x0 = getf(opts,'x0',[]); mu = -2; sd = 1;
