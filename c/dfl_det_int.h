@@ -227,6 +227,10 @@ typedef struct {                      /* one term of an event (XSpec) */
     int bnd;
 } det_xspec;
 typedef struct { int n, ntail; double alpha, tol; int warn, filon; } det_eval_opts;
+/* the largest number of nodes of the U-shapes of a node of the outer contour (ushapes stops with an error beyond it: with a
+ * fixed start by the wide heights, with the zero and the stationary start by the segments of the narrow ones;
+ * USHAPE_MAXNODES of DFDet.jl) */
+#define DET_USHAPE_MAXNODES 1000000
 void det_eval_defaults(const det_path *CP, det_eval_opts *o);
 /* contour_eval: F and f of (U - c0 V)/sqrt(V) at xs (vpow 2; 3: the density kernel of the coefficient statistic); eF,
  * ef the rounding estimates (may be NULL) */
