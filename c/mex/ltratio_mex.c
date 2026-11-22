@@ -160,11 +160,13 @@ static void det_design_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *pr
     design_out(nlhs, plhs, &D);
     dfl_design_free(&D);
 }
-/* the options of the general engine: [c0 start g0 gls verified] (NaN or a shorter vector: the defaults) */
+/* the options of the general engine: [c0 start g0 gls verified method] (NaN or a shorter vector: the defaults; method 0 auto,
+ * 1 the line integral with the explicit kernel, 2 the inversion on paths: dfl_det_dist, dfl_det_quantile) */
 static dfl_det_opts detopts(const mxArray *a)
 {
-    dfl_det_opts o; dfl_det_defaults(&o); double v[5]; optvec(a, v, 5);
+    dfl_det_opts o; dfl_det_defaults(&o); double v[6]; optvec(a, v, 6);
     if (!isnan(v[0])) o.c0 = v[0]; if (!isnan(v[1])) o.start = (int) v[1]; if (!isnan(v[2])) o.gamma0 = v[2]; o.gls = v[3]; if (!isnan(v[4])) o.verified = v[4] != 0;
+    if (!isnan(v[5])) o.method = (int) v[5];
     return o;
 }
 /* v = ltratio_mex('det', what, br, C, loc, first, a1, a2, ..., opts): the general engine (dfl_det_*); what and its arguments
@@ -227,13 +229,15 @@ static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 /* v = ltratio_mex('route', what, engine, spec, a1, ...): one interface over the two engines (dfl_engine_*); engine 0 auto,
  * 1 classical, 2 general; spec = [model start g0] of a classical case, or {br, C, loc, first, start, g0, gls} as the
  * numeric arguments br, C, loc, first, start, g0, gls (spec given as the scalar 0 then these seven); what:
- *   'cdf' 'pdf' x c c0 | 'icdf' p c c0 tol | 'mom' pmax c c0 | 'coefcdf' y c c0 | 'coeficdf' p c c0 tol |
+ *   'cdf' 'pdf' x c c0 method | 'icdf' p c c0 tol method | 'mom' pmax c c0 | 'coefcdf' y c c0 | 'coeficdf' p c c0 tol |
  *   'adfcdf' 'adfpdf' x c | 'lincdf' b c a cbar (the model of spec: 1 case DK, 4 case DG detrended at cbar, NaN for
  *   -13.5) | 'envelope' cs alpha (the model of spec, 1 or 4) | 'region' type c p1 p2 (P{U <= g(V)}: type 1 the line
  *   p2 + p1 v, 2 the parabola p1 sqrt(v) + p2 v, 3 the weighted-average-power boundary with k = p1, omega = p2)
  * The warnings: dfl_warning as ltratio:bound, dfl_det_warning as ltratio:det, and for a classical case with engine auto
  * the warning ltratio:brittle of a regime in which the classical engine's one evaluation is brittle, where the router
- * takes the classical engine at a point (dfl_brittle, once per message; as the classical entry points give it) */
+ * takes the classical engine at a point (dfl_brittle, once per message; as the classical entry points give it).  method
+ * (optional, 0 by default) as in dfl_engine_dist: 0 automatic, 1 the line integral, 4 (DFL_METHOD_PATHS) the general
+ * engine's inversion on paths, 2, 3 the classical engine's conditional and contour integrals */
 static int brittle_add(const char **bm, int nb, char store[][320], const char *m)
 {
     if (!m || nb >= 8) return nb;
@@ -266,7 +270,7 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     const char *bm[8]; char bstore[8][320]; int nb = 0;
     if (!strcmp(what, "cdf") || !strcmp(what, "pdf")) {
         int kind = what[0] == 'c' ? 2 : 1; const double *x = mxGetPr(xa);
-        plhs[0] = like(xa); rc = dfl_engine_dist(kind, n, x, &S, c, c0, engine, 0, 0, mxGetPr(plhs[0]), err, sizeof err);
+        plhs[0] = like(xa); rc = dfl_engine_dist(kind, n, x, &S, c, c0, engine, (int) SC(3, "method", 0.0), 0, mxGetPr(plhs[0]), err, sizeof err);
         if (!rc && cls) {
             const double *v = mxGetPr(plhs[0]); int any = 0;
             for (int k = 0; k < n && !any; k++) {
@@ -277,7 +281,7 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             if (any) nb = brittle_add(bm, nb, bstore, dfl_brittle(kind, S.model, c, c0, g0, stat, 0));
         }
     } else if (!strcmp(what, "icdf")) {
-        plhs[0] = like(xa); rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, 0, SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err);
+        plhs[0] = like(xa); rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, (int) SC(4, "method", 0.0), SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err);
         if (!rc && cls && dfl_autoengine(DFL_F_ICDF, S.model, stat, g0, gls, c, c0, 0.0) == DFL_ENGINE_CLASSICAL) nb = brittle_add(bm, nb, bstore, dfl_brittle(2, S.model, c, c0, g0, stat, 0));
     }
     else if (!strcmp(what, "mom")) { int p = intarg(a[0], "pmax"); plhs[0] = mxCreateDoubleMatrix(1, p, mxREAL); rc = dfl_engine_mom(p, &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err); }

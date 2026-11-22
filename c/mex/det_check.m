@@ -60,6 +60,17 @@ x3 = [-3 -2.4 -1.5]; D0 = ltratio('design', 'trend', 0);
 lastwarn('');
 ws = warning('off', 'ltratio:brittle'); ltratio_mex('route', 'cdf', 0, [2 1 0.5], -5, -20, 2); warning(ws);
 [~, wid] = lastwarn; [nf, nc] = chk(nf, nc, double(strcmp(wid, 'ltratio:brittle')), 1, 0, 'the warning ltratio:brittle of the router (DU, fixed start, c0 > 0 at c = -20)');
+% the general engine's method: the line integral with the explicit kernel ('line') and the inversion on paths ('paths')
+T2 = ltratio('design', 'trend', 2); xt = [-4 -3.2 -2.5 -1.8];
+Fl = ltratio('det', 'cdf', T2, xt, -5, struct('method', 'line')); Fp = ltratio('det', 'cdf', T2, xt, -5, struct('method', 'paths'));
+[nf, nc] = chk(nf, nc, Fl, Fp, 1e-10, 'quadratic trend: the line integral against the paths');
+[nf, nc] = chk(nf, nc, ltratio('det', 'cdf', T2, xt, -5), Fl, 0, 'quadratic trend at c0 = 0: auto is the line integral');
+[nf, nc] = chk(nf, nc, ltratio('det', 'cdf', T2, xt, -50), ltratio('det', 'cdf', T2, xt, -50, struct('method', 'paths')), 0, 'quadratic trend at c = -50: auto is the paths');
+[nf, nc] = chk(nf, nc, ltratio('cdf', xt, T2, -5, struct('method', 'paths')), Fp, 0, 'the router with a design and opts.method paths');
+[nf, nc] = chk(nf, nc, ltratio('cdf', xs, DT, -5, struct('method', 'line')), ltratio('cdf', xs, 'DT', -5, struct('method', 'single')), 0, 'a classical design with line: the classical line integral');
+[nf, nc] = chk(nf, nc, ltratio('icdf', 0.05, T2, -5, struct('method', 'line')), ltratio('icdf', 0.05, T2, -5, struct('method', 'paths')), 1e-9, 'quantile of the quadratic trend by both methods');
+msg = ''; try, ltratio('det', 'cdf', T2, xt, -5, struct('method', 'line', 'gls', -13.5)); catch e, msg = e.message; end
+[nf, nc] = chk(nf, nc, double(contains(msg, 'GLS detrending is not covered')), 1, 0, 'method line refuses GLS detrending');
 % with this folder ahead of matlab/ on the path: the user-level routines on the C router
 if exist('ltratio_croute', 'file') == 2 && ltratio_croute('on')
     [nf, nc] = chk(nf, nc, ltratio_cdf(xs, 'DT', -5), ltratio('cdf', xs, 'DT', -5), 1e-9, 'ltratio_cdf on the C router');

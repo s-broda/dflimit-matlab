@@ -14,7 +14,9 @@ function varargout = ltratio(what,varargin)
 %   F = LTRATIO(what,x,D,c,opts)       with a design D in place of the case: cdf, pdf, icdf, mom by the router over
 %                                      the two engines (opts.engine 'auto', the default, 'classical' or 'general';
 %                                      opts.start 'zero', 'fixed' (with opts.g0), 'stationary'; opts.gls = cbar for
-%                                      GLS detrending)
+%                                      GLS detrending; opts.method 'auto', 'line' (the line integral with the
+%                                      explicit kernel: for a design that is a classical case the classical one) or
+%                                      'paths' (the general engine's inversion on paths around the roots))
 %   v = LTRATIO('det',fn,D,args...,opts)  the general engine's functions (fn as in LTRATIO_MEX('det', ...): coefcdf,
 %                                      coefpdf, coeficdf, lincdf, linpdf, linicdf, adfcdf, adfpdf, adficdf, power,
 %                                      envelope, ptcdf, ptpdf, pticdf, ptenvelope, lmcdf, lmicdf, mzacdf, mzaicdf,
@@ -113,9 +115,10 @@ if isstruct(varargin{2})                              % a design: the router ove
     st = o(2); if isnan(st), st = 0; end
     g0 = o(3); if isnan(g0), g0 = 0; end
     spec = {D.br, D.C, double(D.loc), double(D.first), st, g0, o(4)};
+    rm = 0; if ~isnan(o(6)), rm = [0 1 4]; rm = rm(o(6) + 1); end   % (the router's codes: 1 the line integral, 4 the general engine's paths)
     switch lower(what)
-        case {'cdf','pdf'}, v = ltratio_mex('route', lower(what), eng, 0, spec{:}, double(x), double(c), double(c0));
-        case 'icdf', tol = getf(opts,'tol',1e-10); v = ltratio_mex('route', 'icdf', eng, 0, spec{:}, double(x), double(c), double(c0), tol);
+        case {'cdf','pdf'}, v = ltratio_mex('route', lower(what), eng, 0, spec{:}, double(x), double(c), double(c0), rm);
+        case 'icdf', tol = getf(opts,'tol',1e-10); v = ltratio_mex('route', 'icdf', eng, 0, spec{:}, double(x), double(c), double(c0), tol, rm);
         case 'mom', v = ltratio_mex('route', 'mom', eng, 0, spec{:}, double(x), double(c), double(c0));
         otherwise, error('ltratio:args','with a design, what must be cdf, pdf, icdf or mom (the other functions: ltratio(''det'', ...)).');
     end
@@ -181,8 +184,8 @@ switch lower(what)
 end
 end
 function v = getf(o,f,d), if isfield(o,f) && ~isempty(o.(f)), v = double(o.(f)); else, v = d; end, end
-function o = detvec(opts)                             % [c0 start g0 gls verified] of the general engine (NaN: the default)
-o = NaN(1,5);
+function o = detvec(opts)                             % [c0 start g0 gls verified method] of the general engine (NaN: the default)
+o = NaN(1,6);
 if isfield(opts,'c0') && ~isempty(opts.c0), o(1) = opts.c0; end
 if isfield(opts,'g0') && ~isempty(opts.g0), o(3) = opts.g0; if opts.g0 ~= 0, o(2) = 1; end, end
 if isfield(opts,'start') && ~isempty(opts.start)
@@ -194,6 +197,12 @@ if isfield(opts,'start') && ~isempty(opts.start)
 end
 if isfield(opts,'gls') && ~isempty(opts.gls), o(4) = opts.gls; end
 if isfield(opts,'verified') && ~isempty(opts.verified), o(5) = double(logical(opts.verified)); end
+if isfield(opts,'method') && ~isempty(opts.method), o(6) = gmethod(opts.method); end
+end
+function m = gmethod(s)                               % opts.method of the general engine: 0 'auto', 1 'line', 2 'paths'
+k = find(strcmpi(char(s),{'auto','line','paths'}));
+if isempty(k), error('ltratio:args','with a design opts.method must be ''auto'', ''line'' (the line integral with the explicit kernel) or ''paths'' (the inversion on paths around the roots).'); end
+m = k - 1;
 end
 function e = engcode(opts)                            % opts.engine: 0 auto, 1 classical, 2 general
 e = 0;
