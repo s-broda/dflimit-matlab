@@ -30,6 +30,25 @@ ltratio('envelope', [-5 -10], 'DG')                   % the power envelope of th
 ltratio('threads')                                    % the number of threads (all processors; set with a second argument)
 ```
 
+The general engine (`c/dfl_det_*.c`, any piecewise smooth deterministic design) is reached through designs:
+`D = ltratio('design', kind, ...)` makes one (`'trend'` p, `'perron'` model lam with several breaks, `'ltrend'` p,
+`'matrix'` X [TB] from the regressor matrix of a sample, `'first'` D for the statistic that detrends first, `'fun'` f K
+[breaks] from a function handle), a structure with the break points `br` and the coefficient matrices `C` of the pieces
+side by side; `ltratio('cdf', x, D, c, opts)` (and `'pdf'`, `'icdf'`, `'mom'`) then takes the router over the two
+engines (`opts.engine` `'auto'`, the default, `'classical'` or `'general'`; `opts.start` `'zero'`, `'fixed'` with
+`opts.g0`, `'stationary'`; `opts.gls` = cbar for GLS detrending), and `ltratio('det', fn, D, args..., opts)` the general
+engine's other functions: the coefficient statistic, the linear form and the law of V, ADFmax, local power, the
+envelope, the point-optimal statistic, the LM statistic, MZ_alpha and MSB (`ltratio_mex('det', ...)`, the list in the
+header of `ltratio_mex.c`).  With a case string, `opts.engine` selects the router too; without it the classical engine
+computes as before.  `det_check.m` checks a built MEX file on the general engine (15 checks in about 10 seconds).
+
+```matlab
+D = ltratio('design', 'perron', 'C', [0.3 0.7]);      % Perron's model C with two breaks
+ltratio('icdf', [0.01 0.05 0.10], D)                  % its critical values
+ltratio('cdf', -4, D, -10, struct('start', 'stationary'))
+ltratio('det', 'lincdf', ltratio('design', 'trend', 1), -0.5, -7.3, 0, struct('gls', -13.5))
+```
+
 The case `'DG'` is the GLS-detrended trend case of Elliott, Rothenberg and Stock (1996) at cbar = -13.5 (the DF-GLS
 tests of the paper): zero start, the single integral only, no moments, and no tail recomputation (far in the tails the values carry the single integral's absolute error).  `opts.method` is `'auto'`
 (the default), `'single'` or `'line'` (the line integral representation), `'double'` or `'conditional'` (the conditional integral

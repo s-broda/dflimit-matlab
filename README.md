@@ -55,7 +55,8 @@ a local null value and GLS detrending, by the inversion formula on paths around 
 function; and the companions of the paper on general deterministic terms (the point-optimal statistic and its envelope,
 the LM statistic, MZ_alpha, MSB). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
 the automatic choice of the Julia package (`dfl_autoengine`). It agrees with the Julia engine to 1e-9 in distribution
-functions and densities and to 1e-7 in quantiles (`c/dfl_test_det`); the MEX file does not reach it yet.
+functions and densities and to 1e-7 in quantiles (`c/dfl_test_det`); in MATLAB the MEX file reaches it through designs
+(`ltratio('design', ...)`, `c/mex/README.md`).
 
 ## Installation
 

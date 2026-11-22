@@ -30,6 +30,11 @@
  *   P = ltratio_mex('envelope', c, model, alpha, gopt)                   the power envelope of Elliott, Rothenberg and Stock
  *                     (1996), model 1 (case DK, also DU) or 4 (case DG), level alpha (default 0.05)
  *   n = ltratio_mex('threads'[, n])                                      the number of threads (sets it with n)
+ *   [br, C, loc, first] = ltratio_mex('design', kind, ...)               a design of the general engine (dfl_design): kind
+ *                     'trend' p, 'perron' model lam (1 A, 2 B, 3 C), 'ltrend' p, 'matrix' X TB, 'first' br C loc first,
+ *                     'fun' f K breaks (a function handle); br the break points, C the coefficient matrices side by side
+ *   v = ltratio_mex('det', what, br, C, loc, first, ..., opts)          the general engine (dfl_det_*; see det_op below)
+ *   v = ltratio_mex('route', what, engine, spec, ...)                    the router over the two engines (dfl_engine_*)
  *
  * model 1, 2, 3 (no deterministic terms, intercept, intercept and trend); sopt = [tau hu N nodefac pfac edge_hw
  * uniform_hw gen], dopt = [M Nv Nl maxlev plen otol stepw errtol blo bhi bmin mumin tdec] and gopt = [N umax] (NaN or a
@@ -85,10 +90,179 @@ static dfl_gp_opts gopts(const mxArray *a)
 #undef SET
 static void need(int nrhs, int n, const char *usage) { if (nrhs < n) mexErrMsgIdAndTxt("ltratio:args", "usage: %s", usage); }
 
+/* ---- the general engine (dfl_det_*): a design crosses the gateway as numeric arrays, br (1 x (np + 1)), C ((deg + 1) x
+ * (K np): the coefficient matrices of the pieces side by side), loc and first ---- */
+static void design_in(const mxArray *const *a, dfl_design *D)
+{
+    int nb; vecarg(a[0], "br", &nb);
+    if (nb < 2) mexErrMsgIdAndTxt("ltratio:args", "a design needs at least two break points (0 and 1)");
+    if (!mxIsDouble(a[1]) || mxIsComplex(a[1])) mexErrMsgIdAndTxt("ltratio:args", "the coefficients of a design must be a real matrix");
+    D->np = nb - 1; D->deg = (int) mxGetM(a[1]) - 1; int cols = (int) mxGetN(a[1]);
+    if (mxGetNumberOfElements(a[1]) == 0) { D->deg = 0; cols = 0; }
+    if (cols % D->np) mexErrMsgIdAndTxt("ltratio:args", "the coefficient matrix of a design has K np columns");
+    D->K = cols / D->np; D->br = mxGetPr(a[0]); D->C = mxGetPr(a[1]);
+    D->loc = scalar(a[2], "loc") != 0; D->first = scalar(a[3], "first") != 0;
+}
+static void design_out(int nlhs, mxArray *plhs[], const dfl_design *D)
+{
+    plhs[0] = mxCreateDoubleMatrix(1, D->np + 1, mxREAL); memcpy(mxGetPr(plhs[0]), D->br, (D->np + 1) * sizeof(double));
+    if (nlhs > 1) { plhs[1] = mxCreateDoubleMatrix(D->deg + 1, (size_t) D->K * D->np, mxREAL); if (D->K > 0) memcpy(mxGetPr(plhs[1]), D->C, (size_t) (D->deg + 1) * D->K * D->np * sizeof(double)); }
+    if (nlhs > 2) plhs[2] = mxCreateDoubleScalar(D->loc);
+    if (nlhs > 3) plhs[3] = mxCreateDoubleScalar(D->first);
+}
+typedef struct { const mxArray *fh; int K; int bad; } mfun_ctx;
+static void mfun(double r, double *out, void *v)
+{
+    mfun_ctx *m = v; mxArray *in[2], *res[1];
+    in[0] = (mxArray *) m->fh; in[1] = mxCreateDoubleScalar(r);
+    mexCallMATLAB(1, res, 2, in, "feval");
+    if (!mxIsDouble(res[0]) || (int) mxGetNumberOfElements(res[0]) != m->K) { m->bad = 1; for (int i = 0; i < m->K; i++) out[i] = 0; return; }
+    memcpy(out, mxGetPr(res[0]), m->K * sizeof(double));
+}
+/* [br, C, loc, first] = ltratio_mex('design', kind, ...): 'trend' p | 'perron' model lam (model 1 A, 2 B, 3 C) | 'ltrend' p |
+ * 'matrix' X TB (TB empty: the breaks detected) | 'first' br C loc first | 'fun' f K breaks (f a function handle of r returning
+ * the K regressors) */
+static void det_design_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
+{
+    char kind[16], err[512]; dfl_design D; int rc = 1;
+    need(nrhs, 3, "ltratio_mex('design', kind, ...)");
+    if (!mxIsChar(prhs[1])) mexErrMsgIdAndTxt("ltratio:args", "the kind of the design must be a string");
+    mxGetString(prhs[1], kind, sizeof kind);
+    memset(&D, 0, sizeof D);
+    if (!strcmp(kind, "trend")) rc = dfl_design_trend(intarg(prhs[2], "p"), &D, err, sizeof err);
+    else if (!strcmp(kind, "ltrend")) rc = dfl_design_ltrend(intarg(prhs[2], "p"), &D, err, sizeof err);
+    else if (!strcmp(kind, "perron")) {
+        need(nrhs, 4, "ltratio_mex('design', 'perron', model, lam)");
+        int m = intarg(prhs[2], "model"), q; const mxArray *la = vecarg(prhs[3], "lam", &q);
+        rc = dfl_design_perron(m == 1 ? 'A' : m == 2 ? 'B' : m == 3 ? 'C' : '?', q, mxGetPr(la), &D, err, sizeof err);
+    } else if (!strcmp(kind, "matrix")) {
+        if (!mxIsDouble(prhs[2]) || mxIsComplex(prhs[2])) mexErrMsgIdAndTxt("ltratio:args", "X must be a real matrix");
+        int n = (int) mxGetM(prhs[2]), K = (int) mxGetN(prhs[2]), nb = -1; int *TB = NULL;
+        if (nrhs > 3 && mxGetNumberOfElements(prhs[3]) > 0) {
+            vecarg(prhs[3], "TB", &nb); TB = malloc(nb * sizeof(int));
+            for (int i = 0; i < nb; i++) TB[i] = (int) mxGetPr(prhs[3])[i];
+        }
+        rc = dfl_design_from_matrix(n, K, mxGetPr(prhs[2]), nb, TB, NAN, 0, 0, &D, err, sizeof err);
+        free(TB);
+        if (!rc && dfl_det_warning()) mexWarnMsgIdAndTxt("ltratio:design", "%s", dfl_det_warning());
+    } else if (!strcmp(kind, "first")) {
+        need(nrhs, 6, "ltratio_mex('design', 'first', br, C, loc, first)");
+        dfl_design B; design_in(prhs + 2, &B);
+        rc = dfl_design_detrend_first(&B, &D, err, sizeof err);
+    } else if (!strcmp(kind, "fun")) {
+        need(nrhs, 4, "ltratio_mex('design', 'fun', f, K, breaks)");
+        mfun_ctx m = {prhs[2], intarg(prhs[3], "K"), 0}; int nb = 0; const double *b = NULL;
+        if (nrhs > 4) { vecarg(prhs[4], "breaks", &nb); b = mxGetPr(prhs[4]); }
+        rc = dfl_design_fdesign(mfun, &m, m.K, nb, b, NAN, 0, 0, &D, err, sizeof err);
+        if (!rc && m.bad) { dfl_design_free(&D); mexErrMsgIdAndTxt("ltratio:args", "the function of the design must return a real vector of K values"); }
+    } else mexErrMsgIdAndTxt("ltratio:args", "the kind of design must be trend, perron, ltrend, matrix, first or fun");
+    if (rc) mexErrMsgIdAndTxt("ltratio:engine", "%s", err);
+    design_out(nlhs, plhs, &D);
+    dfl_design_free(&D);
+}
+/* the options of the general engine: [c0 start g0 gls verified] (NaN or a shorter vector: the defaults) */
+static dfl_det_opts detopts(const mxArray *a)
+{
+    dfl_det_opts o; dfl_det_defaults(&o); double v[5]; optvec(a, v, 5);
+    if (!isnan(v[0])) o.c0 = v[0]; if (!isnan(v[1])) o.start = (int) v[1]; if (!isnan(v[2])) o.gamma0 = v[2]; o.gls = v[3]; if (!isnan(v[4])) o.verified = v[4] != 0;
+    return o;
+}
+/* v = ltratio_mex('det', what, br, C, loc, first, a1, a2, ..., opts): the general engine (dfl_det_*); what and its arguments
+ *   'cdf' 'pdf' x c | 'icdf' p c x0 tol | 'coefcdf' 'coefpdf' y c | 'coeficdf' p c y0 tol | 'mom' pmax c |
+ *   'lincdf' 'linpdf' b a c (a = NaN: the law of V) | 'linicdf' p a c b0 tol | 'adfcdf' 'adfpdf' x c | 'adficdf' p c x0 tol |
+ *   'power' cs level statistic (0 t-ratio, 1 coefficient) | 'envelope' cs level | 'ptcdf' 'ptpdf' q cbar c | 'pticdf' p cbar |
+ *   'ptenvelope' cs level | 'lmcdf' x c | 'lmicdf' p c | 'mzacdf' y c gls | 'mzaicdf' p c gls | 'msbcdf' x c gls | 'msbicdf' p c gls
+ * opts = [c0 start g0 gls verified] after the arguments (start 0 zero, 1 fixed, 2 stationary); the warnings of the engine
+ * (dfl_det_warning) as the warning ltratio:det */
+static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
+{
+    char what[16], err[512]; int rc = 1;
+    (void) nlhs;
+    need(nrhs, 8, "ltratio_mex('det', what, br, C, loc, first, ...)");
+    if (!mxIsChar(prhs[1])) mexErrMsgIdAndTxt("ltratio:args", "what must be a string");
+    mxGetString(prhs[1], what, sizeof what);
+    dfl_design D; design_in(prhs + 2, &D);
+    const mxArray *const *a = prhs + 6; int na = nrhs - 6;
+#define OPTS(k) detopts(na > (k) ? a[k] : NULL)
+#define SC(k, nm, dflt) (na > (k) && mxGetNumberOfElements(a[k]) > 0 ? scalar(a[k], nm) : (dflt))
+    int n; const mxArray *xa = vecarg(a[0], "x", &n);
+    if (!strcmp(what, "cdf") || !strcmp(what, "pdf")) { dfl_det_opts o = OPTS(2); plhs[0] = like(xa); rc = dfl_det_dist(what[0] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "c", 0.0), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "icdf")) { dfl_det_opts o = OPTS(4); plhs[0] = like(xa); rc = dfl_det_quantile(&D, n, mxGetPr(xa), SC(1, "c", 0.0), SC(2, "x0", -2.0), SC(3, "tol", 1e-9), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "coefcdf") || !strcmp(what, "coefpdf")) { dfl_det_opts o = OPTS(2); plhs[0] = like(xa); rc = dfl_det_coef(what[4] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "c", 0.0), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "coeficdf")) { dfl_det_opts o = OPTS(4); plhs[0] = like(xa); rc = dfl_det_coef_quantile(&D, n, mxGetPr(xa), SC(1, "c", 0.0), SC(2, "y0", -10.0), SC(3, "tol", 1e-9), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "mom")) { dfl_det_opts o = OPTS(2); int p = intarg(a[0], "pmax"); plhs[0] = mxCreateDoubleMatrix(1, p, mxREAL); rc = dfl_det_moments(&D, SC(1, "c", 0.0), p, &o, mxGetPr(plhs[0]), NULL, err, sizeof err); }
+    else if (!strcmp(what, "lincdf") || !strcmp(what, "linpdf")) { dfl_det_opts o = OPTS(3); plhs[0] = like(xa); rc = dfl_det_lin(what[3] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "a", 0.0), SC(2, "c", 0.0), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "linicdf")) {
+        dfl_det_opts o = OPTS(5); plhs[0] = like(xa); rc = 0;
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_lin_quantile(&D, mxGetPr(xa)[k], SC(1, "a", 0.0), SC(2, "c", 0.0), SC(3, "b0", 0.0), SC(4, "tol", 1e-10), &o, mxGetPr(plhs[0]) + k, err, sizeof err);
+    } else if (!strcmp(what, "adfcdf") || !strcmp(what, "adfpdf")) { dfl_det_opts o = OPTS(2); plhs[0] = like(xa); rc = dfl_det_adfmax(what[3] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "c", 0.0), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "adficdf")) {
+        dfl_det_opts o = OPTS(4); plhs[0] = like(xa); rc = 0;
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_adfmax_quantile(&D, mxGetPr(xa)[k], SC(1, "c", 0.0), SC(2, "x0", -2.0), SC(3, "tol", 1e-10), &o, mxGetPr(plhs[0]) + k, err, sizeof err);
+    } else if (!strcmp(what, "power")) { dfl_det_opts o = OPTS(3); plhs[0] = like(xa); rc = dfl_det_local_power(&D, n, mxGetPr(xa), SC(1, "level", 0.05), (int) SC(2, "statistic", 0.0), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "envelope")) { plhs[0] = like(xa); rc = dfl_det_power_envelope(&D, n, mxGetPr(xa), SC(1, "level", 0.05), mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "ptcdf") || !strcmp(what, "ptpdf")) { plhs[0] = like(xa); rc = dfl_det_pt(what[2] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "cbar", -7.0), SC(2, "c", 0.0), 0, 0, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "pticdf")) {
+        plhs[0] = like(xa); rc = 0;
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_pt_quantile(&D, mxGetPr(xa)[k], SC(1, "cbar", -7.0), 0, 0, mxGetPr(plhs[0]) + k, err, sizeof err);
+    } else if (!strcmp(what, "ptenvelope")) { plhs[0] = like(xa); rc = dfl_det_pt_envelope(&D, n, mxGetPr(xa), SC(1, "level", 0.05), 0, 0, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "lmcdf")) { plhs[0] = like(xa); rc = dfl_det_lm_cdf(&D, n, mxGetPr(xa), SC(1, "c", 0.0), mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "lmicdf")) {
+        plhs[0] = like(xa); rc = 0;
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_lm_quantile(&D, mxGetPr(xa)[k], SC(1, "c", 0.0), mxGetPr(plhs[0]) + k, err, sizeof err);
+    } else if (!strcmp(what, "mzacdf")) { dfl_det_opts o = OPTS(3); plhs[0] = like(xa); rc = dfl_det_mza_cdf(&D, n, mxGetPr(xa), SC(1, "c", 0.0), SC(2, "gls", -13.5), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "mzaicdf")) {
+        dfl_det_opts o = OPTS(3); plhs[0] = like(xa); rc = 0;
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_mza_quantile(&D, mxGetPr(xa)[k], SC(1, "c", 0.0), SC(2, "gls", -13.5), NAN, 1e-9, &o, mxGetPr(plhs[0]) + k, err, sizeof err);
+    } else if (!strcmp(what, "msbcdf")) { plhs[0] = like(xa); rc = dfl_det_msb_cdf(&D, n, mxGetPr(xa), SC(1, "c", 0.0), SC(2, "gls", -13.5), mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "msbicdf")) {
+        plhs[0] = like(xa); rc = 0;
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_msb_quantile(&D, mxGetPr(xa)[k], SC(1, "c", 0.0), SC(2, "gls", -13.5), mxGetPr(plhs[0]) + k, err, sizeof err);
+    } else mexErrMsgIdAndTxt("ltratio:args", "unknown function %s of the general engine", what);
+#undef OPTS
+#undef SC
+    if (rc) mexErrMsgIdAndTxt("ltratio:engine", "%s", err);
+    if (dfl_det_warning()) mexWarnMsgIdAndTxt("ltratio:det", "%s", dfl_det_warning());
+}
+/* v = ltratio_mex('route', what, engine, spec, a1, ...): one interface over the two engines (dfl_engine_*); engine 0 auto,
+ * 1 classical, 2 general; spec = [model start g0] of a classical case, or {br, C, loc, first, start, g0, gls} as the
+ * numeric arguments br, C, loc, first, start, g0, gls (spec given as the scalar 0 then these seven); what:
+ *   'cdf' 'pdf' x c c0 | 'icdf' p c c0 tol | 'mom' pmax c c0 | 'coefcdf' y c c0 | 'coeficdf' p c c0 tol */
+static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
+{
+    char what[16], err[512]; int rc = 1;
+    (void) nlhs;
+    need(nrhs, 5, "ltratio_mex('route', what, engine, spec, ...)");
+    mxGetString(prhs[1], what, sizeof what);
+    int engine = intarg(prhs[2], "engine");
+    dfl_spec S; dfl_design D; int k0;
+    int ns; vecarg(prhs[3], "spec", &ns);
+    if (ns == 3) { const double *sp = mxGetPr(prhs[3]); S.D = NULL; S.model = (int) sp[0]; S.start = (int) sp[1]; S.g0 = sp[2]; S.gls = NAN; k0 = 4; }
+    else {
+        need(nrhs, 11, "ltratio_mex('route', what, engine, 0, br, C, loc, first, start, g0, gls, ...)");
+        design_in(prhs + 4, &D); S.D = &D; S.model = 0; S.start = intarg(prhs[8], "start"); S.g0 = scalar(prhs[9], "g0"); S.gls = scalar(prhs[10], "gls"); k0 = 11;
+    }
+    const mxArray *const *a = prhs + k0; int na = nrhs - k0;
+    if (na < 2) mexErrMsgIdAndTxt("ltratio:args", "the route needs the points and c");
+#define SC(k, nm, dflt) (na > (k) && mxGetNumberOfElements(a[k]) > 0 ? scalar(a[k], nm) : (dflt))
+    int n; const mxArray *xa = vecarg(a[0], "x", &n);
+    double c = SC(1, "c", 0.0), c0 = SC(2, "c0", 0.0);
+    if (!strcmp(what, "cdf") || !strcmp(what, "pdf")) { plhs[0] = like(xa); rc = dfl_engine_dist(what[0] == 'c' ? 2 : 1, n, mxGetPr(xa), &S, c, c0, engine, 0, 0, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "icdf")) { plhs[0] = like(xa); rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, 0, SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "mom")) { int p = intarg(a[0], "pmax"); plhs[0] = mxCreateDoubleMatrix(1, p, mxREAL); rc = dfl_engine_mom(p, &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "coefcdf")) { plhs[0] = like(xa); rc = dfl_engine_coef(n, mxGetPr(xa), &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "coeficdf")) { plhs[0] = like(xa); rc = dfl_engine_coef_icdf(n, mxGetPr(xa), &S, c, c0, engine, SC(3, "tol", 1e-9), mxGetPr(plhs[0]), err, sizeof err); }
+    else mexErrMsgIdAndTxt("ltratio:args", "unknown function %s of the router", what);
+#undef SC
+    if (rc) mexErrMsgIdAndTxt(rc > 10 ? "ltratio:bound" : "ltratio:engine", "%s", err);
+    if (dfl_warning()) mexWarnMsgIdAndTxt("ltratio:bound", "%s", dfl_warning());
+    if (dfl_det_warning()) mexWarnMsgIdAndTxt("ltratio:det", "%s", dfl_det_warning());
+}
+
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     char op[16], err[512] = "";
-    if (nrhs < 1 || !mxIsChar(prhs[0])) mexErrMsgIdAndTxt("ltratio:args", "the first argument is the operation: single, double, contour, dist, icdf, mom, tstar, adfmax, region, lincdf, envelope or threads");
+    if (nrhs < 1 || !mxIsChar(prhs[0])) mexErrMsgIdAndTxt("ltratio:args", "the first argument is the operation: single, double, contour, dist, icdf, mom, tstar, adfmax, region, lincdf, envelope, threads, design, det or route");
     mxGetString(prhs[0], op, sizeof op);
     if (strcmp(op, "threads") == 0) {
         if (nrhs > 1) dfl_set_nworkers(intarg(prhs[1], "n"));
@@ -223,5 +397,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (rc) mexErrMsgIdAndTxt("ltratio:engine", "%s", err);
         return;
     }
+    if (strcmp(op, "design") == 0) { det_design_op(nlhs, plhs, nrhs, prhs); return; }
+    if (strcmp(op, "det") == 0) { det_op(nlhs, plhs, nrhs, prhs); return; }
+    if (strcmp(op, "route") == 0) { route_op(nlhs, plhs, nrhs, prhs); return; }
     mexErrMsgIdAndTxt("ltratio:args", "unknown operation %s", op);
 }
