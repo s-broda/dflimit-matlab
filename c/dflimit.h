@@ -139,6 +139,21 @@ static inline bool dfl_fixed_ok(int model, double c, double g0) { double l = (c 
 #define DFL_K0HF 0.125
 #define DFL_K0R 25.0
 
+/* ---- the fixed node layouts of the line integral's inner integrals (dfl_batch.c; the batched evaluation of DFExact.jl) ----
+ * For c <= 0, c0 = 0 and |q| above about 0.034 (dfl_usebatch) the inner integrals of the chi-square kernel (at tau = 1) and
+ * of the K_0 kernel (the density at any tau, the distribution function at tau = 1) are sums over nodes that do not depend on
+ * t, C_k exp(A_k t + B_k s(t)) (times K_0(b X_k)), on geometric panels; cached per (kernel, kind, q, tau, the caps). */
+typedef struct dfl_batch dfl_batch;
+const dfl_batch *dfl_batch_get(int kern, int kind, double q, double tau, double e1, double r1);
+void dfl_batch_release(const dfl_batch *B);
+void dfl_batch_empty_cache(void);
+void dfl_batch_values(const dfl_batch *B, int part, int n, const cdouble *t, const cdouble *s1, const cdouble *s2, const cdouble *M0, cdouble *out);
+int dfl_usebatch(int batched, double c, double q, double tau);
+extern int DFL_BATCHK0;
+/* the caps (e1, r1) of the first pieces of the K_0 kernel's edge segment and ray X < 0 (k0first of DFExact.jl): for c < -20
+ * 1/b and 1e-2/|s_1| (b = (s_2 - s_1)/2, s_1 at tau); Inf otherwise */
+void dfl_k0first(int model, double c, bool stat, double tau, double *e1, double *r1);
+
 /* ---- special functions (dfl_special.c) ---- */
 cdouble dfl_erf(cdouble z);                         /* erf for complex z (Faddeeva) */
 cdouble dfl_faddw(cdouble z);                       /* the Faddeeva function w(z) = e^{-z^2} erfc(-i z) */

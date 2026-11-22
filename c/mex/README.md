@@ -139,6 +139,7 @@ for f in dfl_special dfl_mgf dfl_single dfl_moments dfl_double dfl_gilpelaez dfl
          dfl_det_la dfl_det_design dfl_det_mgf dfl_det_path dfl_det_inner dfl_det_api dfl_det_paper2 dfl_det_route dfl_det_tables; do
   cc -std=c11 -O2 -c c/$f.c -o build/$f.o; done
 cc -std=c11 -O3 -c c/dfl_gen.c -o build/dfl_gen.o    # -O3: the l-rule of the fixed start is written to be vectorized
+cc -std=c11 -O3 -c c/dfl_batch.c -o build/dfl_batch.o    # (and the sums over the nodes of the fixed layouts)
 c++ -std=c++11 -O2 -c c/faddeeva/Faddeeva.cc -o build/Faddeeva.o
 c++ -std=c++11 -O2 -c c/faddeeva/faddeeva_shim.cpp -o build/faddeeva_shim.o
 cc -std=c11 -O2 -DDFLIMIT_STUB -c c/mex/ltratio_mex.c -o build/ltratio_mex.o

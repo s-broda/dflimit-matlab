@@ -42,3 +42,5 @@ Manifest.toml
 octave-workspace
 __pycache__/
 .DS_Store
+c/dfl_test_batch
+c/test/line_timing
