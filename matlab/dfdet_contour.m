@@ -429,6 +429,14 @@ if fixed
     if nest > 1e6, error('dfdet:paths','the U-shapes of the fixed start at t = %s would need some %d nodes (heights to %.3g): the roots run off.',num2str(t),round(nest),hmx); end
     lmf = lm;
 else
+    % (the zero and the stationary start: the segments of the narrow U-shapes, at most hp or hm per panel with n nodes, a
+    % lower bound of their nodes, within 1% of the count beyond 1e5.  The design (1 + r, 1{r <= 0.4}) on the vertical line
+    % has the positive root 86030 - 764901i at t = 1 + 2749i and U-shapes of 2e7 nodes further out; such a node stops with
+    % the same kind of error at the same cap of 1e6 nodes as the fixed start, as in the C and Julia engines)
+    nest = 0; hsg = 0;
+    [ylo,yhi] = ulevels(gp,sp,1,false); nest = nest + (yhi - ylo)/hp*n; hsg = max(hsg,yhi - ylo);
+    if Mo.rm > 0, [ylo,yhi] = ulevels(gm,sm,-1,false); nest = nest + (yhi - ylo)/hm*n; hsg = max(hsg,yhi - ylo); end
+    if nest > 1e6, error('dfdet:paths','the U-shapes of the %s start at t = %s would need some %.3g nodes (segments to %.3g long): a root runs off (more than 1e6 nodes).',Mo.start,num2str(t),nest,hsg); end
     lmf = [];
 end
 [Sp,Wp] = ushape(gp,gm,sp,1,n,ntail,exp_p,rsp,hp,lmf,A);
