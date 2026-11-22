@@ -39,13 +39,16 @@ engines (`opts.engine` `'auto'`, the default, `'classical'` or `'general'`; `opt
 `opts.g0`, `'stationary'`; `opts.gls` = cbar for GLS detrending), and `ltratio('det', fn, D, args..., opts)` the general
 engine's other functions: the coefficient statistic, the linear form and the law of V, ADFmax, local power, the
 envelope, the point-optimal statistic, the LM statistic, MZ_alpha and MSB (`ltratio_mex('det', ...)`, the list in the
-header of `ltratio_mex.c`).  With a case string, `opts.engine` selects the router too; without it the classical engine
-computes as before.  `det_check.m` checks a built MEX file on the general engine.  With this folder ahead of
+header of `ltratio_mex.c`).  A case string takes the router too, with `opts.engine` `'auto'` by default (also for
+`'lincdf'` and `'envelope'`, without `opts.N` and `opts.umax`); `opts.engine = 'classical'`, a method named or
+`verified` compute with the classical engine as before, and where the rule takes the general engine for a case string
+the two engines agree to about 1e-9.  `det_check.m` checks a built MEX file on the general engine.  With this folder ahead of
 `matlab/` on the path the user-level routines of the MATLAB programs (`ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`,
 `ltratio_mom`, `coef_cdf`, `coef_icdf`, `adfmax_cdf`, `adfmax_pdf`, `ltratio_lincdf`, `power_envelope`,
-`ltratio_region`) hand a call with a design, or with a case string and `opts.engine`, without options of the MATLAB
-engines to the C router (`ltratio_mex('route', ...)`, `matlab/ltratio_croute.m`; a case string without `opts.engine`
-keeps the classical programs, here on the C engine through the drop-ins): the C rule chooses the engine, both engines compute in C, and the warning `ltratio:brittle`
+`ltratio_region`) hand a call with a design or a case string, without options of the MATLAB engines, to the C router
+(`ltratio_mex('route', ...)`, `matlab/ltratio_croute.m`; `opts.engine = 'auto'` is the default, for a case string as
+for a design, and `'classical'` keeps the classical programs, here on the C engine through the drop-ins): the C rule
+chooses the engine, both engines compute in C, and the warning `ltratio:brittle`
 names a brittle regime of the classical engine's one evaluation where the router takes it.  The route operation also
 has ADFmax, the linear form, the envelope and the regions (`'adfcdf'`, `'adfpdf'`, `'lincdf'`, `'envelope'`,
 `'region'`).

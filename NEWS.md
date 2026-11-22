@@ -79,6 +79,13 @@ The MATLAB rule (`ltratio_engine`) no longer keeps the
 classical programs on that range; `dfl_test_det` and `dfdet_test` check it (the general engine within 1e-10 of the line
 integral at c = -70, -85, -100).
 
+**The engine chosen automatically for a case string in MATLAB with the MEX file.** With the folder of the MEX file
+ahead on the path, a case string without `opts.engine` goes to the C router with `'auto'`, as a design does
+(`ltratio_croute`, and `ltratio.m` of the MEX folder for `'cdf'`, `'pdf'`, `'icdf'`, `'mom'`, `'lincdf'` and
+`'envelope'`); `opts.engine = 'classical'`, a method named, `verified` and the options of the MATLAB engines keep the
+classical programs. Where the C rule takes the general engine for a case string the two engines agree to about 1e-9.
+The plain MATLAB programs already chose by `ltratio_engine` with `'auto'` as the default.
+
 **Non-finite arguments (C and MATLAB, as in DFLimit.jl).** Every public function of the general engine and of the router
 gives at +-Inf and NaN in each argument either the limit or an error that names the argument. `dfl_det_coef_cdf_gp` did not
 return at y = +-Inf (the full sum on all threads; now 1 and 0 without the sum, NaN at NaN); the searches from a start

@@ -87,12 +87,12 @@ The user-level routines of the classical programs (`ltratio_cdf`, `ltratio_pdf`,
 `ltratio_engine`, the rule of the Julia package set by the timings of the two MATLAB engines
 (`matlab/validation/engine_table_matlab.txt`); they also take a design in place of the case, a classical design being
 its case and any other going to the general engine. With the folder of the MEX file ahead of `matlab/` on the path
-these routines hand a call with a design, or with a case string and `opts.engine`, without options of the MATLAB
+these routines hand a call with a design or a case string, without options of the MATLAB
 engines (at most `c0`, `g0`, `start`, `gls`, `engine` `'auto'` or `'general'`, `method` `'auto'`, `verified` false,
 and `tol`, `cbar`, `alpha` where the routine has them) to the C router (`dfl_engine_*`, `ltratio_croute`): the choice of engine is then that of the C rule, set by the timings
 of the two C engines, and both engines compute in C, with the same checks of the arguments and the warnings of the C
-engine; a case string without `opts.engine` keeps the classical programs (as `ltratio.m` of the MEX folder and the
-Python package), and with `engine = 'classical'`, a representation named, `verified = true` or further options they
+engine (`opts.engine = 'auto'` is the default, for a case string as for a design; where the rule takes the general
+engine for a case string the two engines agree to about 1e-9), and with `engine = 'classical'`, a representation named, `verified = true` or further options they
 compute as before, the classical programs on the C engine through the drop-ins and the general engine in MATLAB. `dfdet_test` compares the general engine and the router with reference values of the Julia engine
 (`matlab/validation/det_ref.txt`, written by `matlab/validation/det_ref.jl`).
 

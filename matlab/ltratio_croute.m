@@ -7,11 +7,11 @@ function varargout = ltratio_croute(op,varargin)
 %   programs on the path (LTRATIO_MEX exists and DFX_CORE resolves to its
 %   folder).  Then LTRATIO_CDF, LTRATIO_PDF, LTRATIO_ICDF, LTRATIO_MOM,
 %   COEF_CDF, COEF_ICDF, ADFMAX_CDF, ADFMAX_PDF, LTRATIO_LINCDF,
-%   POWER_ENVELOPE and LTRATIO_REGION hand a call with a design, or with a
-%   case string and opts.engine, without options of the MATLAB engines to
-%   the C router (a case string without opts.engine keeps the classical
-%   programs, on the C engine through the drop-ins, as LTRATIO of the MEX
-%   folder and the Python package do) (dfl_engine_* of c/dfl_det_route.c): its
+%   POWER_ENVELOPE and LTRATIO_REGION hand a call with a design or a case
+%   string (opts.engine 'auto' by default, for a case string as for a
+%   design, as LTRATIO of the MEX folder and the Julia, R and Python
+%   packages do), without options of the MATLAB engines, to the C router
+%   (dfl_engine_* of c/dfl_det_route.c): its
 %   choice of engine (dfl_autoengine, set by the timings of the two C
 %   engines) and both engines in C, with the warnings of the C engine
 %   (ltratio:brittle where the router takes the classical engine in a regime
@@ -54,11 +54,11 @@ switch op
         if tf, d = which('dfx_core'); tf = ~isempty(d) && strcmp(fileparts(d),fileparts(m)); end
         varargout = {tf};
     case 'use'
-        % (a design, or a case string with opts.engine: a case string without it keeps the classical programs, as
-        % LTRATIO of the MEX folder and the Python package do)
-        cas = varargin{1}; opts = varargin{2}; extra = {}; if numel(varargin) > 2, extra = varargin{3}; end
-        named = isstruct(opts) && isfield(opts,'engine') && ~isempty(opts.engine);
-        varargout = {(~(ischar(cas) || isstring(cas)) || named) && ltratio_croute('plain',opts,extra) && ltratio_croute('on')};
+        % (a design or a case string, with opts.engine or without it ('auto', the default): the C router; options of
+        % the MATLAB engines, a method other than 'auto', verified and opts.engine = 'classical' keep the classical
+        % programs, as LTRATIO of the MEX folder, the Julia package and the R and Python packages do)
+        cas = varargin{1}; opts = varargin{2}; extra = {}; if numel(varargin) > 2, extra = varargin{3}; end %#ok<NASGU>
+        varargout = {ltratio_croute('plain',opts,extra) && ltratio_croute('on')};
     case 'plain'
         opts = varargin{1}; extra = {}; if numel(varargin) > 1, extra = varargin{2}; end
         if ~isstruct(opts), varargout = {false}; return, end

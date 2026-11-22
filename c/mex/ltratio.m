@@ -52,7 +52,11 @@ if strcmpi(what,'lincdf')                             % the linear form U - aV, 
     c = 0; if nargin > 4 && ~isempty(varargin{4}), c = varargin{4}; end
     opts = struct; if nargin > 5 && ~isempty(varargin{5}), opts = varargin{5}; end
     model = 1; if strcmp(cas,'DG'), model = 4; end
-    P = ltratio_mex('lincdf', double(b), double(a), model, double(c), getf(opts,'cbar',-13.5), [getf(opts,'N',NaN) getf(opts,'umax',NaN)]);
+    if engcode(opts) ~= 1 && ~isfield(opts,'N') && ~isfield(opts,'umax')    % (the C router, opts.engine 'auto' by default)
+        P = ltratio_mex('route', 'lincdf', engcode(opts), [model 0 0], double(b), double(c), double(a), getf(opts,'cbar',NaN));
+    else
+        P = ltratio_mex('lincdf', double(b), double(a), model, double(c), getf(opts,'cbar',-13.5), [getf(opts,'N',NaN) getf(opts,'umax',NaN)]);
+    end
     varargout{1} = reshape(P, size(b)); return
 end
 if strcmpi(what,'envelope')                           % the power envelope of Elliott, Rothenberg and Stock (POWER_ENVELOPE)
@@ -62,7 +66,11 @@ if strcmpi(what,'envelope')                           % the power envelope of El
     if ~any(strcmp(cas,{'DK','DG'})), error('ltratio:args','power_envelope: the case must be DK (or DU) or DG.'); end
     opts = struct; if nargin > 3 && ~isempty(varargin{3}), opts = varargin{3}; end
     model = 1; if strcmp(cas,'DG'), model = 4; end
-    P = ltratio_mex('envelope', double(c), model, getf(opts,'alpha',0.05), [getf(opts,'N',NaN) getf(opts,'umax',NaN)]);
+    if engcode(opts) ~= 1 && ~isfield(opts,'N') && ~isfield(opts,'umax')    % (the C router, opts.engine 'auto' by default)
+        P = ltratio_mex('route', 'envelope', engcode(opts), [model 0 0], double(c), getf(opts,'alpha',0.05));
+    else
+        P = ltratio_mex('envelope', double(c), model, getf(opts,'alpha',0.05), [getf(opts,'N',NaN) getf(opts,'umax',NaN)]);
+    end
     varargout{1} = reshape(P, size(c)); return
 end
 if strcmpi(what,'design')                             % a design of the general engine (dfl_design)
@@ -137,11 +145,11 @@ if isfield(opts,'method') && ~isempty(opts.method)
     end
 end
 verified = isfield(opts,'verified') && ~isempty(opts.verified) && logical(opts.verified);
-if isfield(opts,'engine') && ~isempty(opts.engine) && any(strcmpi(what,{'cdf','pdf','icdf','mom'}))   % the router over the two engines
+if any(strcmpi(what,{'cdf','pdf','icdf','mom'}))     % the router over the two engines (opts.engine 'auto' by default)
     eng = engcode(opts); st = 0; if stat, st = 2; elseif g0 ~= 0, st = 1; end
     if eng ~= 1 && (method ~= 0 || verified), eng = 1; end   % (a representation named, or the checked computation: the classical engine)
     if eng == 1
-        % (the classical engine: as without opts.engine)
+        % (the classical engine: opts.engine = 'classical', a method named or the checked computation)
     else
         switch lower(what)
             case {'cdf','pdf'}, v = ltratio_mex('route', lower(what), eng, [model st g0], double(x), double(c), double(c0));

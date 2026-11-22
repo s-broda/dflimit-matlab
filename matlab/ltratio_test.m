@@ -420,16 +420,19 @@ for k = 1:size(R,1)
     check(sprintf('%s c=%g c0=%g g0=%.4g x=%.4g: F, f contour vs Julia (%.1f/%.1f s)',cas,R(k,2),R(k,3),R(k,4),R(k,5),iF.time,jf.time), ...
           max(abs([F - R(k,6), f - R(k,7)])) + (iF.status ~= 0) + (jf.status ~= 0),1e-11);
 end
-% the automatic choice is the contour integral (values of at least 1e-3; at c = -52.54, outside the region where the
-% conditional integral is checked here, also the density 1.1e-4), and opts.method = 'contour' through LTRATIO_CDF
+% the automatic choice of the classical programs is the contour integral (values of at least 1e-3; at c = -52.54, outside
+% the region where the conditional integral is checked here, also the density 1.1e-4), and opts.method = 'contour' through
+% LTRATIO_CDF (engine 'classical': with the folder of the MEX file ahead on the path a case string goes to the C router
+% by default, whose info has no count of the contour integral)
 ia = [1 3 5 11 17 19 24 26]; if quick, ia = [1 11 24]; end
 R = R0;
 w = 0; nc = 0;
 for k = ia
-    cas = cs3{R(k,1)}; o = struct('c0',R(k,3),'g0',R(k,4));
+    cas = cs3{R(k,1)}; o = struct('c0',R(k,3),'g0',R(k,4),'engine','classical');
     [Fa,ja] = ltratio_cdf(R(k,5),cas,R(k,2),o); fa = ltratio_pdf(R(k,5),cas,R(k,2),o);
     Fc = ltratio_cdf(R(k,5),cas,R(k,2),setfield(o,'method','contour'));
-    Ft = tr_contour(R(k,5),cas,R(k,2),o,'cdf'); ft = tr_contour(R(k,5),cas,R(k,2),o,'pdf');
+    oc = rmfield(o,'engine');
+    Ft = tr_contour(R(k,5),cas,R(k,2),oc,'cdf'); ft = tr_contour(R(k,5),cas,R(k,2),oc,'pdf');
     w = max([w abs(Fa - Ft) abs(fa - ft) abs(Fc - Ft)]); nc = nc + ja.ncontour;
 end
 check(sprintf('auto and ''contour'' = TR_CONTOUR with a fixed start in DU, DT (%d points, %d by the contour integral)',numel(ia),nc),w + (nc ~= numel(ia)),0);
