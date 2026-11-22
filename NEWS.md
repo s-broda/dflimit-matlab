@@ -1,5 +1,35 @@
 # News
 
+## Unreleased
+
+**The general engine in C.** `c/dfl_det_*.c` is a port of the general engine of DFLimit.jl (`src/DFDet.jl` and
+`src/DFDet_paper2.jl`, branch engine-merge): the limiting law of the Dickey-Fuller t-ratio for any piecewise smooth
+deterministic design (polynomial trends of any order, breaks in level and slope at several dates, designs given by a
+function or by the regressor matrix of a sample, the statistic that detrends first), with a zero, fixed or stationary
+start, a local null value and GLS detrending, by the inversion formula on paths around the roots of the joint moment
+generating function. The functions are those of the Julia engine: the distribution function, density and quantiles of
+the t-ratio and of the coefficient statistic, moments, local power, the linear form U - aV and the law of V, ADFmax, the
+power envelope, the regions below a line or a parabola, and the companions of the second paper (the point-optimal
+statistic and its envelope for any design, the LM statistic, MZ_alpha, MSB). A design crosses the interface as plain
+arrays (`dfl_design`), with constructors for the standard designs; the declarations are in `c/dflimit.h`. The engine is
+self-contained like the classical one (no LAPACK: the small eigenvalue problems, solves and null spaces are written out),
+multithreaded on the same pool, and keeps its prepared designs and outer paths in caches behind one lock. The stored
+outer paths of cases DK, DU, DT at the unit root are compiled in (`c/dfl_det_tables.c`, written by `c/gen_det_tables.jl`).
+On one thread a value takes 4 to 17 percent longer than in the Julia engine, on four threads 0.85 to 1.17 times its
+time, and the outer paths are built 1.1 to 2 times faster (twelve designs and starts, warm calls).
+
+**One interface over the two engines.** `dfl_engine_*` (`c/dfl_det_route.c`, a port of `src/merged.jl`) takes a classical
+case or a design and the engine (auto, classical, general); `dfl_autoengine` is the rule of the Julia package, with the
+cells where the timings of the two C engines point elsewhere moved (`c/test/engine_table.c`, `c/test/engine_table_c.txt`):
+the t-ratio at c0 = 0 beyond c = -20 and with c0 < 0 in cases DT (-30 <= c <= 0) and DU (-10 <= c <= 0) and most
+quantiles at c0 = 0 go to the general engine, the moments with c0 != 0, the power envelope and the linear form of case DG
+below c = 2 to the classical engine.
+
+**Tests.** `c/dfl_test_det` compares the general engine and the router with reference values of the Julia engine
+(`c/test/det_ref.jl`, `c/test/det_ref.txt`): every constructor, one to three breaks, polynomial degrees 0 to 4, the three
+starts, GLS detrending, a local null value, the tails and the edge of the support, every companion, and the three settings
+of the router; it is built by `c/build.sh` and run by the workflow of the C engine.
+
 ## 0.5.0
 
 Four errors are repaired, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB

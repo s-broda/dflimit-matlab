@@ -47,6 +47,16 @@ unchanged on the C engine. The C engine also has the line integral with a fixed 
 Use the MATLAB programs when nothing but MATLAB may be installed or when the code is to be read, and the MEX file for
 speed: power curves, confidence belts, anything with many values. Both give the same values to well below 1e-5.
 
+`c/` also holds the general engine (`c/dfl_det_*.c`), a port of the general engine of DFLimit.jl (`DFDet.jl`): any
+piecewise smooth deterministic design, given as the break points and the coefficient matrices of its pieces
+(`dfl_design`, with constructors for polynomial trends, Perron's models with several breaks, designs given by a function
+or by the regressor matrix of a sample, and the statistic that detrends first), with a zero, fixed or stationary start,
+a local null value and GLS detrending, by the inversion formula on paths around the roots of the joint moment generating
+function; and the companions of the paper on general deterministic terms (the point-optimal statistic and its envelope,
+the LM statistic, MZ_alpha, MSB). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
+the automatic choice of the Julia package (`dfl_autoengine`). It agrees with the Julia engine to 1e-9 in distribution
+functions and densities and to 1e-7 in quantiles (`c/dfl_test_det`); the MEX file does not reach it yet.
+
 ## Installation
 
 Clone the repository (or download it as a zip) and add the folder `matlab` to the MATLAB path:
@@ -70,7 +80,7 @@ reference values of the Julia engine in `c/test/`:
 
 ```sh
 cd c
-for t in prim single gen fixed mom dbl app; do ./dfl_test_$t test/${t}_ref.txt; done
+for t in prim single gen fixed mom dbl app det; do ./dfl_test_$t test/${t}_ref.txt; done
 ./dfl_test_vmath
 ./dfl_test_bounds
 ```
@@ -94,7 +104,10 @@ record of older computations (`tratio_legacy/`).
 The reference values in `c/test/*_ref.txt` and the tables `c/tables.c` are written from the Julia engine by
 `c/test/*_ref.jl` and `c/gen_tables.jl`, in the Julia environment `c/test/Project.toml`, which loads DFLimit.jl from
 its GitHub repository: once `julia --project=c/test -e 'using Pkg; Pkg.instantiate()'`, then for example
-`julia --project=c/test -t auto c/test/single_ref.jl c/test/single_ref.txt` from the repository root.
+`julia --project=c/test -t auto c/test/single_ref.jl c/test/single_ref.txt` from the repository root. The reference
+values of the general engine (`c/test/det_ref.jl`, which writes `c/test/det_ref.txt`) and its tables
+(`c/gen_det_tables.jl`, which writes `c/dfl_det_tables.c`) need a DFLimit.jl with the general engine (branch
+engine-merge or later) in the environment.
 
 ## The C engine upstream of R and Python
 
