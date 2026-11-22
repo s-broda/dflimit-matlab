@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+**The fixed node layouts of the C line integral.** `c/dfl_batch.c` ports the batched evaluation of the Julia engine
+(`DFExact.jl`): for c <= 0, c0 = 0 and |x| above about 0.034 the inner integrals of the line integral are sums over nodes
+that do not depend on t, on geometric panels (the chi-square kernel of case DK and case DG at tau = 1, the K_0 kernel's
+density at any tau and its distribution function at tau = 1). The option `batched` of `dfl_single_opts`, which was set and
+never read, now chooses them (true by default). The classical tests pass unchanged with and without them; against the
+adaptive rules they agree to 3.7e-13 for c > -20 and 3.2e-12 for -480 <= c <= -20 (as in the Julia engine,
+`c/dfl_test_batch`). Per value case DK is 8 to 20 times faster, the other cases 1.8 to 3.2 times. The C router takes the
+classical line integral again at c0 = 0 below c = -20 (it is now the faster there) and, for the quantiles of case DK below
+c = -20, the classical search.
+
+**The line integral for the general designs of rank one or two.** `c/dfl_det_line.c` ports `src/DFDet_line.jl` of
+DFLimit.jl: for polynomial trends of any order, an intercept with sines and cosines and the statistic that detrends first
+for a continuous design with d(0) != 0 (zero or stationary start, least squares detrending) the classical line integral
+with P(t) and the two roots from the general engine's transform. `dfl_det_opts.method` (`DFL_DET_AUTO`, the default by
+`dfl_det_defaults`; `DFL_DET_LINE`; `DFL_DET_PATHS`) of `dfl_det_dist` and `dfl_det_quantile`; the rule takes the line
+integral at c0 = 0 for c >= -20, 2.2 to 3.5 times faster than the paths per value and 1.8 to 2.7 times per quantile; the
+router's method 1 and `DFL_METHOD_PATHS` (4) where the general engine computes; `ltratio_mex` and `ltratio` pass it
+(`opts.method` `'line'`, `'paths'` with a design). Within 1.8e-12 of the Julia line integral (`c/dfl_test_det`: 5336
+comparisons). The MATLAB programs do not have it (their line integral is the slower one there): `dfdet_cdf`, `dfdet_pdf`,
+`dfdet_icdf` take `opts.method` `'auto'` or `'paths'` and refuse `'line'` with a pointer to the MEX file.
+
+**The coefficient statistic's engine.** At x = 0, the points of `coef_cdf` and `coef_icdf`, the rules of C and MATLAB take
+the classical line integral for c0 > 0 (2 to 17 times faster there) and, in C, the general engine for c0 < 0 in case DK at
+c > -5 and the classical engine in case DU (`coef_cdf` of case DU at c = -5 had become three times slower in the R and
+Python packages).
+
+**The quantile searches.** A Newton step below half an ulp that landed on the end of the bracket sent the search into
+bisection (30 evaluations instead of 5); the bracket is closed now (`dfl_icdf`, the router, `newton_safe`, LTRATIO_NEWTON,
+ADFMAX_ICDF, DFDET_NEWTON).
+
 **The general engine in C.** `c/dfl_det_*.c` is a port of the general engine of DFLimit.jl (`src/DFDet.jl` and
 `src/DFDet_paper2.jl`, branch engine-merge): the limiting law of the Dickey-Fuller t-ratio for any piecewise smooth
 deterministic design (polynomial trends of any order, breaks in level and slope at several dates, designs given by a

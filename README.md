@@ -42,7 +42,10 @@ with the same arguments (`ltratio('cdf', -2.86157, 'DU', -5)`), and drop-in repl
 programs (`dfx_core.m`, `tr_limdist.m`, `tr_contour.m`, `tr_limmom.m`, `tr_adfmax.m`, `tr_region.m`,
 `tr_gilpelaez.m`): with that folder ahead of `matlab/` on the path, `ltratio_cdf` and the other user-level routines run
 unchanged on the C engine. The C engine also has the line integral with a fixed start, which the MATLAB programs lack
-(they take the conditional integral there).
+(they take the conditional integral there), and its line integral takes the inner integrals on fixed node layouts where
+they serve (c <= 0 and c0 = 0, as the Julia engine: `c/dfl_batch.c`), 8 to 20 times faster than the adaptive rules in
+case DK and 2 to 3 times in the other cases; the MATLAB programs keep the adaptive rules there (they are the readable
+form, and their values agree with the layouts' to about 1e-12).
 
 Use the MATLAB programs when nothing but MATLAB may be installed or when the code is to be read, and the MEX file for
 speed: power curves, confidence belts, anything with many values. Both give the same values to well below 1e-5.
@@ -53,7 +56,13 @@ piecewise smooth deterministic design, given as the break points and the coeffic
 or by the regressor matrix of a sample, and the statistic that detrends first), with a zero, fixed or stationary start,
 a local null value and GLS detrending, by the inversion formula on paths around the roots of the joint moment generating
 function; and the companions of the paper on general deterministic terms (the point-optimal statistic and its envelope,
-the LM statistic, MZ_alpha, MSB). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
+the LM statistic, MZ_alpha, MSB). For the designs whose numerator has rank one or two (polynomial trends of any order, an
+intercept with sines and cosines, the statistic that detrends first for a continuous design that does not vanish at the
+origin; zero or stationary start, least squares detrending) the distribution function, the density and the quantiles of
+the t-ratio also come from the line integral with the explicit kernel: the classical line integral with P(t) and the two
+roots supplied by the general engine's transform (`c/dfl_det_line.c`), which `dfl_det_opts.method` chooses
+(`DFL_DET_AUTO`: the line integral at c0 = 0 for c >= -20, where it is 2.2 to 3.5 times faster than the paths per value
+and 1.8 to 2.7 times per quantile, the paths otherwise; `DFL_DET_LINE`, `DFL_DET_PATHS`). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
 the automatic choice of the Julia package (`dfl_autoengine`). It agrees with the Julia engine to 1e-9 in distribution
 functions and densities and to 1e-7 in quantiles (`c/dfl_test_det`); in MATLAB the MEX file reaches it through designs
 (`ltratio('design', ...)`, `c/mex/README.md`).
@@ -95,6 +104,15 @@ engine (`opts.engine = 'auto'` is the default, for a case string as for a design
 engine for a case string the two engines agree to about 1e-9), and with `engine = 'classical'`, a representation named, `verified = true` or further options they
 compute as before, the classical programs on the C engine through the drop-ins and the general engine in MATLAB. `dfdet_test` compares the general engine and the router with reference values of the Julia engine
 (`matlab/validation/det_ref.txt`, written by `matlab/validation/det_ref.jl`).
+
+The MATLAB programs have the inversion on paths only: `dfdet_cdf`, `dfdet_pdf` and `dfdet_icdf` take `opts.method`
+`'auto'` or `'paths'` and refuse `'line'`, the line integral with the explicit kernel of the C engine and of the Julia,
+R and Python packages, with a message that points to the MEX file (`dfdet_method`). Their line integral (`dfx_core`, with
+the adaptive rules) is 1.04 to 1.64 times slower than their inversion on paths in the rank-two cases DU, DT and SU at c0 =
+0 even with its closed forms of P(t) and the roots (warm calls, November 2026), so that it would not be faster for any
+design. With the folder of the MEX file ahead on the path, `ltratio_cdf(x, D, c, struct('method', 'line'))` (and
+`ltratio_pdf`, `ltratio_icdf`, `ltratio('cdf', x, D, c, struct('method', 'line'))`) take the C engine's line integral,
+`'paths'` the C engine's paths, and `'auto'` the C rule.
 
 ## Installation
 
