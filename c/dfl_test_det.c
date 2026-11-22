@@ -334,6 +334,23 @@ static void selftest_nonfinite(void)
     dfl_design_free(&DU); dfl_design_free(&DT); dfl_design_free(&PA);
     dfl_det_empty_caches();
 }
+/* the rules far from the unit root from c = -60 on (DET_FAR_CMIN; until November 2026 from c = -100): on -100 <= c < -60
+ * the general engine was off by up to 1.4e-9 against the line integral (the 45-degree hyperbola), now within 1e-10 */
+static void selftest_far(void)
+{
+    char err[512]; int models[4][2] = {{1, 0}, {2, 0}, {3, 0}, {2, 1}}; double cs[3] = {-70, -85, -100}, p[3] = {0.01, 0.5, 0.99};
+    for (int m = 0; m < 4; m++) for (int i = 0; i < 3; i++) {
+        dfl_spec S = {NULL, models[m][0], models[m][1] ? 2 : 0, 0.0, NAN};
+        double x[3], F1[3], F2[3], d = 0; char what[160];
+        int rc = dfl_engine_icdf(3, p, &S, cs[i], 0, DFL_ENGINE_CLASSICAL, 0, 1e-10, x, err, sizeof err)
+              || dfl_engine_dist(2, 3, x, &S, cs[i], 0, DFL_ENGINE_CLASSICAL, 1, 0, F1, err, sizeof err)
+              || dfl_engine_dist(2, 3, x, &S, cs[i], 0, DFL_ENGINE_GENERAL, 0, 0, F2, err, sizeof err);
+        for (int k = 0; k < 3; k++) d = fmax(d, fabs(F1[k] - F2[k]));
+        snprintf(what, sizeof what, "far rules: model %d stat %d c %g, the general engine against the line integral", models[m][0], models[m][1], cs[i]);
+        check("far", rc ? NAN : d, 0, 1e-10, what);
+    }
+    dfl_det_empty_caches();
+}
 static det_prep *prep_of(int id, double cb, char *err)
 {
     det_prep *P = NULL;
@@ -557,6 +574,7 @@ int main(int argc, char **argv)
     fclose(f);
     selftest_warnings();
     selftest_nonfinite();
+    selftest_far();
     int fails = 0, n = 0;
     printf("%-10s %8s %8s %12s %10s\n", "group", "values", "failed", "largest dev", "dev/tol");
     for (int i = 0; i < NG; i++) { printf("%-10s %8d %8d %12.2e %10.2e\n", G[i].name, G[i].n, G[i].fail, G[i].worst, G[i].worst_rel_tol); fails += G[i].fail; n += G[i].n; }

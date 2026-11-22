@@ -459,11 +459,11 @@ static double ubranch(double sp, double hi, double tr, const double *c0s, int nc
     }
     return sp;
 }
-/* the caps of the panels of the segments of G+ and G- (ucaps): 20/A, below c = -100 20/min(A, 40/|sigma|) */
+/* the caps of the panels of the segments of G+ and G- (ucaps): 20/A, below c = DET_FAR_CMIN = -60 20/min(A, 40/|sigma|) */
 static void ucaps(double c, double sp, double sm, double A, double *hp, double *hm)
 {
     double hseg = 20 / A;
-    *hp = c < -100 && sp > 0 ? 20 / dmin(A, 40 / sp) : hseg; *hm = c < -100 && sm < 0 ? 20 / dmin(A, 40 / fabs(sm)) : hseg;
+    *hp = c < DET_FAR_CMIN && sp > 0 ? 20 / dmin(A, 40 / sp) : hseg; *hm = c < DET_FAR_CMIN && sm < 0 ? 20 / dmin(A, 40 / fabs(sm)) : hseg;
 }
 /* the nodes of the segments of the narrow U-shapes of the zero and the stationary start, a lower bound of their count
  * (within 1% of it beyond 1e5), and the longest segment (unarrow) */

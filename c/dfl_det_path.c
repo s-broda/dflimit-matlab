@@ -8,7 +8,8 @@
 static dfl_lock_t CLOCK_ = DFL_LOCK_INIT;
 #define DET_CACHE_MAX 64
 
-double det_default_rmax(double c) { return c < -100 ? dmax(1e5, 20 * c * c) : 1e5; }
+/* the end |t - tau| of the outer contour: the larger of 1e5 and 20 c^2 (from c = -70.7 on 20 c^2; DFDet.jl default_rmax) */
+double det_default_rmax(double c) { return dmax(1e5, 20 * c * c); }
 cdouble det_logMtilde(const cdouble *rts, int r, int rp, cdouble lP, cdouble s)
 {
     cdouble acc = lP;
@@ -313,7 +314,7 @@ static void fp_body(int k, void *v)
     if (!(isfinite(val) && val <= 2)) o->bad = 1;
     free(fx); det_work_free(&W);
 }
-/* the asymptotic angle with a fixed start (and below c = -100): the smallest angle of PHI_FIXED at which every term
+/* the asymptotic angle with a fixed start (and below c = -60): the smallest angle of PHI_FIXED at which every term
  * |M_V(t_k) e^{g0^2 cf(t_k)} t'(u_k)/t_k| h/pi is at most 2 (fixed_phi) */
 static int fixed_phi(const det_model *Mo, double c, double ts, double tau, double hfac, double rmax, double *phiout, char *err, size_t errlen)
 {
@@ -389,7 +390,7 @@ static det_path *linecpath(det_model_ref *mr, double c, double ts, double tau, d
     return CP;
 }
 
-/* cpath: the hyperbola of the design with its start at c (phi NaN: pi/4, or fixed_phi with a fixed start and below c = -100,
+/* cpath: the hyperbola of the design with its start at c (phi NaN: pi/4, or fixed_phi with a fixed start and below c = -60,
  * steepened while the positive roots leave Re s > 0, the vertical line beyond 88 degrees) */
 static det_path *cpath(det_model_ref *mr, double c, double phi, double hfac, double tau0, char *err, size_t errlen)
 {
@@ -400,7 +401,7 @@ static det_path *cpath(det_model_ref *mr, double c, double phi, double hfac, dou
     double tau = isnan(tau0) ? dmin(1.0, ts / 2) : tau0;
     int autophi = isnan(phi);
     if (autophi) {
-        if (Mo->start == 1 || c < -100) { if (fixed_phi(Mo, c, ts, tau, hfac, rmax, &phi, err, errlen)) return NULL; }
+        if (Mo->start == 1 || c < DET_FAR_CMIN) { if (fixed_phi(Mo, c, ts, tau, hfac, rmax, &phi, err, errlen)) return NULL; }
         else phi = M_PI / 4;
     }
     double a, b, h, mnp, mxn; int K;
@@ -484,7 +485,7 @@ det_path *det_path_prep(det_prep *P, int start, double g0, double c, char *err, 
 }
 /* the path of the law of V alone (v_own) for a prepared design that is not in the cache (the LM statistic): the path of
  * det_path_prep, except where that is the vertical line (above the unit root) the hyperbola of V alone, at pi/4 (or the
- * angle of fixed_phi with a fixed start and below c = -100), not cached.  On the line P(V <= y) of the LM statistic was off
+ * angle of fixed_phi with a fixed start and below c = -60), not cached.  On the line P(V <= y) of the LM statistic was off
  * by 6e-3 at c = 5 with a linear trend (lmpath of DFDet_paper2.jl) */
 det_path *det_v_path_prep(det_prep *P, int start, double g0, double c, char *err, size_t errlen)
 {
@@ -495,7 +496,7 @@ det_path *det_v_path_prep(det_prep *P, int start, double g0, double c, char *err
     if (CP && isnan(CP->h)) {
         const det_model *Mo = &mr->Mo;
         double ph = M_PI / 4; int rc = 0;
-        if (Mo->start == 1 || c < -100) rc = fixed_phi(Mo, c, CP->tstar, CP->tau, 1.0, det_default_rmax(c), &ph, err, errlen);
+        if (Mo->start == 1 || c < DET_FAR_CMIN) rc = fixed_phi(Mo, c, CP->tstar, CP->tau, 1.0, det_default_rmax(c), &ph, err, errlen);
         det_path_release(CP);
         CP = rc ? NULL : cpath(mr, c, ph, 1.0, NAN, err, errlen);
     }
@@ -641,7 +642,7 @@ det_path *det_v_path(const dfl_design *D, double cbar, int start, double g0, dou
     if (!(isnan(phi) && isnan(CP->h))) return CP;
     const det_model *Mo = CP->Mo;
     double ph = M_PI / 4;
-    if (Mo->start == 1 || c < -100) { if (fixed_phi(Mo, c, CP->tstar, CP->tau, hfac, det_default_rmax(c), &ph, err, errlen)) { det_path_release(CP); return NULL; } }
+    if (Mo->start == 1 || c < DET_FAR_CMIN) { if (fixed_phi(Mo, c, CP->tstar, CP->tau, hfac, det_default_rmax(c), &ph, err, errlen)) { det_path_release(CP); return NULL; } }
     int st = Mo->start; double gg = Mo->g0;
     det_path_release(CP);
     return det_path_cached(D, cbar, st, gg, c, ph, hfac, err, errlen);
