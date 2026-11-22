@@ -66,6 +66,7 @@ static inline int det_failed(const det_status *st) { return *(const volatile int
 /* the warning of the general engine on the calling thread (dfl_det_warning): the messages of one user-level call, joined */
 void det_warn(const char *fmt, ...);
 void det_warn_clear(void);
+void det_warn_hold(int on);       /* on = 1: keep the warnings across the calls that follow, 0: release */
 
 /* ---- small dense linear algebra (dfl_det_la.c); matrices column-major ---- */
 /* symmetric eigen-decomposition by the cyclic Jacobi method: eigenvalues ascending in w, eigenvectors in the columns of V

@@ -397,7 +397,10 @@ void det_fail(det_status *st, const char *fmt, ...)
     dfl_unlock(&errlock);
 }
 static _Thread_local char DETWARN[2048];
-void det_warn_clear(void) { DETWARN[0] = 0; }
+static _Thread_local int DETHOLD = 0;
+/* (a composite function holds the warnings of its parts: the clearing at the entry of each part is then skipped) */
+void det_warn_clear(void) { if (!DETHOLD) DETWARN[0] = 0; }
+void det_warn_hold(int on) { DETHOLD += on ? 1 : -1; if (DETHOLD < 0) DETHOLD = 0; }
 void det_warn(const char *fmt, ...)
 {
     size_t k = strlen(DETWARN);

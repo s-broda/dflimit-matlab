@@ -90,6 +90,21 @@ static double num(char **p)
 }
 static int inum(char **p) { return (int) num(p); }
 
+/* the cells in which the C rule was moved from the Julia rule by the timings of the C engines (dfl_autoengine; the
+ * measurements in test/engine_table_c.txt): there the two rules may differ, elsewhere they must agree */
+static int moved(int f, int model, int stat, double g0, double gls, double c, double c0, double x)
+{
+    int fixed = g0 != 0 && !stat, DU = model == 2 && !stat, DT = model == 3 && !stat, DG = model == 4;
+    (void) gls;
+    switch (f) {
+    case DFL_F_DIST: return (!fixed && c0 == 0 && !DG && c < -20) || (!fixed && !stat && c0 < 0 && ((DT && c >= -30 && c <= 0) || (DU && c >= -10 && c <= 0)));
+    case DFL_F_ICDF: return c0 == 0 && !fixed && !DG && ((!stat && c <= 2) || (stat && c <= -1));
+    case DFL_F_MOM: return c0 != 0;
+    case DFL_F_LINCDF: return DG && x != 0;
+    case DFL_F_ENVELOPE: return 1;
+    default: return 0;
+    }
+}
 static det_prep *prep_of(int id, double cb, char *err)
 {
     det_prep *P = NULL;
@@ -268,6 +283,16 @@ int main(int argc, char **argv)
             if (VERB) printf("     %.1f ms %s%s%s\n", 1e3 * dt, what, dfl_det_warning() ? " warning: " : "", dfl_det_warning() ? dfl_det_warning() : "");
             free(x); free(want); free(got);
             dfl_det_empty_caches();
+            continue;
+        }
+        if (!strcmp(tag, "auto")) {
+            int fi = inum(&p), m = inum(&p), st = inum(&p); double g0 = num(&p), gl = num(&p), c = num(&p), c0 = num(&p), x = num(&p); int ej = inum(&p);
+            static const int FM[7] = {0, DFL_F_DIST, DFL_F_ICDF, DFL_F_MOM, DFL_F_LINCDF, DFL_F_ADFMAX, DFL_F_ENVELOPE};
+            int f2 = FM[fi], ec = dfl_autoengine(f2, m, st == 2, g0, m == 4 ? (isnan(gl) ? DFL_CBAR_GLS : gl) : gl, c, c0, x) == DFL_ENGINE_GENERAL;
+            group_t *g = grp(ec == ej ? "rule" : "rule-moved"); g->n++;
+            snprintf(what, sizeof what, "rule f %d model %d stat %d g0 %g gls %g c %g c0 %g x %g: C %s, Julia %s", fi, m, st == 2, g0, gl, c, c0, x, ec ? "general" : "classical", ej ? "general" : "classical");
+            if (ec != ej && !moved(f2, m, st == 2, g0, gl, c, c0, x)) { g->fail++; printf("FAIL %s\n", what); }
+            else if (VERB && ec != ej) printf("moved %s\n", what);
             continue;
         }
         if (!strcmp(tag, "route")) {

@@ -26,7 +26,14 @@ static cdouble m011(double c, cdouble t, cdouble th)
  * downward one from the series in 1 - x beyond) */
 static double INVN[1025];
 static volatile int INVN_DONE = 0;
-static void invn_init(void) { if (INVN_DONE) return; for (int m = 1; m <= 1024; m++) INVN[m] = 1.0 / m; INVN_DONE = 1; }
+static dfl_lock_t INVN_LOCK = DFL_LOCK_INIT;
+static void invn_init(void)
+{
+    if (INVN_DONE) return;
+    dfl_lock(&INVN_LOCK);
+    if (!INVN_DONE) { for (int m = 1; m <= 1024; m++) INVN[m] = 1.0 / m; INVN_DONE = 1; }
+    dfl_unlock(&INVN_LOCK);
+}
 static void ek(cdouble *e, cdouble z, int D)
 {
     double a2 = cabs2(z);

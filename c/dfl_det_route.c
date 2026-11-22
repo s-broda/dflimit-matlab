@@ -78,8 +78,7 @@ static void det_opts_of(const spec_t *R, double c0, int verified, dfl_det_opts *
 int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, double c0, double x)
 {
     int fixed = g0 != 0 && !stat;
-    int DK = model == 1 && !stat, DU = model == 2 && !stat, DT = model == 3 && !stat, SK = model == 1 && stat, SU = model == 2 && stat, ST = model == 3 && stat, DG = model == 4;
-    (void) DU; (void) SK;
+    int DK = model == 1 && !stat, DU = model == 2 && !stat, DT = model == 3 && !stat, SU = model == 2 && stat, ST = model == 3 && stat, DG = model == 4;
     switch (f) {
     case DFL_F_DIST:
         /* the t-ratio: the faster engine where the two agree to 1e-10, the more accurate one where they do not */
@@ -91,30 +90,47 @@ int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, 
         }
         if (!fixed && !stat && c0 != 0 && c < -100) return DFL_ENGINE_GENERAL;
         if (fixed && DK && c <= 1 && ((c * g0) * (c * g0) / 2 <= 400 || (g0 <= 0.5 && c >= -100))) return DFL_ENGINE_GENERAL;
+        /* (the C timings, not the Julia rule: at c0 = 0 with a zero or stationary start the classical line integral slows
+         * down beyond c = -20, where its outer integral grows longer: at c = -30 to -300 the general engine is 1.2 to 2.9
+         * times faster in cases DK, DU, DT, SK, SU, ST (case DU at c = -100: 1.4 times slower); case DG keeps the classical
+         * engine, 9 times faster) */
+        if (!fixed && c0 == 0 && !DG && c < -20) return DFL_ENGINE_GENERAL;
+        /* (the C timings: with a zero start and c0 < 0 the general engine is 1.15 to 1.7 times faster in case DT for
+         * -30 <= c <= 0 and in case DU for -10 <= c <= 0; case DK and further out the classical engine.  The tails below 1e-3
+         * go back to the classical conditional integral, as for every general value of these cases) */
+        if (!fixed && !stat && c0 < 0 && ((DT && c >= -30 && c <= 0) || (DU && c >= -10 && c <= 0))) return DFL_ENGINE_GENERAL;
         return DFL_ENGINE_CLASSICAL;
     case DFL_F_ICDF:
+        /* the quantiles at c0 = 0 (the Julia rule: a fixed start, case DT at c <= 0, ST at c <= -1, DU at c = 0; the C timings
+         * extend it: with a zero start the general search is 1.2 to 2 times faster in cases DK, DU, DT up to c = 2, with a
+         * stationary start at c <= -1, 1.3 to 1.6 times; case DG and c > 2 keep the classical search) */
         if (c0 != 0) return DFL_ENGINE_CLASSICAL;
         if (fixed) return DFL_ENGINE_GENERAL;
-        if (DT && c <= 0) return DFL_ENGINE_GENERAL;
-        if (ST && c <= -1) return DFL_ENGINE_GENERAL;
-        if (model == 2 && !stat && c == 0) return DFL_ENGINE_GENERAL;
+        if (DG) return DFL_ENGINE_CLASSICAL;
+        if (!stat && c <= 2) return DFL_ENGINE_GENERAL;
+        if (stat && c <= -1) return DFL_ENGINE_GENERAL;
         return DFL_ENGINE_CLASSICAL;
     case DFL_F_MOM:
-        if (stat) {
-            if (SU && c0 != 0) return DFL_ENGINE_CLASSICAL;
-            return (model == 1 ? c <= -3e-3 : c <= -1) ? DFL_ENGINE_GENERAL : DFL_ENGINE_CLASSICAL;
-        }
-        if (c0 == 0) return DFL_ENGINE_GENERAL;
-        return DT ? DFL_ENGINE_GENERAL : DFL_ENGINE_CLASSICAL;
+        /* (the C timings: with c0 != 0 the classical moments are 4 to 9 times faster with a stationary start and 2 to 8 times
+         * with a zero start, case DT included, where the Julia rule takes the general engine) */
+        if (c0 != 0) return DFL_ENGINE_CLASSICAL;
+        if (stat) return (model == 1 ? c <= -3e-3 : c <= -1) ? DFL_ENGINE_GENERAL : DFL_ENGINE_CLASSICAL;
+        return DFL_ENGINE_GENERAL;
     case DFL_F_LINCDF:      /* x = a */
         if (DK && isnan(x)) return DFL_ENGINE_GENERAL;
-        if (DG && x != 0 && (c > 4 || gls <= -2 || (gls <= -1 && c > 0))) return DFL_ENGINE_GENERAL;
+        /* (the C timings: in case DG the classical engine is 1.5 to 16 times faster below the unit root at every cbar; above it
+         * the general engine, from c = 3 at cbar = -13.5 (4 to 12 times faster) and for c > 0 at cbar >= -5 (1.2 to 3 times);
+         * the Julia rule takes the general engine for cbar <= -2 at every c) */
+        if (DG && x != 0 && (c > 2 || (c > 0 && gls >= -5))) return DFL_ENGINE_GENERAL;
         return DFL_ENGINE_CLASSICAL;
     case DFL_F_ADFMAX:
         return (stat && c <= -0.1) ? DFL_ENGINE_GENERAL : DFL_ENGINE_CLASSICAL;
     case DFL_F_ENVELOPE:
-        if (DK) return c <= -0.01 ? DFL_ENGINE_GENERAL : DFL_ENGINE_CLASSICAL;
-        return c <= -1 ? DFL_ENGINE_GENERAL : DFL_ENGINE_CLASSICAL;
+        /* (the C timings: the classical engine is 1.6 to 11 times faster for c <= -1 and as fast nearer zero; its critical value
+         * is bisected to 1e-9, which moves the power by up to 2e-9; the Julia rule takes the general engine for c <= -0.01 in
+         * case DK and c <= -1 in case DG, where its critical value is found to 1e-10 at the same cost) */
+        (void) SU; (void) ST;
+        return DFL_ENGINE_CLASSICAL;
     default:
         return DFL_ENGINE_CLASSICAL;     /* (the regions) */
     }
@@ -204,10 +220,12 @@ static int gen_icdf(int n, const double *p, const spec_t *R, double c, double c0
     }
     if (have) { x0 = m[0]; sd = sqrt(dmax(m[1] - m[0] * m[0], 1e-6)); }
     dfl_det_opts o; det_opts_of(R, c0, 0, &o);
+    det_warn_clear(); det_warn_hold(1);
     for (int k = 0; k < n; k++) {
-        if (!(p[k] > 0 && p[k] < 1)) { snprintf(err, errlen, "p must lie in (0, 1)"); return 1; }
-        if (dfl_det_quantile(R->D, 1, &p[k], c, x0 + sd * sqrt(2) * erfinv_(2 * p[k] - 1), tol, &o, &q[k], err, errlen)) return 1;
+        if (!(p[k] > 0 && p[k] < 1)) { snprintf(err, errlen, "p must lie in (0, 1)"); det_warn_hold(0); return 1; }
+        if (dfl_det_quantile(R->D, 1, &p[k], c, x0 + sd * sqrt(2) * erfinv_(2 * p[k] - 1), tol, &o, &q[k], err, errlen)) { det_warn_hold(0); return 1; }
     }
+    det_warn_hold(0);
     return 0;
 }
 /* the classical search with each evaluation routed (ltratio_icdf_ with engine = auto) */
@@ -217,8 +235,9 @@ static int routed_icdf(int n, const double *p, const spec_t *R, double c, double
     if (R->model == 4) { mu = -1.9 + 0.1 * dmin(c, 0.0); sd = 0.8; }
     else { if (dfl_moments(R->model, c, c0, R->g0, R->stat, 2, m, me, err, errlen)) return 1; mu = m[0]; sd = sqrt(dmax(m[1] - m[0] * m[0], 1e-6)); }
     dfl_spec S = {NULL, R->model, R->start, R->g0, R->gls};
-#define CDF(xx, o) do { double x_ = (xx); if (dfl_engine_dist(2, 1, &x_, &S, c, c0, DFL_ENGINE_AUTO, method, 0, &(o), err, errlen)) return 1; } while (0)
-#define PDF(xx, o) do { double x_ = (xx); if (dfl_engine_dist(1, 1, &x_, &S, c, c0, DFL_ENGINE_AUTO, method, 0, &(o), err, errlen)) return 1; } while (0)
+#define CDF(xx, o) do { double x_ = (xx); if (dfl_engine_dist(2, 1, &x_, &S, c, c0, DFL_ENGINE_AUTO, method, 0, &(o), err, errlen)) { det_warn_hold(0); return 1; } } while (0)
+#define PDF(xx, o) do { double x_ = (xx); if (dfl_engine_dist(1, 1, &x_, &S, c, c0, DFL_ENGINE_AUTO, method, 0, &(o), err, errlen)) { det_warn_hold(0); return 1; } } while (0)
+    det_warn_hold(1);
     for (int k = 0; k < n; k++) {
         double pk = p[k];
         if (!(pk > 0 && pk < 1)) { snprintf(err, errlen, "p must lie in (0, 1)"); return 1; }
@@ -239,6 +258,7 @@ static int routed_icdf(int n, const double *p, const spec_t *R, double c, double
     }
 #undef CDF
 #undef PDF
+    det_warn_hold(0);
     return 0;
 }
 int dfl_engine_icdf(int n, const double *p, const dfl_spec *S, double c, double c0, int engine, int method, double tol, double *q, char *err, size_t errlen)

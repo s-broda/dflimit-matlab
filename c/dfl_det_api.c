@@ -391,15 +391,17 @@ int dfl_det_local_power(const dfl_design *D, int n, const double *cs, double lev
 {
     dfl_det_opts od; const dfl_det_opts *o = opts_or_default(o0, &od);
     if (statistic != 0 && statistic != 1) { snprintf(err, errlen, "statistic must be 0 (the t-ratio) or 1 (the coefficient statistic)"); return 1; }
-    double q;
+    double q; int rc = 0;
+    det_warn_clear(); det_warn_hold(1);
     if (statistic == 0) {
-        if (dfl_det_quantile(D, 1, &level, o->c0, isnan(o->gls) ? -3.5 : -2.5, 1e-11, o, &q, err, errlen)) return 1;
-        for (int k = 0; k < n; k++) if (dfl_det_dist(2, D, 1, &q, cs[k], o, &out[k], err, errlen)) return 1;
+        rc = dfl_det_quantile(D, 1, &level, o->c0, isnan(o->gls) ? -3.5 : -2.5, 1e-11, o, &q, err, errlen);
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_dist(2, D, 1, &q, cs[k], o, &out[k], err, errlen);
     } else {
-        if (dfl_det_coef_quantile(D, 1, &level, o->c0, -15.0, 1e-11, o, &q, err, errlen)) return 1;
-        for (int k = 0; k < n; k++) if (dfl_det_coef(2, D, 1, &q, cs[k], o, &out[k], err, errlen)) return 1;
+        rc = dfl_det_coef_quantile(D, 1, &level, o->c0, -15.0, 1e-11, o, &q, err, errlen);
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_coef(2, D, 1, &q, cs[k], o, &out[k], err, errlen);
     }
-    return 0;
+    det_warn_hold(0);
+    return rc;
 }
 
 /* ---------- events bounded by parabolas: the line U - aV <= b, the law of V, ADFmax ---------- */
@@ -500,6 +502,7 @@ int dfl_det_power_envelope(const dfl_design *D, int n, const double *cs, double 
     if (!(trendcase || nodet)) { snprintf(err, errlen, "power_envelope: the design must be trend(-1), trend(0) or trend(1) (the limit of the point-optimal statistic of other designs was not derived)"); return 1; }
     dfl_design T; if (dfl_design_trend(-1, &T, err, errlen)) return 1;
     int rc = 0;
+    det_warn_hold(1);
     for (int k = 0; k < n && !rc; k++) {
         double c = cs[k];
         if (!(c < 0)) { out[k] = level; continue; }
@@ -515,6 +518,7 @@ int dfl_det_power_envelope(const dfl_design *D, int n, const double *cs, double 
             if (!rc) rc = dfl_det_lin(2, D, 1, &b, a, c, &o, &out[k], err, errlen);
         }
     }
+    det_warn_hold(0);
     dfl_design_free(&T);
     return rc;
 }

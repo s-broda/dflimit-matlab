@@ -317,5 +317,34 @@ for e in 0:2
     rline("region1", e, "case", 1, 0, 0.0, NaN, -5.0, 0.0, -3.5, [-0.2639], () -> DFLimit.ltratio_region((type = "line", a = -3.5, b = -0.2639), "DK", -5.0; engine = eng))
     rline("region2", e, "case", 1, 0, 0.0, NaN, -7.0, 0.0, 0.0, [-1.94087], () -> DFLimit.ltratio_region((type = "parabola", x = -1.94087), "DK", -7.0; engine = eng))
 end
+# the rule: 'auto f model stat g0 gls c c0 x engine' with Julia's autoengine (0 classical, 1 general), f 1 dist, 2 icdf,
+# 3 mom, 4 lincdf (x = a), 5 adfmax, 6 envelope
+AF = (:dist, :icdf, :mom, :lincdf, :adfmax, :envelope)
+function aline(fi, m, st, g0, gl, c, c0, x)
+    cs = casestr(m, st)
+    S = fi == 4 ? DFLimit.lin_spec(cs, isnan(gl) ? -13.5 : gl) : DFLimit.case_spec(cs, g0)
+    e = DFLimit.autoengine(AF[fi], S, Float64(c), Float64(c0), Float64(x))
+    println(io, join(["auto", string(fi), string(m), string(st), fmt(g0), fmt(gl), fmt(c), fmt(c0), fmt(x), e === :general ? "1" : "0"], " "))
+end
+cgrid = (-300.0, -100.0, -50.0, -30.0, -20.0, -10.0, -5.0, -1.0, -0.5, -1e-3, 0.0, 1.0, 2.0, 3.0, 5.0)
+for m in 1:4, st in (0, 2), c in cgrid
+    (m == 4 && st == 2) && continue
+    st == 2 && c >= 0 && continue
+    for c0 in unique((0.0, -5.0, 2.0, c))
+        aline(1, m, st, 0.0, NaN, c, c0, -2.0)
+        m == 1 && st == 0 && c0 > 0 && aline(1, m, st, 0.0, NaN, c, c0, -sqrt(2c0) + 5e-4)
+        aline(2, m, st, 0.0, NaN, c, c0, 0.0)
+        m != 4 && aline(3, m, st, 0.0, NaN, c, c0, 0.0)
+    end
+    if st == 0 && m != 4
+        for g0 in (0.5, 1.0, -1.0, 3.0)
+            aline(1, m, st, g0, NaN, c, 0.0, -2.0); aline(2, m, st, g0, NaN, c, 0.0, 0.0); aline(3, m, st, g0, NaN, c, 0.0, 0.0)
+        end
+    end
+    m in (2, 3) && aline(5, m, st, 0.0, NaN, c, 0.0, 0.0)
+end
+for c in cgrid, a in (NaN, -3.5, 0.0); aline(4, 1, 0, 0.0, NaN, c, 0.0, a); end
+for c in cgrid, gl in (-13.5, -5.0, -2.0, -1.0), a in (-7.3, 0.0); aline(4, 4, 0, 0.0, gl, c, 0.0, a); end
+for m in (1, 4), c in (-10.0, -1.0, -0.5, -0.01, -1e-4); aline(6, m, 0, 0.0, NaN, c, 0.0, 0.0); end
 close(io)
 println("written ", OUT)
