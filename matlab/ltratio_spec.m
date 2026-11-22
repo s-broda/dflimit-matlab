@@ -32,6 +32,8 @@ st = ''; if isfield(opts,'start') && ~isempty(opts.start), st = lower(char(opts.
 if isempty(st), if g0 ~= 0, st = 'fixed'; else, st = 'zero'; end, end
 if ~any(strcmp(st,{'zero','fixed','stationary'})), error('ltratio:args','ltratio: opts.start must be ''zero'', ''fixed'' or ''stationary''.'); end
 if strcmp(st,'stationary') && g0 ~= 0, error('ltratio:args','ltratio: g0 (a fixed start) and start = ''stationary'' exclude each other.'); end
+% (a zero start named with g0 ~= 0 was the zero start for the general engine and the fixed start for the classical programs)
+if strcmp(st,'zero') && g0 ~= 0, error('ltratio:args','ltratio: g0 ~= 0 (a fixed start) and start = ''zero'' exclude each other.'); end
 if strcmp(st,'fixed') && g0 == 0, st = 'zero'; end
 gls = []; if isfield(opts,'gls') && ~isempty(opts.gls), gls = double(opts.gls); end
 cs = '';

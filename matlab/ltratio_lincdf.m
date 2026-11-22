@@ -26,13 +26,16 @@ function P = ltratio_lincdf(b,a,cas,c,opts)
 %   See also POWER_ENVELOPE, LTRATIO_REGION, TR_GILPELAEZ, DFDET_LIN_CDF.
 if nargin < 4 || isempty(c), c = 0; end
 if nargin < 5 || isempty(opts), opts = struct; end
+ltratio_route('case',cas,opts); ltratio_route('nostart','ltratio_lincdf',cas,opts);
 [engine,oc] = ltratio_route('engine',opts);
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);
-    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DK','DG'}))
+    % (the classical linear form has the zero start only: no deterministic terms with a fixed start, case 'DK' too, take
+    % the general engine, as in the C and Julia routers)
+    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DK','DG'})) && strcmp(S.start,'zero')
         oc.engine = engine; P = ltratio_lincdf(b,a,S.case,c,oc); return
     end
-    if strcmp(engine,'classical'), error('ltratio:args','ltratio_lincdf: engine = ''classical'': the linear form of the classical programs has the cases DK and DG only.'); end
+    if strcmp(engine,'classical'), error('ltratio:args','ltratio_lincdf: engine = ''classical'': the linear form of the classical programs has the cases DK and DG only, with a zero start.'); end
     P = dfdet_lin_cdf(b,a,S.D,c,ltratio_route('gopts',S,oc)); return
 end
 if ischar(cas) || isstring(cas)

@@ -13,13 +13,19 @@ function [q,info] = adfmax_icdf(p,cas,c,opts)
 %   See also ADFMAX_CDF, ADFMAX_PDF, DFDET_ADFMAX_ICDF.
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
-if ~(ischar(cas) || isstring(cas))
+ltratio_route('case',cas,opts);
+if isfield(opts,'c0') && ~isempty(opts.c0) && opts.c0 ~= 0, error('ltratio:args','adfmax_icdf: ADFmax is the statistic of the null value phi = 1 (opts.c0 does not apply).'); end
+fixed = isfield(opts,'g0') && ~isempty(opts.g0) && opts.g0 ~= 0;
+if fixed && (ischar(cas) || isstring(cas)) && strncmpi(char(cas),'S',1), error('ltratio:args','adfmax: g0 (a fixed start) and a stationary start (cases SU, ST) exclude each other.'); end
+if ~(ischar(cas) || isstring(cas)) || fixed
+    % (a design, or a case string with a fixed start, which the classical ADFmax does not have: the general engine)
     [engine,oc] = ltratio_route('engine',opts); S = ltratio_spec(cas,opts);
-    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DU','DT','SU','ST'}))
+    if ~isempty(S.gls), error('ltratio:args','adfmax_icdf: ADFmax has least-squares detrending only (no opts.gls).'); end
+    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DU','DT','SU','ST'})) && ~strcmp(S.start,'fixed')
         oc.engine = engine; [q,info] = adfmax_icdf(p,S.case,c,oc); return
     end
-    if strcmp(engine,'classical'), error('ltratio:args','adfmax_icdf: engine = ''classical'': ADFmax of the classical programs has the cases DU, DT, SU, ST only.'); end
-    go = ltratio_route('gopts',S,oc); go.gls = []; if isfield(oc,'tol'), go.tol = oc.tol; end; if isfield(oc,'x0'), go.x0 = oc.x0; end
+    if strcmp(engine,'classical'), error('ltratio:args','adfmax_icdf: engine = ''classical'': ADFmax of the classical programs has the cases DU, DT, SU, ST only, with a zero or a stationary start.'); end
+    go = ltratio_route('gopts',S,oc); if isfield(oc,'tol'), go.tol = oc.tol; end; if isfield(oc,'x0'), go.x0 = oc.x0; end
     q = dfdet_adfmax_icdf(p,S.D,c,go); info = struct('F',NaN(size(p)),'engine','general'); return
 end
 if ~(isnumeric(p) && isreal(p) && all(p(:) > 0 & p(:) < 1)), error('ltratio:args','adfmax_icdf: p must lie in (0,1).'); end

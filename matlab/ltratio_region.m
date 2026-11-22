@@ -24,11 +24,14 @@ if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 % (opts.engine: 'general' the general engine, DFDET_REGION, for the lines and parabolas; 'auto' and 'classical' the
 % programs above; a design other than case DK goes to DFDET_REGION)
+ltratio_route('case',cas,opts); ltratio_route('nostart','ltratio_region',cas,opts);
 [engine,oc] = ltratio_route('engine',opts);
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);
-    if ~strcmp(engine,'general') && strcmp(S.case,'DK'), [P,info] = ltratio_region(bnd,'DK',c,oc); return, end
-    if strcmp(engine,'classical'), error('ltratio:args','ltratio_region: engine = ''classical'': the regions of the classical programs have case DK only.'); end
+    % (the classical regions have the zero start only: no deterministic terms with a fixed start, whose case is also 'DK',
+    % take the general engine, as in the C and Julia routers)
+    if ~strcmp(engine,'general') && strcmp(S.case,'DK') && strcmp(S.start,'zero'), oc = rmfield_(oc,'g0'); [P,info] = ltratio_region(bnd,'DK',c,oc); return, end
+    if strcmp(engine,'classical'), error('ltratio:args','ltratio_region: engine = ''classical'': the regions of the classical programs have case DK only, with a zero start.'); end
     P = dfdet_region(bnd,S.D,c,ltratio_route('gopts',S,oc)); info = struct('engine','general'); return
 end
 if strcmp(engine,'general'), P = dfdet_region(bnd,dfdet_trend(-1),c); info = struct('engine','general'); return, end
@@ -38,4 +41,8 @@ if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:ar
 if c < -550, error('ltratio:args','ltratio_region: c must be at least -550 (the range in which the programs are checked).'); end
 if ~isstruct(bnd) || ~isfield(bnd,'type'), error('ltratio:args','ltratio_region: bnd must be a structure with the field type.'); end
 [P,info] = tr_region(bnd,c,opts);
+end
+
+function o = rmfield_(o,f)
+if isfield(o,f), o = rmfield(o,f); end
 end

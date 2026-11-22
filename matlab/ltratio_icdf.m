@@ -20,6 +20,7 @@ function [q,info] = ltratio_icdf(p,cas,c,opts)
 %   See also LTRATIO_CDF, LTRATIO_PDF, LTRATIO_MOM, DFDET_ICDF.
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
+ltratio_route('case',cas,opts);
 [engine,oc] = ltratio_route('engine',opts);
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);

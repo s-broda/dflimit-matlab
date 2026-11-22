@@ -10,22 +10,33 @@ function [F,info] = adfmax_dist(x,cas,c,opts,mode)
 %
 %   See also ADFMAX_CDF, TR_ADFMAX, DFDET_ADFMAX_CDF.
 if nargin < 4 || isempty(opts), opts = struct; end
+ltratio_route('case',cas,opts);
+if isfield(opts,'c0') && ~isempty(opts.c0) && opts.c0 ~= 0, error('ltratio:args','adfmax: ADFmax is the statistic of the null value phi = 1 (opts.c0 does not apply; it was dropped without notice).'); end
 [engine,oc] = ltratio_route('engine',opts);
+% (the classical ADFmax has the zero and the stationary start of cases DU, DT only: a fixed start, of a case string with
+% opts.g0 or of a design, takes the general engine, whose ADFmax is the same functional of (U, V) for every start; the
+% classical programs computed the zero start.  GLS detrending: neither engine has it, an error)
+fixed = isfield(oc,'g0') && ~isempty(oc.g0) && oc.g0 ~= 0;
+if fixed && (ischar(cas) || isstring(cas)) && strncmpi(char(cas),'S',1), error('ltratio:args','adfmax: g0 (a fixed start) and a stationary start (cases SU, ST) exclude each other.'); end
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);
-    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DU','DT','SU','ST'}))
+    if ~isempty(S.gls), error('ltratio:args','adfmax: ADFmax has least-squares detrending only (no opts.gls).'); end
+    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DU','DT','SU','ST'})) && ~strcmp(S.start,'fixed')
         oc.engine = engine; [F,info] = adfmax_dist(x,S.case,c,oc,mode); return
     end
-    if strcmp(engine,'classical'), error('ltratio:args','adfmax: engine = ''classical'': ADFmax of the classical programs has the cases DU, DT, SU, ST only.'); end
+    if strcmp(engine,'classical'), error('ltratio:args','adfmax: engine = ''classical'': ADFmax of the classical programs has the cases DU, DT, SU, ST only, with a zero or a stationary start.'); end
     F = general_adfmax(x,S,c,oc,mode); info = struct('engine','general'); return
 end
-if strcmp(engine,'general')
-    F = general_adfmax(x,ltratio_spec(cas,oc),c,oc,mode); info = struct('engine','general'); return
-end
-opts = oc;
-if ~(ischar(cas) || isstring(cas)) || ~any(strcmpi(cas,{'DU','DT','SU','ST'}))
+if ~any(strcmpi(cas,{'DU','DT','SU','ST'})) && ~strcmp(engine,'general')
     error('ltratio:args','adfmax: the case must be one of DU, DT, SU, ST.');
 end
+if strcmp(engine,'general') || fixed
+    if strcmp(engine,'classical'), error('ltratio:args','adfmax: engine = ''classical'': ADFmax of the classical programs has the cases DU, DT, SU, ST only, with a zero or a stationary start.'); end
+    S = ltratio_spec(cas,oc);
+    if ~isempty(S.gls), error('ltratio:args','adfmax: ADFmax has least-squares detrending only (case DG).'); end
+    F = general_adfmax(x,S,c,oc,mode); info = struct('engine','general'); return
+end
+opts = oc;
 cas = upper(char(cas));
 if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:args','adfmax: c must be a finite real scalar.'); end
 if cas(1) == 'S' && ~(c <= -1e-4), error('ltratio:args','ltratio: a stationary start (cases SK, SU, ST) requires c <= -1e-4: closer to zero the variance -1/(2c) of the start is too large for the quadrature.'); end   % (LTRATIO_ARGS)

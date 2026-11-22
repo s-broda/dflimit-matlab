@@ -21,6 +21,13 @@ function P = power_envelope(c,cas,opts)
 %   See also LTRATIO_LINCDF, LTRATIO_CDF, COEF_CDF.
 if nargin < 2 || isempty(cas), cas = 'DK'; end
 if nargin < 3 || isempty(opts), opts = struct; end
+ltratio_route('case',cas,opts); ltratio_route('nostart','power_envelope',cas,opts);
+if ~(ischar(cas) || isstring(cas))
+    % (the envelope is that of the zero start, with its own detrending: a start, g0 or gls was dropped without notice)
+    if (isfield(opts,'g0') && ~isempty(opts.g0) && opts.g0 ~= 0) || (isfield(opts,'start') && ~isempty(opts.start) && ~strcmpi(char(opts.start),'zero')) || (isfield(opts,'gls') && ~isempty(opts.gls))
+        error('ltratio:args','power_envelope: the envelope is that of the zero start with its own detrending (no opts.start, opts.g0, opts.gls).');
+    end
+end
 [engine,oc] = ltratio_route('engine',opts);
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
 if ~(ischar(cas) || isstring(cas))
@@ -53,8 +60,10 @@ end
 opts = oc; if isfield(opts,'engine'), opts = rmfield(opts,'engine'); end
 if ~any(strcmp(cas,{'DK','DG'})), error('ltratio:args','power_envelope: the case must be DK (or DU) or DG.'); end
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
+if ~(isnumeric(alpha) && isscalar(alpha) && alpha > 0 && alpha < 1), error('ltratio:args','power_envelope: the level opts.alpha must lie in (0, 1).'); end
 P = zeros(size(c));
 for k = 1:numel(c)
+    if isnan(c(k)), P(k) = NaN; continue, end          % (NaN at NaN, as the C engine)
     if ~(c(k) < 0), P(k) = alpha; continue, end
     if strcmp(cas,'DK'), a = c(k)/2; else, a = c(k)^2/(2*(c(k) - 1)); end   % the point-optimal weight
     o = opts; o.cbar = c(k);

@@ -15,6 +15,13 @@ function varargout = ltratio_route(op,varargin)
 %   engine = 'general'.
 %   o = LTRATIO_ROUTE('gopts',S,opts): the options of the general engine for
 %   the spec S (start, g0, gls, c0 and the rules).
+%   LTRATIO_ROUTE('case',cas,opts): with a case string, the error of
+%   opts.start or opts.gls, which apply to a design (a case string has its
+%   start in its code, D: zero or fixed g0, S: stationary, and case DG its GLS
+%   detrending; both were dropped without notice).
+%   LTRATIO_ROUTE('nostart',what,S,opts): the error of a fixed start (g0 ~= 0,
+%   with a case string) or of c0 ~= 0 for the computations that have neither
+%   (what: the linear form, the regions, the envelope; nothing is dropped).
 %
 %   See also LTRATIO_SPEC, LTRATIO_ENGINE.
 switch op
@@ -47,6 +54,19 @@ switch op
         opts = varargin{1};
         if isfield(opts,'method') && ~isempty(opts.method) && ~strcmpi(char(opts.method),'auto')
             error('ltratio:args','ltratio: opts.method = ''%s'' names a representation of the classical programs; it does not apply with engine = ''general''.',char(opts.method));
+        end
+    case 'case'
+        cas = varargin{1}; opts = varargin{2};
+        if (ischar(cas) || isstring(cas)) && isstruct(opts)
+            if (isfield(opts,'start') && ~isempty(opts.start)) || (isfield(opts,'gls') && ~isempty(opts.gls))
+                error('ltratio:args','ltratio: opts.start and opts.gls apply to a design; a case string has its start in its code (D: zero or fixed g0, S: stationary) and case DG its GLS detrending.');
+            end
+        end
+    case 'nostart'
+        what = varargin{1}; cas = varargin{2}; opts = varargin{3};
+        if isfield(opts,'c0') && ~isempty(opts.c0) && opts.c0 ~= 0, error('ltratio:args','%s: opts.c0 does not apply (there is no local null value; it was dropped without notice).',what); end
+        if (ischar(cas) || isstring(cas)) && isfield(opts,'g0') && ~isempty(opts.g0) && opts.g0 ~= 0
+            error('ltratio:args','%s: the case %s has the zero start here; a fixed start takes a design (dfdet_trend(-1) with opts.g0).',what,upper(char(cas)));
         end
     case 'gopts'
         S = varargin{1}; opts = varargin{2};
