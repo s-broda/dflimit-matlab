@@ -30,13 +30,14 @@ typedef struct { cdouble t; cdouble v[3]; int used; } memo_ent;
 struct dfl_prov {
     det_prep *P; det_model Mo; double c; int r, stat, start; double tstar, tau, wend;
     unsigned long long key;
-    memo_ent *tab; size_t cap, n;     /* the memo of the transform per point of the line (emptied when half full) */
+    memo_ent *tab; size_t cap, n;     /* the memo of the transform per point of the line (grown to PROV_MEMO_CAP, then emptied) */
     dfl_lock_t lock;
     int refs;
 };
 static _Thread_local const dfl_prov *CUR;   /* the provider of DFL_MODEL_PROV on this thread */
 static _Thread_local int PROVFAIL;          /* 1: the transform failed, 2: the continuation of log P failed */
-#define PROV_MEMO_CAP (1 << 17)
+#define PROV_MEMO_CAP0 (1 << 11)     /* the memo starts with this many slots and doubles while half full, up to */
+#define PROV_MEMO_CAP (1 << 16)      /* (65536 slots, 4.7 MB; then it is emptied: the values do not depend on it) */
 
 static size_t hash_t(cdouble t, size_t cap)
 {
@@ -91,6 +92,14 @@ static void line_raw(dfl_prov *pv, int n, const cdouble *t, cdouble *out)
         else dfl_parfor(nm, raw_body, &r);
         if (r.fail) PROVFAIL = 1;
         dfl_lock(&pv->lock);
+        while (pv->n + nm > pv->cap / 2 && pv->cap < PROV_MEMO_CAP) {       /* (grow: rehash into twice the slots) */
+            memo_ent *old = pv->tab; size_t oc = pv->cap;
+            memo_ent *nt = calloc(2 * oc, sizeof(memo_ent));
+            if (!nt) break;
+            pv->tab = nt; pv->cap = 2 * oc;
+            for (size_t i = 0; i < oc; i++) if (old[i].used) *memo_find(pv, old[i].t) = old[i];
+            free(old);
+        }
         if (pv->n + nm > pv->cap / 2) { memset(pv->tab, 0, pv->cap * sizeof(memo_ent)); pv->n = 0; }
         for (int j = 0; j < nm; j++) {
             int k = miss[j]; memo_ent *e = memo_find(pv, t[k]);
@@ -302,7 +311,7 @@ static dfl_prov *prov_get(const dfl_design *D, double c, int start, char *why, s
     int mult;
     if (det_tstar(Mo, c, &pv->tstar, &mult, err, errlen)) { det_model_free(&pv->Mo); det_prep_release(pv->P); free(pv); return NULL; }
     pv->c = c; pv->r = Mo->r; pv->start = start; pv->stat = start == DFL_START_STAT; pv->key = key;
-    pv->cap = PROV_MEMO_CAP; pv->tab = calloc(pv->cap, sizeof(memo_ent));
+    pv->cap = PROV_MEMO_CAP0; pv->tab = calloc(pv->cap, sizeof(memo_ent));
     if (!pv->tab) { det_model_free(&pv->Mo); det_prep_release(pv->P); free(pv); snprintf(err, errlen, "out of memory"); return NULL; }
     { dfl_lock_t l0 = DFL_LOCK_INIT; pv->lock = l0; }
     { char buf[DET_WORK_STACK]; det_work W; det_work_init(&W, Mo, buf, sizeof buf); det_work_free(&W); }   /* (the one-time setup, serially) */
