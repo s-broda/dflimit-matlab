@@ -33,6 +33,7 @@ if isfield(opts,'cuts') || isfield(opts,'nq')
     % the vertical line with given panels or nodes per panel (line_refine, the variants of the checked computation)
     rmax = default_rmax(c); if ~isempty(getf(opts,'rmax',[])), rmax = opts.rmax; end
     CP = linecpath(Mo,c,opts.ts,tau,rmax,getf(opts,'nq',24),8,getf(opts,'cuts',[]));
+    CP.key = sprintf('%s|%.17g|line%d|%d',Mo.key,c,getf(opts,'nq',24),numel(CP.t));
     return
 end
 if isempty(phi), pk = -1; else, pk = phi; end
@@ -41,6 +42,7 @@ CP = dfdet_cache('get','cpath',key);
 if ~isempty(CP), return, end
 if isempty(phi) && hfac == 1 && isempty(tau), CP = table_path(Mo,c); end
 if isempty(CP), CP = cpath_(Mo,c,phi,hfac,8,[],tau); end
+CP.key = key;
 dfdet_cache('put','cpath',key,CP);
 end
 
