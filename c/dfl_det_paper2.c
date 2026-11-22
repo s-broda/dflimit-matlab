@@ -273,11 +273,20 @@ static int lmprep(const dfl_design *D, det_prep **P, char *err, size_t errlen)
     return 0;
 }
 static double lmV(const det_path *CP, double v) { return 1 - det_vsum(CP, v, 1); }
+/* the outer contour of the LM statistic's V (lmpath): the path of the law of V alone (det_v_path_prep), which above the unit
+ * root replaces the vertical line of the t-ratio's path by a hyperbola (on the line P(V <= y) was off by 6e-3 at c = 5 with a
+ * linear trend, and F exceeded 1); c at most DET_LM_CMAX */
+static det_path *lmpath(det_prep *P, double c, char *err, size_t errlen)
+{
+    if (!isfinite(c)) { snprintf(err, errlen, "the LM statistic: c must be a finite real scalar"); return NULL; }
+    if (c > DET_LM_CMAX) { snprintf(err, errlen, "the LM statistic: c must be at most %g (above, its distribution is not computed accurately: off by 2e-7 at c = 12 and by 3e-5 at c = 15)", DET_LM_CMAX); return NULL; }
+    return det_v_path_prep(P, 0, 0.0, c, err, errlen);
+}
 int dfl_det_lm_cdf(const dfl_design *D, int n, const double *x, double c, double *out, char *err, size_t errlen)
 {
     det_warn_clear();
     det_prep *P; if (lmprep(D, &P, err, errlen)) return 1;
-    det_path *CP = det_path_prep(P, 0, 0.0, c, err, errlen);
+    det_path *CP = lmpath(P, c, err, errlen);
     det_prep_release(P);
     if (!CP) return 1;
     for (int k = 0; k < n; k++) out[k] = isnan(x[k]) ? NAN : x[k] >= 0 ? 1.0 : x[k] == -INFINITY ? 0.0 : lmV(CP, 1 / (4 * x[k] * x[k]));
@@ -296,7 +305,7 @@ int dfl_det_lm_quantile(const dfl_design *D, double p, double c, double *q, char
     det_warn_clear();
     if (!(p > 0 && p < 1)) { snprintf(err, errlen, "lm_quantile: p must lie in (0, 1)"); return 1; }
     det_prep *P; if (lmprep(D, &P, err, errlen)) return 1;
-    det_path *CP = det_path_prep(P, 0, 0.0, c, err, errlen);
+    det_path *CP = lmpath(P, c, err, errlen);
     det_prep_release(P);
     if (!CP) return 1;
     *q = lm_q(CP, p);
@@ -310,7 +319,7 @@ int dfl_det_lm_power(const dfl_design *D, int n, const double *cs, double level,
     det_prep *P; if (lmprep(D, &P, err, errlen)) return 1;
     int rc = 0;
     for (int k = 0; k < n && !rc; k++) {
-        det_path *CP = det_path_prep(P, 0, 0.0, cs[k], err, errlen);
+        det_path *CP = lmpath(P, cs[k], err, errlen);
         if (!CP) { rc = 1; break; }
         out[k] = lmV(CP, 1 / (4 * *q * *q));
         det_path_release(CP);
