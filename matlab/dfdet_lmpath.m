@@ -1,8 +1,11 @@
 function out = dfdet_lmpath(D,c)
 %DFDET_LMPATH  The outer path of the denominator of the LM statistic, and P(V <= v) on it.
-%   CP = DFDET_LMPATH(D,c): the path of the design of the LM statistic (DFDET_PREP, kind 'lm'; an error unless J_0(1)
-%   vanishes, which needs a linear trend among the trend functions); P = DFDET_LMPATH(CP,v) = P(V <= v), the single
-%   inversion of M_V on it.  Shared by LM_CDF, LM_QUANTILE, LM_POWER.
+%   CP = DFDET_LMPATH(D,c): the path of the law of V alone for the design of the LM statistic (DFDET_PREP, kind 'lm'; an
+%   error unless J_0(1) vanishes, which needs a linear trend among the trend functions): the path of the t-ratio, except
+%   that above the unit root, where that is the vertical line, the hyperbola of V alone at pi/4 (on the line P(V <= v) was
+%   off by 6e-3 at c = 5 with a linear trend, and F exceeded 1).  c at most 10: above, the inversion of this V moves between
+%   contours by more than 1e-8 (2e-7 at c = 12, 3e-5 at c = 15), and an error is raised.  P = DFDET_LMPATH(CP,v) =
+%   P(V <= v), the single inversion of M_V on it.  Shared by LM_CDF, LM_QUANTILE, LM_POWER.
 if isfield(D,'Mo')
     CP = D; v = c;
     Mo = CP.Mo; r = size(CP.R,1); rp = Mo.rp;
@@ -13,6 +16,8 @@ if isfield(D,'Mo')
     out = 1 - sum(CP.wt.*imag(exp(lM - CP.t*v).*CP.dt./CP.t));
     return
 end
+if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('dfdet:args','the LM statistic: c must be a finite real scalar.'); end
+if c > 10, error('dfdet:args','the LM statistic: c must be at most 10 (above, its distribution is not computed accurately: off by 2e-7 at c = 12 and by 3e-5 at c = 15).'); end
 pk = [dfdet_key(D) '|lm'];
 P = dfdet_cache('get','prep',pk);
 if isempty(P)
@@ -22,4 +27,10 @@ if isempty(P)
 end
 Mo = dfdet_model(P); Mo.key = [pk '|zero|0'];
 out = dfdet_cpath(Mo,c);
+if isnan(out.h)
+    % (the vertical line of the t-ratio does not resolve e^{-t v}: the hyperbola of V alone, at pi/4, or at the angle of the
+    % fixed start's rule below c = -100, as DFDET_V_CDF)
+    if c < -100, ph = dfdet_cpath(Mo,c,struct('fixedphi',true,'ts',out.tstar,'tau',out.tau,'hfac',1)); else, ph = pi/4; end
+    out = dfdet_cpath(Mo,c,struct('phi',ph));
+end
 end
