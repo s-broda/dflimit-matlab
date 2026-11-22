@@ -244,7 +244,9 @@ static void selftest_guard(void)
     double dt = dfl_wtime() - t0, dm = mem_mb() - m0;
     if (VERB) printf("     guard, zero start: %.3f s, %+.0f MB: %s\n", dt, dm, err);
     check("guard", rc && strstr(err, "the U-shapes of the zero start") && strstr(err, "a root runs off") ? 0 : 1, 0, 0, "(1 + r, 1{r <= 0.4}) at c = 1 refused by the guard");
-    check("guard", dt < 0.5 ? 0 : dt, 0, 0, "(1 + r, 1{r <= 0.4}) at c = 1 refused within 0.5 s (the deviation: the time)");
+    /* (the memory bound below, not the time, shows that the guard refused before the inner integrals, 1.2 GB without it;
+     * the time bound only protects against a hang: a tight one fails on a loaded machine) */
+    check("guard", dt < 60 ? 0 : dt, 0, 0, "(1 + r, 1{r <= 0.4}) at c = 1 refused within 60 s (the deviation: the time)");
     check("guard", dm < 100 ? 0 : dm, 0, 0, "(1 + r, 1{r <= 0.4}) at c = 1 refused with less than 100 MB (the deviation: MB)");
     o.start = DFL_START_FIXED; o.gamma0 = 1.0;
     m0 = mem_mb(); t0 = dfl_wtime();
@@ -252,7 +254,7 @@ static void selftest_guard(void)
     dt = dfl_wtime() - t0; dm = mem_mb() - m0;
     if (VERB) printf("     guard, fixed start: %.3f s, %+.0f MB: %s\n", dt, dm, err);
     check("guard", rc && strstr(err, "the U-shapes of the fixed start") && strstr(err, "the roots run off") ? 0 : 1, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused by the guard");
-    check("guard", dt < 0.5 ? 0 : dt, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused within 0.5 s (the deviation: the time)");
+    check("guard", dt < 60 ? 0 : dt, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused within 60 s (the deviation: the time)");
     check("guard", dm < 100 ? 0 : dm, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused with less than 100 MB (the deviation: MB)");
     /* the caps of the outer hyperbola (a factor hfac of its step far below one) and of the grid of the moments */
     dfl_design T1; dfl_design_trend(0, &T1, err, sizeof err);

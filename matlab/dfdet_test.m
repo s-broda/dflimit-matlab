@@ -157,9 +157,16 @@ end
 % any inner integral (the guard in the U-shapes refused after 11 s; the time is now that of the outer path, about 1 s)
 Dl = dfdet_determ([0 0.4 1],{[1 1; 1 0],[1 0; 1 0]},'1 + r, 1{r < 0.4}'); Dr = dfdet_determ([0 1],{[1; 1]},'1 + r');
 G2 = {{@() dfdet_cdf(-2,Dl,2), 'U-shapes of the zero start'}, {@() dfdet_cdf(-2,Dr,0,struct('start','fixed','g0',1)), 'U-shapes of the fixed start'}};
+% (the time of the refusal against that of the outer path of the same design built in the same session, 4 times it and
+% 1 s at most: the guard costs about one path and the refusal in the U-shapes eleven; a fixed bound of seconds failed on a
+% loaded machine)
+GP = {{Dl,2,'zero',0}, {Dr,0,'fixed',1}};
 for k = 1:numel(G2)
+    dfdet_cache('clear');
+    t0 = tic; dfdet_cpath(dfdet_startmodel(GP{k}{1},GP{k}{2},GP{k}{3},GP{k}{4},[]),GP{k}{2},struct); tp = toc(t0);
+    dfdet_cache('clear');
     msg = 'no error'; t0 = tic; try, G2{k}{1}(); catch ME, msg = ME.message; end; tk = toc(t0);
-    check(sprintf('the guard before the outer sum: %s refused within 3 s (%.2f s)',func2str(G2{k}{1}),tk),double(~contains(msg,G2{k}{2})) + double(tk > 3),0);
+    check(sprintf('the guard before the outer sum: %s refused within 4 times the outer path and 1 s (%.2f s, the path %.2f s)',func2str(G2{k}{1}),tk,tp),double(~contains(msg,G2{k}{2})) + double(tk > 4*tp + 1),0);
 end
 % the public functions at non-finite arguments (November 2026): a limit where there is one, else an error that names the
 % argument (as the C engine and DFLimit.jl); none may hang (the searches from x0 = +-Inf, the point-optimal statistic at
