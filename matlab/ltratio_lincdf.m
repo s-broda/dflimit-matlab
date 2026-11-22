@@ -15,15 +15,49 @@ function P = ltratio_lincdf(b,a,cas,c,opts)
 %   to about 1e-10 and in [0, 1].  c must be at least -550; in case DG at most about 3.5, and for a = NaN about 7
 %   (an error beyond).
 %
+%   opts.engine: 'classical' the programs above; 'general' the general engine
+%   (DFDET_LIN_CDF, DFDET_V_CDF); 'auto' (the default) the engine of
+%   LTRATIO_ENGINE.  cas may be a design of the general engine (LTRATIO_SPEC;
+%   with opts.start, opts.g0, opts.gls): the cases DK and DG by the classical
+%   programs, any other design by the general engine.
+%
 %   Example: ltratio_lincdf(-0.2639,-3.5,'DK',0)   % 0.05: the size of the point-optimal test at cbar = -7
 %
-%   See also POWER_ENVELOPE, LTRATIO_REGION, TR_GILPELAEZ.
+%   See also POWER_ENVELOPE, LTRATIO_REGION, TR_GILPELAEZ, DFDET_LIN_CDF.
 if nargin < 4 || isempty(c), c = 0; end
 if nargin < 5 || isempty(opts), opts = struct; end
+[engine,oc] = ltratio_route('engine',opts);
+if ~(ischar(cas) || isstring(cas))
+    S = ltratio_spec(cas,opts);
+    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DK','DG'}))
+        oc.engine = engine; P = ltratio_lincdf(b,a,S.case,c,oc); return
+    end
+    if strcmp(engine,'classical'), error('ltratio:args','ltratio_lincdf: engine = ''classical'': the linear form of the classical programs has the cases DK and DG only.'); end
+    P = dfdet_lin_cdf(b,a,S.D,c,ltratio_route('gopts',S,oc)); return
+end
+if ischar(cas) || isstring(cas)
+    cb = -13.5; if isfield(oc,'cbar') && ~isempty(oc.cbar), cb = oc.cbar; end
+    if strcmpi(cas,'DG'), S = struct('D',dfdet_trend(1),'start','zero','g0',0,'gls',cb,'case','DG');
+    elseif any(strcmpi(cas,{'DK','DU'})), S = struct('D',dfdet_trend(-1),'start','zero','g0',0,'gls',[],'case','DK');
+    else, error('ltratio:args','ltratio_lincdf: the case must be DK or DG.'); end
+    if ~strcmp(engine,'general'), checks(b,a,cas,c); end     % (the checks of the classical programs come first)
+    if strcmp(engine,'general') || (strcmp(engine,'auto') && ltratio_route('plain',rmf(oc,'cbar')) && isnumeric(a) && isscalar(a) && isreal(a) ...
+            && isnumeric(c) && isscalar(c) && ltratio_engine('lincdf',S,c,0,a))
+        P = dfdet_lin_cdf(b,a,S.D,c,struct('gls',S.gls)); return
+    end
+end
+opts = oc;
+P = tr_gilpelaez(b,a,upper(char(cas)),c,opts);
+end
+
+function checks(b,a,cas,c)
 if ~(ischar(cas) || isstring(cas)) || ~any(strcmpi(cas,{'DK','DG'})), error('ltratio:args','ltratio_lincdf: the case must be DK or DG.'); end
 if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:args','ltratio_lincdf: c must be a finite real scalar.'); end
 if c < -550, error('ltratio:args','ltratio_lincdf: c must be at least -550 (the range in which the programs are checked; the moments fail from about c = -600, the line integral from about c = -650).'); end
 if ~(isnumeric(a) && isscalar(a) && isreal(a)), error('ltratio:args','ltratio_lincdf: a must be a real scalar (NaN: the distribution of V).'); end
 if ~(isnumeric(b) && isreal(b)), error('ltratio:args','ltratio_lincdf: b must be real.'); end
-P = tr_gilpelaez(b,a,upper(char(cas)),c,opts);
+end
+
+function o = rmf(o,f)
+if isfield(o,f), o = rmfield(o,f); end
 end

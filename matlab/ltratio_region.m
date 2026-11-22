@@ -22,6 +22,17 @@ function [P,info] = ltratio_region(bnd,cas,c,opts)
 if nargin < 2 || isempty(cas), cas = 'DK'; end
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
+% (opts.engine: 'general' the general engine, DFDET_REGION, for the lines and parabolas; 'auto' and 'classical' the
+% programs above; a design other than case DK goes to DFDET_REGION)
+[engine,oc] = ltratio_route('engine',opts);
+if ~(ischar(cas) || isstring(cas))
+    S = ltratio_spec(cas,opts);
+    if ~strcmp(engine,'general') && strcmp(S.case,'DK'), [P,info] = ltratio_region(bnd,'DK',c,oc); return, end
+    if strcmp(engine,'classical'), error('ltratio:args','ltratio_region: engine = ''classical'': the regions of the classical programs have case DK only.'); end
+    P = dfdet_region(bnd,S.D,c,ltratio_route('gopts',S,oc)); info = struct('engine','general'); return
+end
+if strcmp(engine,'general'), P = dfdet_region(bnd,dfdet_trend(-1),c); info = struct('engine','general'); return, end
+opts = oc;
 if ~(ischar(cas) || isstring(cas)) || ~strcmpi(cas,'DK'), error('ltratio:args','ltratio_region: the case must be DK (zero start).'); end
 if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:args','ltratio_region: c must be a finite real scalar.'); end
 if c < -550, error('ltratio:args','ltratio_region: c must be at least -550 (the range in which the programs are checked).'); end

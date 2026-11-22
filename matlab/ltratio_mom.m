@@ -20,12 +20,39 @@ function [m,info] = ltratio_mom(p,cas,c,opts)
 %   s: about 1e-9 relative with a zero start, 1e-8 to 2e-7 with a stationary
 %   start at c = -100 to -480; the first two moments to 1e-11.
 %
+%   opts.engine: 'classical' TR_LIMMOM; 'general' the moments of the general
+%   engine (DFDET_MOM); 'auto' (the default) the engine of LTRATIO_ENGINE.  cas
+%   may be a design of the general engine (LTRATIO_SPEC).
+%
 %   Example: m = ltratio_mom(4,'DU');  m(2)   % 3.0559953450 (Nabeya, 1999)
 %
-%   See also LTRATIO_CDF, LTRATIO_ICDF, TR_LIMMOM, DFX_MOMENTS.
+%   See also LTRATIO_CDF, LTRATIO_ICDF, TR_LIMMOM, DFX_MOMENTS, DFDET_MOM.
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
+[engine,oc] = ltratio_route('engine',opts);
+if ~(ischar(cas) || isstring(cas))
+    S = ltratio_spec(cas,opts);
+    if strcmp(engine,'classical') && (isempty(S.case) || strcmp(S.case,'DG')), error('ltratio:args','ltratio_mom: engine = ''classical'': the classical programs have the moments of the cases DK, DU, DT, SK, SU, ST only.'); end
+    if ~strcmp(engine,'general') && ~isempty(S.case) && ~strcmp(S.case,'DG') && (strcmp(engine,'classical') || ltratio_route('valid',S,c,oc))
+        oc.g0 = S.g0; oc.engine = engine;
+        [m,info] = ltratio_mom(p,S.case,c,oc);
+        return
+    end
+    [m,err] = dfdet_mom(p,S.D,c,ltratio_route('gopts',S,oc)); info = struct('err',err,'engine','general');
+    return
+end
+if strcmp(engine,'general')
+    S = ltratio_spec(cas,oc);
+    [m,err] = dfdet_mom(p,S.D,c,ltratio_route('gopts',S,oc)); info = struct('err',err,'engine','general');
+    return
+end
+opts = oc;
 [cas,c,c0,g0] = ltratio_args(cas,c,opts);
+if strcmp(engine,'auto') && ltratio_route('plain',opts) && ~strcmp(cas,'DG') && ltratio_engine('mom',ltratio_spec(cas,opts),c,c0,0)
+    S = ltratio_spec(cas,opts);
+    [m,err] = dfdet_mom(p,S.D,c,ltratio_route('gopts',S,opts)); info = struct('err',err,'engine','general');
+    return
+end
 if strcmp(cas,'DG'), error('ltratio:args','ltratio_mom: the moments are not available for case DG.'); end
 if ~(isnumeric(p) && isscalar(p) && p == round(p) && p >= 1), error('ltratio:args','ltratio_mom: p must be a positive integer.'); end
 o = opts; if isfield(o,'method'), o = rmfield(o,'method'); end
