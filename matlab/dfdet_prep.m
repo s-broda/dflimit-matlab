@@ -207,7 +207,9 @@ W = [Bb; Ba]; T = [Pd; P1];                             % the fitted function is
 B = -(S'*T'*W + W'*T*S) + W'*(T*T')*W; B = (B + B')/2;
 a1 = zeros(N,1); a1(1) = 1; a1 = a1 - Bb'*ev(Cd,np,1);   % J_0(1) = a1' ell
 A = zeros(N); A(1,1) = 0.5;                             % placeholder
-P = mkprep(D,k,p,nj,N,size(F{1},1) - 1,br,g,jl,A,B,[1; zeros(N - 1,1)],0.5,Pd*Pd',zeros(N,1),off,NaN,'onestep');
+% (detrend 'lm': V is not the norm of an orthogonal projection of J, and DFDET_TSTAR takes the estimate of the edge t_* from
+% the quadratic form itself)
+P = mkprep(D,k,p,nj,N,size(F{1},1) - 1,br,g,jl,A,B,[1; zeros(N - 1,1)],0.5,Pd*Pd',zeros(N,1),off,NaN,'lm');
 end
 
 % ---------------------------------------------------------------------------------------------------------------------

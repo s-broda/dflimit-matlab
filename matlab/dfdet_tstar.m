@@ -5,8 +5,8 @@ function [ts,mult] = dfdet_tstar(Mo,c)
 %   1/(2 lambda_1), lambda_1 the largest eigenvalue of the covariance
 %   operator of the quadratic form V, estimated by the Nystrom method
 %   (Gauss-Legendre with 16 nodes on each of 8 equal panels of every piece;
-%   with GLS detrending, where V_g is not the norm of a projection of J, the
-%   operator of the quadratic form with 48 nodes); D_V is then sampled on 81
+%   with GLS detrending and for the LM statistic, where V is not the norm of
+%   a projection of J, the operator of the quadratic form with 48 nodes); D_V is then sampled on 81
 %   points of +-2% around the estimate: at the first sign change bisection to
 %   1e-13 relative, and where there is none (a double zero: lambda_1 =
 %   lambda_2, as in model C at lambda = 1/2) the minimum of D_V by golden
@@ -19,7 +19,10 @@ function [ts,mult] = dfdet_tstar(Mo,c)
 if strcmp(Mo.start,'stationary') && c >= 0, error('dfdet:args','%s',dfdet_msg('stat_c')); end
 f = @(t) real(exp(ldv(Mo,c,t)));
 P = Mo.P;
-if isnan(P.cbar), [l1,l2] = eigtop(P,c,16,strcmp(Mo.start,'stationary')); else, [l1,l2] = eigtop_q(P,c,48); end
+% (eigtop projects J orthogonally off the span of the design; the V of GLS detrending and of the LM statistic (detrend
+% 'lm') is no such norm, and eigtop_q takes its quadratic form: with eigtop the LM statistic's t_* came out up to 2.3 times
+% too large, above the unit root beyond twice the edge, where the path then failed)
+if isnan(P.cbar) && ~strcmp(P.detrend,'lm'), [l1,l2] = eigtop(P,c,16,strcmp(Mo.start,'stationary')); else, [l1,l2] = eigtop_q(P,c,48); end
 te = 1/(2*l1);
 grid = linspace(0.98*te,1.02*te,81);
 vals = zeros(size(grid));
