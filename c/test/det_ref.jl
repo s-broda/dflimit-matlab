@@ -106,7 +106,7 @@ function getpath(id, cb, st, g0, c)
 end
 for (id, cb, st, g0, c) in ((1, NaN, 0, 0.0, -5.0), (3, NaN, 0, 0.0, 0.0), (3, NaN, 0, 0.0, -13.5), (9, NaN, 0, 0.0, -5.0), (10, NaN, 0, 0.0, -20.0),
                             (12, NaN, 0, 0.0, 0.0), (3, NaN, 0, 0.0, 2.0), (2, NaN, 0, 0.0, -150.0), (3, NaN, 1, 2.0, -5.0), (1, NaN, 1, 1.5, 0.0),
-                            (9, NaN, 1, 1.0, -5.0), (2, NaN, 2, 0.0, -5.0), (12, NaN, 2, 0.0, -5.0), (3, -13.5, 0, 0.0, -5.0), (3, -5.0, 0, 0.0, 0.0),
+                            (9, NaN, 1, 1.0, -5.0), (2, NaN, 2, 0.0, -5.0), (12, NaN, 2, 0.0, -5.0), (3, -13.5, 0, 0.0, -5.0), (3, -5.0, 0, 0.0, 0.0), (3, -2.0, 0, 0.0, 0.0),
                             (18, NaN, 0, 0.0, -5.0), (14, NaN, 0, 0.0, -5.0), (16, NaN, 0, 0.0, 0.0), (19, NaN, 0, 0.0, 0.0), (5, NaN, 0, 0.0, -50.0))
     CP = quiet(() -> getpath(id, cb, st, g0, c))
     K = length(CP.t); ks = unique([1, cld(K, 2), K])
@@ -115,8 +115,6 @@ for (id, cb, st, g0, c) in ((1, NaN, 0, 0.0, -5.0), (3, NaN, 0, 0.0, 0.0), (3, N
 end
 
 DG.empty_caches!(); GC.gc()
-# (GLS detrending at cbar = -2 with c = 0 is left out: its path exhausts the memory cap of 4 GB in the Julia engine, as the
-# README of DFLimit.jl notes for the envelope near the unit root)
 # ---------------------------------------------------------------------------------------------------------------------
 # the user-level values: 'val func id cbar start g0 c c0 verified par n x... values... tol'; the points of a line are
 # evaluated together (as one call).  The tolerance is 1e-9 for distribution functions and densities, 1e-7 for quantiles,
@@ -156,8 +154,9 @@ for (id, c) in ((3, -13.5), (3, -20.0), (3, -50.0), (3, 2.0), (2, -13.5), (1, 2.
     tcell(id, NaN, 0, 0.0, c, 0.0, xs5)
 end
 # (design 19, d = (1 + r, 1{r < 0.4}) without a proper intercept, is left out of the values: its outer path is the vertical
-# line, and its distribution function took more than the memory cap of 4 GB in the Julia engine; it is in the tests of
-# the layers and of the paths above)
+# line, where its roots run far out and the U-shapes grow to hundreds of thousands of nodes; one value took 13 s and 2.6 GB
+# in the Julia engine on four threads (F(-3) = 0.12523799932071672 at c = 0; the C engine 0.125237999320717 in 5 s and
+# 3.4 GB on ten threads), too much for the test; it is in the tests of the layers and of the paths above)
 for id in (7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21), c in (0.0, -13.5)
     tcell(id, NaN, 0, 0.0, c, 0.0, [-5.0, -3.8, -3.0, -2.0, -0.5])
 end
