@@ -108,7 +108,7 @@ static int moved(int f, int model, int stat, double g0, double gls, double c, do
     int fixed = g0 != 0 && !stat, DU = model == 2 && !stat, DT = model == 3 && !stat, DG = model == 4;
     (void) gls;
     switch (f) {
-    case DFL_F_DIST: return (!fixed && c0 == 0 && !DG && c < -20) || (!fixed && !stat && c0 < 0 && ((DT && c >= -30 && c <= 0) || (DU && c >= -10 && c <= 0)));
+    case DFL_F_DIST: return !fixed && !stat && c0 < 0 && ((DT && c >= -30 && c <= 0) || (DU && c >= -10 && c <= 0));
     case DFL_F_ICDF: return c0 == 0 && !fixed && !DG && ((!stat && c <= 2) || (stat && c <= -1));
     case DFL_F_MOM: return c0 != 0;
     case DFL_F_LINCDF: return DG && x != 0;

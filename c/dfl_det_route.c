@@ -119,11 +119,12 @@ int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, 
         }
         if (!fixed && !stat && c0 != 0 && c < -100) return DFL_ENGINE_GENERAL;
         if (fixed && DK && c <= 1 && ((c * g0) * (c * g0) / 2 <= 400 || (g0 <= 0.5 && c >= -100))) return DFL_ENGINE_GENERAL;
-        /* (the C timings, not the Julia rule: at c0 = 0 with a zero or stationary start the classical line integral slows
-         * down beyond c = -20, where its outer integral grows longer: at c = -30 to -300 the general engine is 1.2 to 2.9
-         * times faster in cases DK, DU, DT, SK, SU, ST (case DU at c = -100: 1.4 times slower); case DG keeps the classical
-         * engine, 9 times faster) */
-        if (!fixed && c0 == 0 && !DG && c < -20) return DFL_ENGINE_GENERAL;
+        /* (at c0 = 0 with a zero or stationary start the classical line integral, as in the Julia rule: with its fixed node
+         * layouts (dfl_batch.c, November 2026) it is 1.1 to 1.7 times faster than the general engine at c = -30 to -100 in
+         * cases DU, DT, SK, SU, ST and 8 to 11 times in case DK, equal at c = -300 in cases DU, DT (c/test/engine_table_c.txt);
+         * without the layouts the general engine had been 1.2 to 2.9 times faster below c = -20, and the C rule took it there.
+         * For -20 <= c <= 0 the general engine computes a classical case by the same line integral, with P(t) and the roots
+         * from its transform, within 10% of the classical engine's time) */
         /* (the C timings: with a zero start and c0 < 0 the general engine is 1.15 to 1.7 times faster in case DT for
          * -30 <= c <= 0 and in case DU for -10 <= c <= 0; case DK and further out the classical engine.  The tails below 1e-3
          * go back to the classical conditional integral, as for every general value of these cases) */
@@ -132,10 +133,15 @@ int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, 
     case DFL_F_ICDF:
         /* the quantiles at c0 = 0 (the Julia rule: a fixed start, case DT at c <= 0, ST at c <= -1, DU at c = 0; the C timings
          * extend it: with a zero start the general search is 1.2 to 2 times faster in cases DK, DU, DT up to c = 2, with a
-         * stationary start at c <= -1, 1.3 to 1.6 times; case DG and c > 2 keep the classical search) */
+         * stationary start at c <= -1, 1.3 to 1.6 times; case DG and c > 2 keep the classical search.  With the fixed node
+         * layouts of the classical line integral (November 2026) the general search, whose F and f come from the general
+         * engine's line integral for -20 <= c <= 0 and from one pass on its paths beyond, stays 1.1 to 1.6 times faster in cases
+         * DU, DT, SU, ST down to c = -100 (case DU at c = -50 1.2 times slower) and 2.6 times in case DK at -20 <= c <= 0, but in
+         * case DK below c = -20 the classical search is 2.1 to 3 times faster) */
         if (c0 != 0) return DFL_ENGINE_CLASSICAL;
         if (fixed) return DFL_ENGINE_GENERAL;
         if (DG) return DFL_ENGINE_CLASSICAL;
+        if (DK && c < -20) return DFL_ENGINE_CLASSICAL;
         if (!stat && c <= 2) return DFL_ENGINE_GENERAL;
         if (stat && c <= -1) return DFL_ENGINE_GENERAL;
         return DFL_ENGINE_CLASSICAL;
