@@ -16,7 +16,8 @@ self-contained like the classical one (no LAPACK: the small eigenvalue problems,
 multithreaded on the same pool, and keeps its prepared designs and outer paths in caches behind one lock. The stored
 outer paths of cases DK, DU, DT at the unit root are compiled in (`c/dfl_det_tables.c`, written by `c/gen_det_tables.jl`).
 On one thread a value takes 4 to 17 percent longer than in the Julia engine, on four threads 0.85 to 1.17 times its
-time, and the outer paths are built 1.1 to 2 times faster (twelve designs and starts, warm calls).
+time, on ten 0.78 to 1.0 times, and the outer paths are built 1.1 to 2 times faster (twelve designs and starts, warm
+calls).
 
 **One interface over the two engines.** `dfl_engine_*` (`c/dfl_det_route.c`, a port of `src/merged.jl`) takes a classical
 case or a design and the engine (auto, classical, general); `dfl_autoengine` is the rule of the Julia package, with the
@@ -24,6 +25,10 @@ cells where the timings of the two C engines point elsewhere moved (`c/test/engi
 the t-ratio at c0 = 0 beyond c = -20 and with c0 < 0 in cases DT (-30 <= c <= 0) and DU (-10 <= c <= 0) and most
 quantiles at c0 = 0 go to the general engine, the moments with c0 != 0, the power envelope and the linear form of case DG
 below c = 2 to the classical engine.
+
+**In MATLAB.** The MEX file reaches the general engine through designs: `ltratio('design', ...)` makes one,
+`ltratio('cdf', x, D, c, opts)` (and `'pdf'`, `'icdf'`, `'mom'`) takes the router, `ltratio('det', fn, D, ...)` the other
+functions; `c/mex/det_check.m` checks a built MEX file.
 
 **Tests.** `c/dfl_test_det` compares the general engine and the router with reference values of the Julia engine
 (`c/test/det_ref.jl`, `c/test/det_ref.txt`): every constructor, one to three breaks, polynomial degrees 0 to 4, the three
