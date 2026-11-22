@@ -411,6 +411,7 @@ int dfl_engine_envelope(int n, const double *cs, int model, double alpha, int en
     warn_entry();
     if (model == 2) model = 1;
     if (model != 1 && model != 4) { snprintf(err, errlen, "power_envelope: the case must be DK (or DU) or DG"); return 1; }
+    if (!(alpha > 0 && alpha < 1)) { snprintf(err, errlen, "power_envelope: the level alpha must lie in (0, 1)"); return 1; }
     dfl_design D; if (dfl_design_trend(model == 4 ? 1 : -1, &D, err, errlen)) return 1;
     int rc = 0;
     for (int k = 0; k < n && !rc; k++) {

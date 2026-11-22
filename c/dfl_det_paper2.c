@@ -152,6 +152,7 @@ int dfl_det_pt(int kind, const dfl_design *D, int n, const double *q, double cba
 int dfl_det_pt_quantile(const dfl_design *D, double p, double cbar, int N, double umax, double *q, char *err, size_t errlen)
 {
     det_warn_clear(); gp_defaults(&N, &umax);
+    if (!(p > 0 && p < 1)) { snprintf(err, errlen, "pt_quantile: p must lie in (0, 1)"); return 1; }
     det_prep *P; if (prep_pt(D, cbar, &P, err, errlen)) return 1;
     qgrid_t G; int rc = qgrid(P, cbar, 0.0, N, umax, &G, err, errlen);
     if (!rc) { *q = ptquantile(&G, p, 6.0); qgrid_free(&G); }
@@ -161,6 +162,7 @@ int dfl_det_pt_quantile(const dfl_design *D, double p, double cbar, int N, doubl
 int dfl_det_pt_power(const dfl_design *D, double cbar, double c, double level, int N, double umax, double *b, double *power, char *err, size_t errlen)
 {
     det_warn_clear(); gp_defaults(&N, &umax);
+    if (!(level > 0 && level < 1)) { snprintf(err, errlen, "pt_power: the level must lie in (0, 1)"); return 1; }
     det_prep *P; if (prep_pt(D, cbar, &P, err, errlen)) return 1;
     qgrid_t G; int rc = qgrid(P, cbar, 0.0, N, umax, &G, err, errlen);
     if (!rc) {
@@ -173,10 +175,14 @@ int dfl_det_pt_power(const dfl_design *D, double cbar, double c, double level, i
 }
 int dfl_det_pt_envelope(const dfl_design *D, int n, const double *cs, double level, int N, double umax, double *out, char *err, size_t errlen)
 {
+    det_warn_clear();
+    if (!(level > 0 && level < 1)) { snprintf(err, errlen, "pt_envelope: the level must lie in (0, 1)"); return 1; }
+    det_warn_hold(1);
     for (int k = 0; k < n; k++) {
-        if (!(cs[k] < 0)) { out[k] = level; continue; }
-        double b; if (dfl_det_pt_power(D, cs[k], cs[k], level, N, umax, &b, &out[k], err, errlen)) return 1;
+        if (!(cs[k] < 0)) { out[k] = isnan(cs[k]) ? NAN : level; continue; }   /* (NaN at NaN, as the classical envelope) */
+        double b; if (dfl_det_pt_power(D, cs[k], cs[k], level, N, umax, &b, &out[k], err, errlen)) { det_warn_hold(0); return 1; }
     }
+    det_warn_hold(0);
     return 0;
 }
 
@@ -299,6 +305,7 @@ int dfl_det_lm_quantile(const dfl_design *D, double p, double c, double *q, char
 }
 int dfl_det_lm_power(const dfl_design *D, int n, const double *cs, double level, double *q, double *out, char *err, size_t errlen)
 {
+    if (!(level > 0 && level < 1)) { det_warn_clear(); snprintf(err, errlen, "lm_power: the level must lie in (0, 1)"); return 1; }
     if (dfl_det_lm_quantile(D, level, 0.0, q, err, errlen)) return 1;
     det_prep *P; if (lmprep(D, &P, err, errlen)) return 1;
     int rc = 0;
@@ -331,7 +338,8 @@ int dfl_det_msb_cdf(const dfl_design *D, int n, const double *x, double c, doubl
     double cb = isnan(gls) ? -13.5 : gls;
     det_path *CP = det_v_path(D, cb, 0, 0.0, c, NAN, 1.0, err, errlen);
     if (!CP) return 1;
-    for (int k = 0; k < n; k++) out[k] = x[k] <= 0 ? 0.0 : 1 - det_vsum(CP, x[k] * x[k], 1);
+    /* (NaN at NaN, not passed on to the sum; 0 at x <= 0 and at -Inf, 1 at Inf) */
+    for (int k = 0; k < n; k++) out[k] = isnan(x[k]) ? NAN : x[k] <= 0 ? 0.0 : isinf(x[k]) ? 1.0 : 1 - det_vsum(CP, x[k] * x[k], 1);
     det_path_release(CP);
     return 0;
 }
