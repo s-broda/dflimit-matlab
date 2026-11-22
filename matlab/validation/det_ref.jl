@@ -75,7 +75,7 @@ cdfcases = Any[
     ("pC0.3", -20.0, (;), [-6.5, -5.0, -3.5]), ("pC0.3", -50.0, (;), [-11.0, -9.0, -7.0]), ("pC0.3", 2.0, (;), [-4.0, -2.0, 0.0]),
     ("pC0.3,0.7", 0.0, (;), [-6.0, -5.0, -4.0]), ("pA0.25,0.5,0.75", -5.0, (;), [-5.0, -4.0]), ("pC0.25,0.5,0.75", -5.0, (;), [-6.0, -5.0, -4.0]),
     ("fourier", 0.0, (;), [-5.0, -4.0, -3.0]), ("lt3", 0.0, (;), [-4.0, -3.0, -2.0]), ("lt8", -5.0, (;), [-6.0, -5.0]),
-    ("dfm", 0.0, (;), [-4.0, -3.0, -2.0]), ("dfmb", -5.0, (;), [-4.5, -3.5]), ("df", -5.0, (;), [-4.0, -3.0]), ("lev", -5.0, (;), [-3.0, -2.0]),
+    ("dfm", 0.0, (;), [-4.0, -3.0, -2.0]), ("dfmb", -5.0, (;), [-4.5, -3.5]), ("df", -5.0, (;), [-4.0, -3.0]),
     ("fdC", -5.0, (;), [-4.0, -3.0]),
     # the starts
     ("t1", -10.0, (start = :stationary,), [-3.5, -2.0, -0.7]), ("pC0.3", -5.0, (start = :stationary,), [-5.0, -4.0, -3.0]),
@@ -92,6 +92,11 @@ for (d, c, kw, xs) in cdfcases
     line("cdf", d, c, kw, xs, quiet(() -> G.dist_cdf(designs[d], xs, c; gkw(kw)...)))
     line("pdf", d, c, kw, xs, quiet(() -> G.dist_pdf(designs[d], xs, c; gkw(kw)...)))
 end
+# the design (1 + r, 1{r < 0.4}) without a proper intercept: on the vertical line a positive root runs off, and its U-shapes
+# would need more than 1e6 nodes at every c (the guard of DFLimit.jl ac3b4d8; before it, 0.2064 and 0.7434 at c = -5 by
+# U-shapes of up to 1e6 nodes): an error ('err', fn the function, txt the text of the message, '_' for ' ')
+line("err", "lev", -5.0, (fn = :cdf, txt = Symbol("U-shapes_of_the_zero_start")), [-3.0, -2.0], Float64[])
+line("err", "lev", 1.0, (fn = :cdf, txt = Symbol("U-shapes_of_the_zero_start")), [-2.0], Float64[])
 # the infinite density at the tangency of case DK with c0 > 0
 line("pdf", "t-1", 0.0, (c0 = 2.0,), [-2.0], quiet(() -> G.dist_pdf(designs["t-1"], [-2.0], 0.0; c0 = 2.0)))
 # ---------- quantiles ----------
@@ -185,5 +190,38 @@ for eng in (:auto, :classical, :general)
     line("rregion", "DK", -5.0, (a = -3.5, b = -0.2639, engine = eng), Float64[], [quiet(() -> DFLimit.ltratio_region((type = "line", a = -3.5, b = -0.2639), "DK", -5.0; engine = eng))])
 end
 line("renv", "pC0.5", 0.0, (;), [-10.0], [quiet(() -> DFLimit.power_envelope(-10.0, designs["pC0.5"]))])
+# ---------- the repairs of November 2026 (DFLimit.jl 6e3109e to 30fd050) ----------
+# the LM statistic: the edge t_* of its transform from the quadratic form of its V; the level breaks have the law of the
+# linear trend at c = 3, 4; c = 5, 7 on the path of V alone (dfdet_test checks the refusal above c = 10)
+designs["pA0.3"] = G.perron(:A, 0.3); designs["pA0.5"] = G.perron(:A, 0.5)
+for d in ("t1", "t2", "pA0.3", "pB0.5", "pC0.3,0.7"), c in (-20.0, 2.0, 5.0)
+    line("lmtstar", d, c, (;), Float64[], [G.tstar(G.model(G.lmprep(designs[d])), c)[1]])
+end
+xl = [-0.5, -0.2, -0.1, -0.05]
+for d in ("t1", "pA0.3", "pA0.5"), c in (3.0, 4.0)
+    line("lmcdf", d, c, (;), xl, G.lm_cdf(designs[d], xl, c))
+end
+for c in (2.5, 5.0, 7.0); line("lmcdf", "t1", c, (;), xl, G.lm_cdf(designs["t1"], xl, c)); end
+# the point-optimal statistic just below the first c that it refuses (dfdet_test checks the refusals), at non-finite q
+for (d, cb, c) in (("t1", -13.5, 3.6), ("t0", -7.0, 3.0), ("pB0.5", -17.8, 4.3), ("pC0.5", -20.0, 4.2))
+    line("ptcdf", d, c, (cbar = cb,), [4.0, 10.0, 30.0], G.pt_cdf(designs[d], [4.0, 10.0, 30.0], cb, c))
+end
+line("ptcdf", "t1", 0.0, (cbar = -13.5,), [1e3, Inf, -Inf, NaN], G.pt_cdf(designs["t1"], [1e3, Inf, -Inf, NaN], -13.5, 0.0))
+# the law of V off its support, MSB at NaN and Inf, the envelopes at NaN (by hand: the Julia functions do not give these
+# in this form; at c = NaN they return the level)
+line("vcdf", "t-1", -5.0, (;), [-0.1, 0.0, NaN, Inf, -Inf], [0.0, 0.0, NaN, 1.0, 0.0])
+line("vpdf", "t-1", -5.0, (;), [-0.1, 0.0, NaN, Inf, -Inf], [0.0, 0.0, NaN, 0.0, 0.0])
+line("msbcdf", "pB0.5", 0.0, (gls = -17.8,), [NaN, Inf, -1.0], [NaN, 1.0, 0.0])
+line("env", "t-1", 0.0, (;), [NaN, -7.0], [NaN; G.power_envelope(designs["t-1"], [-7.0])])
+line("ptenv", "pC0.5", 0.0, (;), [NaN, 1.0], [NaN, 0.05])
+# the router: the linear form and the regions of no deterministic terms with a fixed start (the general engine; the
+# classical programs dropped the start), ADFmax with a fixed start (the general engine)
+for eng in (:auto, :general)
+    line("rlincdf", "t-1", -5.0, (a = -3.5, g0 = 1.5, engine = eng), [-0.2639], [DFLimit.ltratio_lincdf(-0.2639, -3.5, designs["t-1"], -5.0; g0 = 1.5, engine = eng)])
+    line("rregion", "t-1", -5.0, (a = -3.5, b = -0.2639, g0 = 1.5, engine = eng), Float64[], [DFLimit.ltratio_region((type = "line", a = -3.5, b = -0.2639), designs["t-1"], -5.0; g0 = 1.5, engine = eng)])
+    line("rregion", "t-1", -5.0, (x = -2.0, g0 = 1.5, engine = eng), Float64[], [DFLimit.ltratio_region((type = "parabola", x = -2.0), designs["t-1"], -5.0; g0 = 1.5, engine = eng)])
+    line("radfcdf", "DU", -5.0, (g0 = 1.5, engine = eng), [-3.0, -2.4, -1.5], G.adfmax_cdf(designs["t0"], [-3.0, -2.4, -1.5], -5.0; start = :fixed, gamma0 = 1.5))
+    line("radfcdf", "t1", -5.0, (g0 = 1.0, engine = eng), [-3.0, -2.4, -1.5], G.adfmax_cdf(designs["t1"], [-3.0, -2.4, -1.5], -5.0; start = :fixed, gamma0 = 1.0))
+end
 close(io)
 println("wrote ", OUT)

@@ -61,7 +61,9 @@ for i = 1:numel(L)
     [v,tol,rel] = compute_(func,dtok,c,o,args);
     tt = toc(t0);
     v = v(:); ref = ref(:);
-    if strcmp(func,'roots') && 2*numel(v) == numel(ref)
+    if strcmp(func,'err')
+        err = v;                                       % (0 where the call failed with the message of the line)
+    elseif strcmp(func,'roots') && 2*numel(v) == numel(ref)
         err = 0;                                       % (each reference root against the nearest computed one)
         rr = complex(ref(1:2:end),ref(2:2:end));
         for k = 1:numel(rr), err = max(err,min(abs(v - rr(k)))/max(1,abs(rr(k)))); end
@@ -119,8 +121,56 @@ for k = 1:numel(E)
     try, E{k}(); catch ME, if strncmp(ME.identifier,'dfdet:',6) || strcmp(ME.identifier,'ltratio:args'), nerr = nerr + 1; end, end
 end
 check(sprintf('argument errors raised (%d of %d)',nerr,numel(E)),numel(E) - nerr,0);
+% the refusals of November 2026: each call fails with an error whose message contains the text (no silently wrong value,
+% no growing bracket)
+R = {{@() lm_cdf(-0.1,dfdet_trend(1),11), 'must be at most 10'}, {@() lm_quantile(0.05,dfdet_trend(1),11), 'must be at most 10'}, ...
+     {@() lm_power([-5 11],dfdet_trend(1)), 'must be at most 10'}, ...
+     {@() pt_cdf(10,dfdet_trend(1),-13.5,3.7), 'does not resolve'}, {@() pt_cdf(10,dfdet_trend(0),-7,3.1), 'does not resolve'}, ...
+     {@() pt_cdf(10,dfdet_perron('B',0.5),-17.8,4.4), 'does not resolve'}, {@() pt_cdf(10,dfdet_perron('C',0.5),-20,4.3), 'does not resolve'}, ...
+     {@() pt_cdf(1e5,dfdet_trend(1),-13.5,0), 'beyond the range'}, ...
+     {@() pt_quantile(1.5,dfdet_trend(1),-13.5), 'must lie in (0, 1)'}, {@() dfdet_lin_icdf(1.5,-3.5,dfdet_trend(-1),0), 'must lie in (0'}, ...
+     {@() dfdet_adfmax_icdf(1.5,dfdet_trend(0),0), 'must lie in (0'}, {@() dfdet_icdf(NaN,dfdet_trend(1),0), 'must lie in (0'}, ...
+     {@() lm_quantile(0,dfdet_trend(1)), 'must lie in (0, 1)'}, {@() msb_quantile(1.5,dfdet_trend(1),0), 'must lie in (0, 1)'}, ...
+     {@() ltratio_icdf(1.5,'DU',-5), 'must lie in (0'}, {@() coef_icdf(1.5,'DU',-5), 'must lie in (0'}, ...
+     {@() pt_power(-5,dfdet_trend(1),-10,struct('alpha',1.5)), 'must lie in (0, 1)'}, {@() power_envelope(-5,'DK',struct('alpha',1.5)), 'must lie in (0, 1)'}, ...
+     {@() dfdet_adfmax_cdf(-2,dfdet_trend(0),-5,struct('gls',-13.5)), 'least-squares detrending only'}, ...
+     {@() dfdet_adfmax_cdf(-2,dfdet_trend(0),-5,struct('c0',1)), 'null value phi = 1'}, ...
+     {@() adfmax_cdf(-2,dfdet_trend(1),-5,struct('gls',-13.5)), 'least-squares detrending only'}, ...
+     {@() adfmax_cdf(-2,'DU',-5,struct('g0',1.5,'engine','classical')), 'with a zero or a stationary start'}, ...
+     {@() adfmax_cdf(-2,'SU',-5,struct('g0',1.5)), 'exclude each other'}, {@() adfmax_cdf(-2,'DU',-5,struct('c0',1)), 'null value phi = 1'}, ...
+     {@() ltratio_cdf(-2,'DU',-5,struct('start','stationary')), 'apply to a design'}, {@() ltratio_cdf(-2,'DU',-5,struct('gls',-7)), 'apply to a design'}, ...
+     {@() ltratio_cdf(-2,dfdet_trend(0),-5,struct('start','zero','g0',1)), 'exclude each other'}, ...
+     {@() ltratio_lincdf(-0.26,-3.5,'DK',-5,struct('g0',1.5)), 'a fixed start takes a design'}, ...
+     {@() ltratio_lincdf(-0.26,-3.5,'DK',-5,struct('c0',1)), 'opts.c0 does not apply'}, ...
+     {@() ltratio_lincdf(-0.26,-3.5,dfdet_trend(-1),-5,struct('g0',1.5,'engine','classical')), 'with a zero start'}, ...
+     {@() ltratio_region(struct('type','line','a',-3.5,'b',-0.26),'DK',-5,struct('g0',1.5)), 'a fixed start takes a design'}, ...
+     {@() ltratio_region(struct('type','line','a',-3.5,'b',-0.26),dfdet_trend(-1),-5,struct('g0',1.5,'engine','classical')), 'with a zero start'}, ...
+     {@() power_envelope(-5,dfdet_trend(-1),struct('g0',1)), 'zero start'}, {@() power_envelope(-5,'DK',struct('g0',1)), 'a fixed start takes a design'}};
+for k = 1:numel(R)
+    msg = 'no error';
+    try, R{k}{1}(); catch ME, msg = ME.message; end
+    check(sprintf('refused: %s (%.60s)',func2str(R{k}{1}),msg),double(~contains(msg,R{k}{2})),0);
+end
+% the edge of the LM statistic's transform: D_V > 0 below t_* and < 0 just beyond (the estimate of the orthogonal projection
+% put it up to 2.3 times too far out)
+for c = [-20 2 5]
+    Mo = dfdet_model(dfdet_prep(dfdet_trend(1),'lm')); ts = dfdet_tstar(Mo,c);
+    dv = @(t) real(exp(ldv_(Mo,c,t)));
+    ok = all(arrayfun(dv,linspace(0.01,0.99,60)*ts) > 0) && dv(1.01*ts) < 0;
+    check(sprintf('LM statistic, linear trend, c = %g: D_V > 0 on (0, t_*) and < 0 at 1.01 t_*',c),double(~ok),0);
+end
+% the checked computation: the variant at the default angle takes the place of a steeper variant that fails with any error
+% (not only those of the engine, dfdet:*), and an exhausted memory reaches the caller
+CPv0 = dfdet_cpath(dfdet_startmodel(dfdet_trend(0),-5,'zero',0,[]),-5);
+v = dfdet_verify(@(CPv,o) vprobe_(CPv,CPv0,'dfdet_test:other'),CPv0,1e-9);
+check('verified: the fallback follows an error that is not of the engine',abs(v - 0.25),0);
+id = '';
+try, dfdet_verify(@(CPv,o) vprobe_(CPv,CPv0,'MATLAB:nomem'),CPv0,1e-9); catch ME, id = ME.identifier; end
+check('verified: an exhausted memory (MATLAB:nomem) reaches the caller',double(~strcmp(id,'MATLAB:nomem')),0);
 % the cases DK, DU, DT of the design and of the case string give the same values (a design that is its classical case)
-check('a classical design is its case (DU, c = -5)',max(abs(ltratio_cdf([-3 -2],dfdet_trend(0),-5) - ltratio_cdf([-3 -2],'DU',-5))),0);
+% (with the folder of the MEX file ahead on the path the design goes to the C router and the case string to the classical
+% programs on the C engine, whose choices of representation differ at some points: the same values to 1e-10)
+check('a classical design is its case (DU, c = -5)',max(abs(ltratio_cdf([-3 -2],dfdet_trend(0),-5) - ltratio_cdf([-3 -2],'DU',-5))),1e-10*ltratio_croute('on'));
 
 fprintf('\nlargest deviation by group (number of comparisons):\n');
 fn = keys(G);
@@ -141,12 +191,12 @@ function g = group_(func)
 switch func
     case {'prep','dv'}, g = '1. designs: the functionals, the roots and their signs, the eigenvalues of A';
     case {'dval','roots','tstar'}, g = '2. the determinant, the roots, t_*';
-    case {'cdf','pdf'}, g = '3. the distribution function and the density';
+    case {'cdf','pdf','err'}, g = '3. the distribution function and the density';
     case 'icdf', g = '4. quantiles';
     case 'mom', g = '5. moments';
     case {'coefcdf','coefpdf','coeficdf','lincdf','linpdf','linicdf','vcdf','vpdf','adfcdf','adfpdf','adficdf','env','lp','region'}
         g = '6. the related statistics';
-    case {'ptq','ptcdf','ptpdf','ptenv','ptpow','lmq','lmp','lmcdf','mzacdf','mzaq','msbcdf','msbq'}, g = '7. the companions';
+    case {'ptq','ptcdf','ptpdf','ptenv','ptpow','lmq','lmp','lmcdf','lmtstar','mzacdf','mzaq','msbcdf','msbq'}, g = '7. the companions';
     otherwise, g = '8. the router';
 end
 end
@@ -200,6 +250,16 @@ switch func
     case 'lmq', v = lm_quantile(args,D); tol = 1e-6;
     case 'lmp', [~,v] = lm_power(args,D);
     case 'lmcdf', v = lm_cdf(args,D,c);
+    case 'lmtstar'
+        P = dfdet_prep(D,'lm'); Mo = dfdet_model(P); v = dfdet_tstar(Mo,c); tol = 1e-10; rel = true;
+    case 'err'
+        % a call that must fail with an error whose message contains o.txt ('_' for ' '): v = 0 if it does, Inf otherwise
+        txt = strrep(o.txt,'_',' '); v = Inf; tol = 0;
+        try
+            switch o.fn, case 'cdf', dfdet_cdf(args,D,c,go); otherwise, error('dfdet_test: unknown err function %s.',o.fn); end
+        catch ME
+            if contains(ME.message,txt), v = 0; end
+        end
     case 'mzacdf', v = mza_cdf(args,D,c,struct('gls',gls));
     case 'mzaq', v = mza_quantile(args,D,c,struct('gls',gls,'y0',-25)); tol = 1e-6;
     case 'msbcdf', v = msb_cdf(args,D,c,struct('gls',gls));
@@ -215,6 +275,16 @@ switch func
     case 'rregion', v = ltratio_region(bnd_(o),D,c,rmf(rmf(ro,'a'),'b'));
     otherwise, error('dfdet_test: unknown function %s.',func);
 end
+end
+
+function l = ldv_(Mo,c,t)
+[~,l] = dfdet_mgf(Mo,c,complex(t),true);
+end
+
+function v = vprobe_(CPv,CP,id)
+% an evaluation of the checked computation that fails with the error id on the steeper variant
+if CPv.phi > CP.phi + 1e-9, error(id,'a failure of the steeper variant (a test)'); end
+v = 0.25;
 end
 
 function b = bnd_(o)
