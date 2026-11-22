@@ -83,6 +83,7 @@ if ~isstruct(opts), error('ltratio:args','ltratio: opts must be a structure.'); 
 engine = 'auto'; if isfield(opts,'engine') && ~isempty(opts.engine), engine = lower(char(opts.engine)); end
 if ~any(strcmp(engine,{'auto','classical','general'})), error('ltratio:args','ltratio: opts.engine must be ''auto'', ''classical'' or ''general''.'); end
 ltratio_route('case',cas,opts);                         % (a case string: no opts.start, opts.gls)
+if ltratio_croute('use',cas,opts), [F,info] = ltratio_croute('dist',x,cas,c,opts,mode); return, end   % (the C router)
 oc = rmfield_safe(opts,{'engine','start','gls'});
 if ~(ischar(cas) || isstring(cas))
     % a design of the general engine: its classical case where the classical programs accept the arguments

@@ -17,10 +17,12 @@ if isfield(opts,'c0') && ~isempty(opts.c0) && opts.c0 ~= 0, error('ltratio:args'
 % opts.g0 or of a design, takes the general engine, whose ADFmax is the same functional of (U, V) for every start; the
 % classical programs computed the zero start.  GLS detrending: neither engine has it, an error)
 fixed = isfield(oc,'g0') && ~isempty(oc.g0) && oc.g0 ~= 0;
+cr = ltratio_croute('use',cas,opts);                     % (the MEX folder ahead on the path: the C router)
 if fixed && (ischar(cas) || isstring(cas)) && strncmpi(char(cas),'S',1), error('ltratio:args','adfmax: g0 (a fixed start) and a stationary start (cases SU, ST) exclude each other.'); end
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);
     if ~isempty(S.gls), error('ltratio:args','adfmax: ADFmax has least-squares detrending only (no opts.gls).'); end
+    if cr, [F,info] = ltratio_croute('adfmax',x,cas,c,opts,mode); return, end
     if ~strcmp(engine,'general') && any(strcmp(S.case,{'DU','DT','SU','ST'})) && ~strcmp(S.start,'fixed')
         oc.engine = engine; [F,info] = adfmax_dist(x,S.case,c,oc,mode); return
     end
@@ -34,6 +36,7 @@ if strcmp(engine,'general') || fixed
     if strcmp(engine,'classical'), error('ltratio:args','adfmax: engine = ''classical'': ADFmax of the classical programs has the cases DU, DT, SU, ST only, with a zero or a stationary start.'); end
     S = ltratio_spec(cas,oc);
     if ~isempty(S.gls), error('ltratio:args','adfmax: ADFmax has least-squares detrending only (case DG).'); end
+    if cr, [F,info] = ltratio_croute('adfmax',x,cas,c,opts,mode); return, end
     F = general_adfmax(x,S,c,oc,mode); info = struct('engine','general'); return
 end
 opts = oc;
@@ -42,6 +45,7 @@ if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:ar
 if cas(1) == 'S' && ~(c <= -1e-4), error('ltratio:args','ltratio: a stationary start (cases SK, SU, ST) requires c <= -1e-4: closer to zero the variance -1/(2c) of the start is too large for the quadrature.'); end   % (LTRATIO_ARGS)
 if c < -550, error('ltratio:args','adfmax: c must be at least -550 (the range in which the programs are checked).'); end
 if ~(isnumeric(x) && isreal(x)), error('ltratio:args','adfmax: x must be real.'); end
+if cr, [F,info] = ltratio_croute('adfmax',x,cas,c,opts,mode); return, end
 F = zeros(size(x)); F(isnan(x)) = NaN; if strcmp(mode,'cdf'), F(x == Inf) = 1; end
 fin = isfinite(x); info = struct('err',NaN(size(x)),'status',zeros(size(x)));
 if strcmp(engine,'auto') && isempty(fieldnames(opts)) && any(fin(:)) && ltratio_engine('adfmax',ltratio_spec(cas,opts),c,0,0)

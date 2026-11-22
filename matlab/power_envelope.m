@@ -28,6 +28,7 @@ if ~(ischar(cas) || isstring(cas))
         error('ltratio:args','power_envelope: the envelope is that of the zero start with its own detrending (no opts.start, opts.g0, opts.gls).');
     end
 end
+if ltratio_croute('use',cas,opts,{'alpha'}), P = ltratio_croute('envelope',c,cas,opts); return, end   % (the C router)
 [engine,oc] = ltratio_route('engine',opts);
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
 if ~(ischar(cas) || isstring(cas))

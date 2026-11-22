@@ -18,6 +18,7 @@ function F = coef_cdf(y,cas,c,opts)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 ltratio_route('case',cas,opts);
+if ltratio_croute('use',cas,opts), F = ltratio_croute('coef',y,cas,c,opts); return, end   % (the C router)
 if ~(ischar(cas) || isstring(cas))
     [engine,oc] = ltratio_route('engine',opts); S = ltratio_spec(cas,opts);
     if strcmp(engine,'classical') && isempty(S.case), error('ltratio:args','coef_cdf: engine = ''classical'': the classical programs have the cases DK, DU, DT, SK, SU, ST and DG only.'); end

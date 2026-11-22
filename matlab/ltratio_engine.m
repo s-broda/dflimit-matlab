@@ -46,15 +46,20 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %   case DK for -1 < c < 0 (4 times faster), the classical programs otherwise
 %   (4 to 28 times faster).  ADFmax: the general engine with a stationary
 %   start for c <= -0.1 (as the Julia package) and with a zero start for
-%   c <= -10 (4 times faster).  Regions: the classical programs.  With the MEX
-%   file of the C engine on the path (ltratio_mex, whose drop-ins carry the
-%   classical programs at 20 to 50 times their speed) the classical engine is
-%   taken throughout.
+%   c <= -10 (4 times faster).  Regions: the classical programs.  With the
+%   folder of the MEX file of the C engine ahead of these programs on the
+%   path (LTRATIO_CROUTE('on'): LTRATIO_MEX and its drop-ins, which carry the
+%   classical programs at 20 to 50 times their speed) the user-level routines
+%   hand their calls with a design, or with a case string and opts.engine,
+%   without options of the MATLAB engines to the C router, whose rule
+%   (dfl_autoengine of c/dfl_det_route.c) is set by the timings of the two C
+%   engines; for the other calls this function gives the classical engine
+%   (on the C engine through the drop-ins), as before.
 %
 %   See also LTRATIO_SPEC, LTRATIO_CDF, DFDET_CDF.
 cas = S.case; fixed = strcmp(S.start,'fixed'); stat = strcmp(S.start,'stationary');
 if strcmp(f,'dist'), gen = false(size(x)); else, gen = false; end
-if isempty(cas) || exist('ltratio_mex','file') == 3, return, end
+if isempty(cas) || ltratio_croute('on'), return, end
 ac = abs(S.g0);
 mid = -100 <= c && c < -60;                            % (the accuracy of the general engine dips there)
 switch f

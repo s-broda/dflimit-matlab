@@ -30,6 +30,7 @@ function [m,info] = ltratio_mom(p,cas,c,opts)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 ltratio_route('case',cas,opts);
+if ltratio_croute('use',cas,opts), [m,info] = ltratio_croute('mom',p,cas,c,opts); return, end   % (the C router)
 [engine,oc] = ltratio_route('engine',opts);
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);

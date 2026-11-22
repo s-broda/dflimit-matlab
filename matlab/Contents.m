@@ -159,9 +159,10 @@
 %   dfdet_contour - the U-shapes around the root groups, the closed-form v-kernels, the outer sum, Filon's
 %                   rule on the line
 %   dfdet_verify  - the checked computation (opts.verified)
-%   dfdet_dist, dfdet_stat, dfdet_args, dfdet_xspec, dfdet_qgrid, dfdet_lmpath, dfdet_newton, dfdet_cache,
-%   dfdet_key, dfdet_peval, dfdet_msg - dispatch, argument checks, parabola terms, the grid of the point-
-%                   optimal statistic, the safeguarded Newton's method, the caches, helpers
+%   dfdet_dist, dfdet_stat, dfdet_args, dfdet_xspec, dfdet_qgrid, dfdet_ptf, dfdet_lmpath, dfdet_newton,
+%   dfdet_cache, dfdet_key, dfdet_peval, dfdet_msg - dispatch, argument checks, parabola terms, the grid of the
+%                   point-optimal statistic and its inversion at a point, the path of the LM statistic's V, the
+%                   safeguarded Newton's method, the caches, helpers
 %   dfdet_make_paths - the path tables dfdet_paths.mat of cases DK, DU, DT at the unit root (from the tables of
 %                   the Julia package)
 %
@@ -169,8 +170,12 @@
 % coef_icdf, adfmax_cdf, adfmax_pdf, adfmax_icdf, ltratio_lincdf, power_envelope and ltratio_region take
 % opts.engine: 'classical' (the programs above), 'general' (the general engine) or 'auto' (the default: the
 % engine of ltratio_engine, by the timings of the two MATLAB engines), and a design of the general engine in
-% place of the case (a classical design is its case; any other goes to the general engine).
+% place of the case (a classical design is its case; any other goes to the general engine).  With the folder of
+% the MEX file of the C engine ahead of these programs on the path, a call with a design (or a case string and
+% opts.engine) without options of the MATLAB engines goes to the C router instead (its rule, both engines in C:
+% ltratio_croute).
 %   ltratio_engine - the rule of opts.engine = 'auto'
+%   ltratio_croute - the hand-over to the C router of the MEX file
 %   ltratio_spec, ltratio_route - the design, start and case of a computation; helpers of the router
 %
 % Validation

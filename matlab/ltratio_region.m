@@ -25,6 +25,7 @@ if nargin < 4 || isempty(opts), opts = struct; end
 % (opts.engine: 'general' the general engine, DFDET_REGION, for the lines and parabolas; 'auto' and 'classical' the
 % programs above; a design other than case DK goes to DFDET_REGION)
 ltratio_route('case',cas,opts); ltratio_route('nostart','ltratio_region',cas,opts);
+if ltratio_croute('use',cas,opts) && ltratio_croute('bnd',bnd), [P,info] = ltratio_croute('region',bnd,cas,c,opts); return, end   % (the C router)
 [engine,oc] = ltratio_route('engine',opts);
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);

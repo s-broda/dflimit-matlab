@@ -227,7 +227,20 @@ static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 /* v = ltratio_mex('route', what, engine, spec, a1, ...): one interface over the two engines (dfl_engine_*); engine 0 auto,
  * 1 classical, 2 general; spec = [model start g0] of a classical case, or {br, C, loc, first, start, g0, gls} as the
  * numeric arguments br, C, loc, first, start, g0, gls (spec given as the scalar 0 then these seven); what:
- *   'cdf' 'pdf' x c c0 | 'icdf' p c c0 tol | 'mom' pmax c c0 | 'coefcdf' y c c0 | 'coeficdf' p c c0 tol */
+ *   'cdf' 'pdf' x c c0 | 'icdf' p c c0 tol | 'mom' pmax c c0 | 'coefcdf' y c c0 | 'coeficdf' p c c0 tol |
+ *   'adfcdf' 'adfpdf' x c | 'lincdf' b c a cbar (the model of spec: 1 case DK, 4 case DG detrended at cbar, NaN for
+ *   -13.5) | 'envelope' cs alpha (the model of spec, 1 or 4) | 'region' type c p1 p2 (P{U <= g(V)}: type 1 the line
+ *   p2 + p1 v, 2 the parabola p1 sqrt(v) + p2 v, 3 the weighted-average-power boundary with k = p1, omega = p2)
+ * The warnings: dfl_warning as ltratio:bound, dfl_det_warning as ltratio:det, and for a classical case with engine auto
+ * the warning ltratio:brittle of a regime in which the classical engine's one evaluation is brittle, where the router
+ * takes the classical engine at a point (dfl_brittle, once per message; as the classical entry points give it) */
+static int brittle_add(const char **bm, int nb, char store[][320], const char *m)
+{
+    if (!m || nb >= 8) return nb;
+    for (int j = 0; j < nb; j++) if (!strcmp(bm[j], m)) return nb;
+    snprintf(store[nb], 320, "%s", m); bm[nb] = store[nb];
+    return nb + 1;
+}
 static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     char what[16], err[512]; int rc = 1;
@@ -247,14 +260,53 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 #define SC(k, nm, dflt) (na > (k) && mxGetNumberOfElements(a[k]) > 0 ? scalar(a[k], nm) : (dflt))
     int n; const mxArray *xa = vecarg(a[0], "x", &n);
     double c = SC(1, "c", 0.0), c0 = SC(2, "c0", 0.0);
-    if (!strcmp(what, "cdf") || !strcmp(what, "pdf")) { plhs[0] = like(xa); rc = dfl_engine_dist(what[0] == 'c' ? 2 : 1, n, mxGetPr(xa), &S, c, c0, engine, 0, 0, mxGetPr(plhs[0]), err, sizeof err); }
-    else if (!strcmp(what, "icdf")) { plhs[0] = like(xa); rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, 0, SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err); }
+    /* (a classical case with engine auto: the brittle regimes of the points that the router gives the classical engine) */
+    int cls = S.D == NULL && engine == DFL_ENGINE_AUTO && S.model >= 1 && S.model <= 4, stat = S.start == 2;
+    double g0 = stat ? 0.0 : S.g0, gls = S.model == 4 ? DFL_CBAR_GLS : NAN;
+    const char *bm[8]; char bstore[8][320]; int nb = 0;
+    if (!strcmp(what, "cdf") || !strcmp(what, "pdf")) {
+        int kind = what[0] == 'c' ? 2 : 1; const double *x = mxGetPr(xa);
+        plhs[0] = like(xa); rc = dfl_engine_dist(kind, n, x, &S, c, c0, engine, 0, 0, mxGetPr(plhs[0]), err, sizeof err);
+        if (!rc && cls) {
+            const double *v = mxGetPr(plhs[0]); int any = 0;
+            for (int k = 0; k < n && !any; k++) {
+                if (!isfinite(x[k])) continue;
+                if (dfl_autoengine(DFL_F_DIST, S.model, stat, g0, gls, c, c0, x[k]) == DFL_ENGINE_CLASSICAL) any = 1;
+                else if (v[k] < 1e-3 && dfl_automethod(S.model, c, c0, g0, stat, x[k]) == 2) any = 1;   /* (a tail sent back) */
+            }
+            if (any) nb = brittle_add(bm, nb, bstore, dfl_brittle(kind, S.model, c, c0, g0, stat, 0));
+        }
+    } else if (!strcmp(what, "icdf")) {
+        plhs[0] = like(xa); rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, 0, SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err);
+        if (!rc && cls && dfl_autoengine(DFL_F_ICDF, S.model, stat, g0, gls, c, c0, 0.0) == DFL_ENGINE_CLASSICAL) nb = brittle_add(bm, nb, bstore, dfl_brittle(2, S.model, c, c0, g0, stat, 0));
+    }
     else if (!strcmp(what, "mom")) { int p = intarg(a[0], "pmax"); plhs[0] = mxCreateDoubleMatrix(1, p, mxREAL); rc = dfl_engine_mom(p, &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err); }
-    else if (!strcmp(what, "coefcdf")) { plhs[0] = like(xa); rc = dfl_engine_coef(n, mxGetPr(xa), &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err); }
-    else if (!strcmp(what, "coeficdf")) { plhs[0] = like(xa); rc = dfl_engine_coef_icdf(n, mxGetPr(xa), &S, c, c0, engine, SC(3, "tol", 1e-9), mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "coefcdf") || !strcmp(what, "coeficdf")) {
+        int q = what[4] == 'i';
+        plhs[0] = like(xa);
+        rc = q ? dfl_engine_coef_icdf(n, mxGetPr(xa), &S, c, c0, engine, SC(3, "tol", 1e-9), mxGetPr(plhs[0]), err, sizeof err)
+               : dfl_engine_coef(n, mxGetPr(xa), &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err);
+        if (!rc && cls) for (int k = 0; k < n; k++) {
+            /* (the t-ratio at 0 with the null value c0 + y: its engine and its brittle regime at each y, or at each quantile) */
+            double y = q ? mxGetPr(plhs[0])[k] : mxGetPr(xa)[k], c0y = c0 + y;
+            if (isfinite(y) && dfl_autoengine(DFL_F_DIST, S.model, stat, g0, gls, c, c0y, 0.0) == DFL_ENGINE_CLASSICAL) nb = brittle_add(bm, nb, bstore, dfl_brittle(2, S.model, c, c0y, g0, stat, 0));
+        }
+    }
+    else if (!strcmp(what, "adfcdf") || !strcmp(what, "adfpdf")) { plhs[0] = like(xa); rc = dfl_engine_adfmax(what[3] == 'c' ? 2 : 1, n, mxGetPr(xa), &S, c, engine, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "lincdf")) {
+        if (S.D) mexErrMsgIdAndTxt("ltratio:args", "the linear form of the router takes a case (spec [model start g0], model 1 or 4)");
+        plhs[0] = like(xa); rc = dfl_engine_lincdf(n, mxGetPr(xa), SC(2, "a", 0.0), S.model, c, SC(3, "cbar", NAN), engine, mxGetPr(plhs[0]), err, sizeof err);
+    } else if (!strcmp(what, "envelope")) {
+        if (S.D) mexErrMsgIdAndTxt("ltratio:args", "the envelope of the router takes a case (spec [model start g0], model 1 or 4)");
+        plhs[0] = like(xa); rc = dfl_engine_envelope(n, mxGetPr(xa), S.model, SC(1, "alpha", 0.05), engine, mxGetPr(plhs[0]), err, sizeof err);
+    } else if (!strcmp(what, "region")) {
+        int type = intarg(a[0], "type"); double par[2] = {SC(2, "p1", NAN), SC(3, "p2", NAN)};
+        plhs[0] = mxCreateDoubleMatrix(1, 1, mxREAL); rc = dfl_engine_region(type, par, &S, c, engine, mxGetPr(plhs[0]), err, sizeof err);
+    }
     else mexErrMsgIdAndTxt("ltratio:args", "unknown function %s of the router", what);
 #undef SC
     if (rc) mexErrMsgIdAndTxt(rc > 10 ? "ltratio:bound" : "ltratio:engine", "%s", err);
+    for (int j = 0; j < nb; j++) mexWarnMsgIdAndTxt("ltratio:brittle", "%s", bm[j]);
     if (dfl_warning()) mexWarnMsgIdAndTxt("ltratio:bound", "%s", dfl_warning());
     if (dfl_det_warning()) mexWarnMsgIdAndTxt("ltratio:det", "%s", dfl_det_warning());
 }

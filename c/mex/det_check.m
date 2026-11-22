@@ -1,6 +1,8 @@
 % DET_CHECK  checks of the general engine (any deterministic terms) through the MEX file: designs, the general engine's
 % functions, the router over the two engines, against the reference values of c/test/det_ref.txt and the classical
-% engine.  Run with the folder of the MEX file on the path (from a folder other than matlab/); about 10 seconds.
+% engine; the route operation's ADFmax, linear form, envelope and regions; with matlab/ on the path behind this folder,
+% the user-level routines of the MATLAB programs on the C router (ltratio_croute).  Run with the folder of the MEX file
+% on the path (from a folder other than matlab/); about 10 seconds.
 nf = 0; nc = 0;
 function [nf, nc] = chk(nf, nc, got, want, tol, what)
     nc = nc + 1; d = max(abs(got(:) - want(:)));
@@ -47,5 +49,26 @@ Df = ltratio('design', 'fun', @(r) [1; r; double(r > 0.4); max(r - 0.4, 0)], 4, 
 t = (1:500)'/500; X = [ones(500,1) t (t > 0.3) max(t - 0.3, 0)];
 Dm = ltratio('design', 'matrix', X);
 [nf, nc] = chk(nf, nc, ltratio('det', 'cdf', Dm, [-3.5 -2.5], 0), ltratio('det', 'cdf', PC, [-3.5 -2.5], 0), 1e-10, 'design from a matrix against perron C 0.3');
+% the route operation's ADFmax, linear form, envelope and regions, and the warning of a brittle regime
+x3 = [-3 -2.4 -1.5]; D0 = ltratio('design', 'trend', 0);
+[nf, nc] = chk(nf, nc, ltratio_mex('route', 'adfcdf', 0, [2 1 1.5], x3, -5), ltratio('det', 'adfcdf', D0, x3, -5, struct('g0', 1.5)), 1e-12, 'ADFmax DU with a fixed start: the general engine');
+[nf, nc] = chk(nf, nc, ltratio_mex('route', 'adfcdf', 0, [2 0 0], x3, 0), ltratio_mex('adfmax', 2, x3, 2, 0, 0), 1e-9, 'ADFmax DU, zero start (router auto)');
+[nf, nc] = chk(nf, nc, ltratio_mex('route', 'lincdf', 0, [1 0 0], [-0.6 -0.2639], 0, -3.5, NaN), ltratio('lincdf', [-0.6 -0.2639], -3.5, 'DK', 0), 1e-9, 'the linear form through the router');
+[nf, nc] = chk(nf, nc, ltratio_mex('route', 'envelope', 0, [1 0 0], [-5 -10], 0.05), ltratio('envelope', [-5 -10], 'DK'), 1e-8, 'the envelope through the router');
+[nf, nc] = chk(nf, nc, ltratio_mex('route', 'region', 0, [1 0 0], 1, -5, -3.5, -0.2639), ltratio_mex('lincdf', -0.2639, -3.5, 1, -5), 1e-9, 'the region below a line through the router');
+[nf, nc] = chk(nf, nc, ltratio_mex('route', 'region', 0, [1 1 1.5], 2, -5, -2, 0), ltratio('det', 'cdf', ltratio('design', 'trend', -1), -2, -5, struct('g0', 1.5)), 1e-10, 'the region of case DK with a fixed start: the general engine');
+lastwarn('');
+ws = warning('off', 'ltratio:brittle'); ltratio_mex('route', 'cdf', 0, [2 1 0.5], -5, -20, 2); warning(ws);
+[~, wid] = lastwarn; [nf, nc] = chk(nf, nc, double(strcmp(wid, 'ltratio:brittle')), 1, 0, 'the warning ltratio:brittle of the router (DU, fixed start, c0 > 0 at c = -20)');
+% with this folder ahead of matlab/ on the path: the user-level routines on the C router
+if exist('ltratio_croute', 'file') == 2 && ltratio_croute('on')
+    [nf, nc] = chk(nf, nc, ltratio_cdf(xs, 'DT', -5), ltratio('cdf', xs, 'DT', -5), 1e-9, 'ltratio_cdf on the C router');
+    [nf, nc] = chk(nf, nc, ltratio_cdf([-3.5 -2.5], dfdet_perron('C', 0.3), -5), ltratio('det', 'cdf', PC, [-3.5 -2.5], -5), 1e-12, 'ltratio_cdf with a design on the C router');
+    [nf, nc] = chk(nf, nc, adfmax_cdf(x3, 'DU', -5, struct('g0', 1.5)), ltratio('det', 'adfcdf', D0, x3, -5, struct('g0', 1.5)), 1e-12, 'adfmax_cdf with a fixed start on the C router');
+    [nf, nc] = chk(nf, nc, ltratio_lincdf(-0.2639, -3.5, dfdet_trend(-1), -5, struct('g0', 1.5)), ltratio('det', 'lincdf', ltratio('design', 'trend', -1), -0.2639, -3.5, -5, struct('g0', 1.5)), 1e-12, 'ltratio_lincdf of a design with a fixed start on the C router');
+    [nf, nc] = chk(nf, nc, power_envelope([-5 -10], 'DG'), ltratio('envelope', [-5 -10], 'DG'), 1e-8, 'power_envelope on the C router');
+    id = ''; try, ltratio_cdf(-20, 'DU', -551); catch e, id = e.identifier; end
+    [nf, nc] = chk(nf, nc, double(strcmp(id, 'ltratio:args')), 1, 0, 'the checks of the MATLAB routines before the C router');
+end
 fprintf('%d checks, %d failed\n', nc, nf);
 if nf, exit(1); end

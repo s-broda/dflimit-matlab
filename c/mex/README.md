@@ -40,7 +40,15 @@ engines (`opts.engine` `'auto'`, the default, `'classical'` or `'general'`; `opt
 engine's other functions: the coefficient statistic, the linear form and the law of V, ADFmax, local power, the
 envelope, the point-optimal statistic, the LM statistic, MZ_alpha and MSB (`ltratio_mex('det', ...)`, the list in the
 header of `ltratio_mex.c`).  With a case string, `opts.engine` selects the router too; without it the classical engine
-computes as before.  `det_check.m` checks a built MEX file on the general engine (15 checks in about 10 seconds).
+computes as before.  `det_check.m` checks a built MEX file on the general engine.  With this folder ahead of
+`matlab/` on the path the user-level routines of the MATLAB programs (`ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`,
+`ltratio_mom`, `coef_cdf`, `coef_icdf`, `adfmax_cdf`, `adfmax_pdf`, `ltratio_lincdf`, `power_envelope`,
+`ltratio_region`) hand a call with a design, or with a case string and `opts.engine`, without options of the MATLAB
+engines to the C router (`ltratio_mex('route', ...)`, `matlab/ltratio_croute.m`; a case string without `opts.engine`
+keeps the classical programs, here on the C engine through the drop-ins): the C rule chooses the engine, both engines compute in C, and the warning `ltratio:brittle`
+names a brittle regime of the classical engine's one evaluation where the router takes it.  The route operation also
+has ADFmax, the linear form, the envelope and the regions (`'adfcdf'`, `'adfpdf'`, `'lincdf'`, `'envelope'`,
+`'region'`).
 
 ```matlab
 D = ltratio('design', 'perron', 'C', [0.3 0.7]);      % Perron's model C with two breaks
@@ -124,7 +132,9 @@ From the repository root, on macOS (Linux: `c++ -shared`, extension `mexa64`; ad
 
 ```sh
 mkdir -p build
-for f in dfl_special dfl_mgf dfl_single dfl_moments dfl_double dfl_gilpelaez dfl_api dfl_threads tables; do cc -std=c11 -O2 -c c/$f.c -o build/$f.o; done
+for f in dfl_special dfl_mgf dfl_single dfl_moments dfl_double dfl_gilpelaez dfl_api dfl_threads tables \
+         dfl_det_la dfl_det_design dfl_det_mgf dfl_det_path dfl_det_inner dfl_det_api dfl_det_paper2 dfl_det_route dfl_det_tables; do
+  cc -std=c11 -O2 -c c/$f.c -o build/$f.o; done
 cc -std=c11 -O3 -c c/dfl_gen.c -o build/dfl_gen.o    # -O3: the l-rule of the fixed start is written to be vectorized
 c++ -std=c++11 -O2 -c c/faddeeva/Faddeeva.cc -o build/Faddeeva.o
 c++ -std=c++11 -O2 -c c/faddeeva/faddeeva_shim.cpp -o build/faddeeva_shim.o

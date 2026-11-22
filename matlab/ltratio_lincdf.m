@@ -27,6 +27,7 @@ function P = ltratio_lincdf(b,a,cas,c,opts)
 if nargin < 4 || isempty(c), c = 0; end
 if nargin < 5 || isempty(opts), opts = struct; end
 ltratio_route('case',cas,opts); ltratio_route('nostart','ltratio_lincdf',cas,opts);
+if ltratio_croute('use',cas,opts,{'cbar'}), P = ltratio_croute('lincdf',b,a,cas,c,opts); return, end   % (the C router)
 [engine,oc] = ltratio_route('engine',opts);
 if ~(ischar(cas) || isstring(cas))
     S = ltratio_spec(cas,opts);
