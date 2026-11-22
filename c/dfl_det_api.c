@@ -49,7 +49,10 @@ static int verify_eval(det_path *CP, evalf_t ev, void *ctx, int nv, double vtol,
     int rc = C1 ? ev(C1, &o2, ctx, v2, err, errlen) : 1;
     det_path_release(C1);
     if (rc) {
-        /* (the groups not separated on the steeper hyperbola: the variant at the default angle) */
+        /* (any error of the variant, also one of the workers of its node loops, which det_fail keeps: the groups not
+         * separated on the steeper hyperbola, the guard on the nodes of its U-shapes; the variant at the default angle
+         * takes its place.  An exhausted memory reaches the caller, as in the Julia engine) */
+        if (strstr(err, "out of memory")) { free(v2); free(v3); return 1; }
         det_path *C0 = det_variant_path(CP, 0, err, errlen);
         rc = C0 ? ev(C0, &o2, ctx, v2, err, errlen) : 1;
         det_path_release(C0);
