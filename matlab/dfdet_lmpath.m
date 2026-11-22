@@ -29,8 +29,8 @@ Mo = dfdet_model(P); Mo.key = [pk '|zero|0'];
 out = dfdet_cpath(Mo,c);
 if isnan(out.h)
     % (the vertical line of the t-ratio does not resolve e^{-t v}: the hyperbola of V alone, at pi/4, or at the angle of the
-    % fixed start's rule below c = -100, as DFDET_V_CDF)
-    if c < -100, ph = dfdet_cpath(Mo,c,struct('fixedphi',true,'ts',out.tstar,'tau',out.tau,'hfac',1)); else, ph = pi/4; end
+    % fixed start's rule below c = -60, as DFDET_V_CDF)
+    if c < -60, ph = dfdet_cpath(Mo,c,struct('fixedphi',true,'ts',out.tstar,'tau',out.tau,'hfac',1)); else, ph = pi/4; end
     out = dfdet_cpath(Mo,c,struct('phi',ph));
 end
 end

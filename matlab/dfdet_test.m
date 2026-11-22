@@ -191,6 +191,17 @@ r = [ltratio_region(struct('type','line','a',-3.5,'b',Inf),'DK',-5) ltratio_regi
 check('non-finite: the region below the line at b = Inf, -Inf, NaN is 1, 0, NaN (classical and general)',double(~isequaln(r,[1 0 NaN 1])),0);
 v = [dfdet_v_cdf([-Inf -1 0 Inf NaN],DU,-5) dfdet_v_pdf([-Inf -1 Inf NaN],DU,-5)];
 check('non-finite: the law of V at -Inf, -1, 0, Inf, NaN (0, 0, 0, 1, NaN; density 0, 0, 0, NaN)',double(~isequaln(v,[0 0 0 1 NaN 0 0 0 NaN])),0);
+% the rules far from the unit root from c = -60 on (until November 2026 from c = -100): on -100 <= c < -60 the 45-degree
+% hyperbola left errors up to 1.4e-9 against the line integral, the angle of the fixed start's rule and the caps of the
+% segments from c = -60 on give 5e-13 (case DK 3e-11)
+for cs = {{'DU',dfdet_trend(0),'zero'},{'DT',dfdet_trend(1),'zero'},{'SU',dfdet_trend(0),'stationary'}}
+    for c = [-70 -100]
+        xs = ltratio_icdf([0.01 0.5 0.99],cs{1}{1},c,struct('engine','classical'));
+        Fl = ltratio_cdf(xs,cs{1}{1},c,struct('engine','classical','method','single'));
+        Fg = dfdet_cdf(xs,cs{1}{2},c,struct('start',cs{1}{3}));
+        check(sprintf('the rules far from the unit root: %s at c = %g, the general engine against the line integral',cs{1}{1},c),max(abs(Fg - Fl)),1e-10);
+    end
+end
 % the edge of the LM statistic's transform: D_V > 0 below t_* and < 0 just beyond (the estimate of the orthogonal projection
 % put it up to 2.3 times too far out)
 for c = [-20 2 5]

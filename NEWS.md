@@ -66,6 +66,19 @@ refused after 11 s. The checked computation (`verified`) falls back to the
 variant at the default angle after any error of the steeper variant, except an exhausted memory. Values at c <= 0
 unchanged (bit for bit in the reference values of both tests).
 
+**The rules far from the unit root from c = -60 on (C and MATLAB, as in DFLimit.jl).** On -100 <= c < -60 the outer
+contour of the general engine was the 45-degree hyperbola, on which the terms grow far from the unit root: the
+distribution function was off by 1e-11 at c = -70 and by up to 1.4e-9 at c = -100 against the line integral (cases DU,
+DT, SK, SU at c0 = 0, case DU at c0 = 2), the linear form of the envelope by up to 9e-10. The angle of `fixed_phi` (with
+every start) and the caps 20/min(A, 40/|sigma|) of the segments of the U-shapes now apply from c = -60 on
+(`DET_FAR_CMIN`), and the contour ends at the larger of 1e5 and 20 c^2 for every c: within 5e-13 there (case DK 3e-11, as
+below c = -100), values elsewhere unchanged bit for bit, and on that range the C general engine at c0 = 0 takes 0.6 to 0.9
+times the classical engine's time in cases DU, DT, SU (1.4 to 1.7 in case DK, as below c = -100; in DFLimit.jl the
+general engine takes 0.2 to 0.95 times its former time there in cases DU, DT and 1.3 to 1.5 times in cases DK, SU).
+The MATLAB rule (`ltratio_engine`) no longer keeps the
+classical programs on that range; `dfl_test_det` and `dfdet_test` check it (the general engine within 1e-10 of the line
+integral at c = -70, -85, -100).
+
 **Non-finite arguments (C and MATLAB, as in DFLimit.jl).** Every public function of the general engine and of the router
 gives at +-Inf and NaN in each argument either the limit or an error that names the argument. `dfl_det_coef_cdf_gp` did not
 return at y = +-Inf (the full sum on all threads; now 1 and 0 without the sum, NaN at NaN); the searches from a start

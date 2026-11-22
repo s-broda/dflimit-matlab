@@ -74,7 +74,7 @@ switch stat
         if isempty(po.phi) && isnan(CP.h)
             % (the line of the t-ratio does not resolve e^{-t y}: the hyperbola at the angle the path would have without
             % the steepening for the roots)
-            if strcmp(Mo.start,'fixed') || c < -100, ph = dfdet_cpath(Mo,c,struct('fixedphi',true,'ts',CP.tstar,'tau',CP.tau,'hfac',po.hfac)); else, ph = pi/4; end
+            if strcmp(Mo.start,'fixed') || c < -60, ph = dfdet_cpath(Mo,c,struct('fixedphi',true,'ts',CP.tstar,'tau',CP.tau,'hfac',po.hfac)); else, ph = pi/4; end
             CPv = dfdet_cpath(Mo,c,struct('phi',ph,'hfac',po.hfac));
         end
         vv = zeros(size(xf));

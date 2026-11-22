@@ -5,7 +5,7 @@ function CP = dfdet_cpath(Mo,c,opts)
 %   hyperbola t(u) = tau + a (cosh u - 1) + i b sinh u, asymptotic angle phi,
 %   y = min(0.5, 0.9 (pi/2 - phi)) the half-width of the strip in u,
 %   b = 0.9 min(tau, t_* - tau)/sin(y), a = b cot(phi), step h = hfac 2 pi y/
-%   (37 + 37 y tan(phi)), up to |t - tau| = 1e5 (20 c^2 below c = -100),
+%   (37 + 37 y tan(phi)), up to |t - tau| = max(1e5, 20 c^2),
 %   tau = min(1, t_*/2): the nodes t_k = t(k h), t'(u_k), the weights of the
 %   trapezoidal rule (h/pi, h/(2 pi) at u = 0), the roots s_k(t_k) (the first
 %   Mo.rp the group positive at tau) and log P(t_k), P(t)^-2 = D_V(t)
@@ -14,7 +14,7 @@ function CP = dfdet_cpath(Mo,c,opts)
 %   step, evaluated only where a step is not safe (a root moves by 0.45 times
 %   its distance to the nearest other root, or the increment of the phase of
 %   log P differs from the prediction by more than pi/4).  phi: pi/4 by
-%   default; with a fixed start and below c = -100 the smallest of the angles
+%   default; with a fixed start and below c = -60 the smallest of the angles
 %   45 to 88 degrees at which every term |M_V(t_k) e^{g0^2 cf(t_k)} t'/t_k|
 %   h/pi of the outer rule is at most 2.  Where the positive group leaves
 %   Re s > 0 the hyperbola is steepened by 5 degrees up to 88; beyond, the
@@ -53,9 +53,9 @@ end
 
 % ---------------------------------------------------------------------------------------------------------------------
 function r = default_rmax(c)
-% the end |t - tau| of the outer contour: 1e5, and 20 c^2 below c = -100 (far from the unit root the transform decays
+% the end |t - tau| of the outer contour: the larger of 1e5 and 20 c^2 (far from the unit root the transform decays
 % along the contour only once |t| exceeds c^2)
-if c < -100, r = max(1e5,20*c*c); else, r = 1e5; end
+r = max(1e5,20*c*c);
 end
 
 function [a,b,h,K] = hyperbola(ts,phi,hfac,rmax,tau)
@@ -75,7 +75,7 @@ ts = dfdet_tstar(Mo,c);
 if isempty(tau), tau = min(1,ts/2); end
 auto = isempty(phi);
 if auto
-    if strcmp(Mo.start,'fixed') || c < -100, phi = fixed_phi(Mo,c,ts,tau,hfac,rmax); else, phi = pi/4; end
+    if strcmp(Mo.start,'fixed') || c < -60, phi = fixed_phi(Mo,c,ts,tau,hfac,rmax); else, phi = pi/4; end
 end
 while true
     [a,b,h,K] = hyperbola(ts,phi,hfac,rmax,tau);
@@ -129,7 +129,7 @@ F.w2 = F.w2(:,idx); F.p2 = F.p2(:,idx); F.mt = F.mt(:,idx);
 end
 
 function phi = fixed_phi(Mo,c,ts,tau,hfac,rmax)
-% the asymptotic angle of the outer hyperbola with a fixed start (and below c = -100): the smallest of the angles at which
+% the asymptotic angle of the outer hyperbola with a fixed start (and below c = -60): the smallest of the angles at which
 % the largest term |M_V(t_k) e^{g0^2 cf(t_k)} t'(u_k)/t_k| h/pi of the outer rule is finite and at most 2 (the steepest
 % one if none qualifies)
 PHI = [45 50 55 60 65 70 75 78 80 82 84 85 86 87 88];

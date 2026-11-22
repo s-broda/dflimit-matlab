@@ -410,7 +410,7 @@ else
         mv = sp <= lb; sp(mv) = lb(mv) + alpha*(hi(mv) - lb(mv));
     end
     hseg = 20/A; hp = hseg*ones(1,K); hm = hp;
-    if c < -100, q = sp > 0; hp(q) = 20./min(A,40./sp(q)); q = sm < 0; hm(q) = 20./min(A,40./abs(sm(q))); end
+    if c < -60, q = sp > 0; hp(q) = 20./min(A,40./sp(q)); q = sm < 0; hm(q) = 20./min(A,40./abs(sm(q))); end
     % (the narrow U-shapes: from min Im - d to max Im + d, d the distance of the segment from the nearest root of the group)
     lp = max(imag(gp),[],1) - min(imag(gp),[],1) + 2*min(real(gp) - sp,[],1);
     nest = lp./hp*n; hsg = lp;
@@ -461,11 +461,11 @@ end
 end
 
 function [hp,hm] = ucaps(c,sp,sm,A)
-% the caps of the panels of the segments of G+ and G-: 20/A, and below c = -100 20/min(A, 40/|sigma|) (there the segments
+% the caps of the panels of the segments of G+ and G-: 20/A, and below c = -60 20/min(A, 40/|sigma|) (there the segments
 % lie far from the origin, where the kernels are damped: only rates up to 40/|sigma| matter)
 hseg = 20/A;
-if c < -100 && sp > 0, hp = 20/min(A,40/sp); else, hp = hseg; end
-if c < -100 && sm < 0, hm = 20/min(A,40/abs(sm)); else, hm = hseg; end
+if c < -60 && sp > 0, hp = 20/min(A,40/sp); else, hp = hseg; end
+if c < -60 && sm < 0, hm = 20/min(A,40/abs(sm)); else, hm = hseg; end
 end
 
 function [nest,hmx] = ufixed_count(rts,sp,sm,hp,hm,n)
@@ -525,9 +525,10 @@ for c0 = c0s
     end
 end
 hseg = 20/A;
-% (below c = -100 the segments lie far from the origin, where the kernels are damped: only rates up to 40/|sigma| matter)
-if c < -100 && sp > 0, hp = 20/min(A,40/sp); else, hp = hseg; end
-if c < -100 && sm < 0, hm = 20/min(A,40/abs(sm)); else, hm = hseg; end
+% (below c = -60 the segments lie far from the origin, where the kernels are damped: only rates up to 40/|sigma| matter;
+% until November 2026 below c = -100, DFDet.jl FAR_CMIN)
+if c < -60 && sp > 0, hp = 20/min(A,40/sp); else, hp = hseg; end
+if c < -60 && sm < 0, hm = 20/min(A,40/abs(sm)); else, hm = hseg; end
 % (the guard on the size of the U-shapes, which USHAPE_GUARD checks before the outer sum at the nodes where the transform
 % is not negligible; here at the other nodes, which the sum reaches where its terms are not small.  The wide heights of
 % the fixed start follow a root that runs off)
