@@ -171,9 +171,10 @@
 % opts.engine: 'classical' (the programs above), 'general' (the general engine) or 'auto' (the default: the
 % engine of ltratio_engine, by the timings of the two MATLAB engines), and a design of the general engine in
 % place of the case (a classical design is its case; any other goes to the general engine).  With the folder of
-% the MEX file of the C engine ahead of these programs on the path, a call with a design (or a case string and
-% opts.engine) without options of the MATLAB engines goes to the C router instead (its rule, both engines in C:
-% ltratio_croute).
+% the MEX file of the C engine ahead of these programs on the path, a call with a design or a case string
+% ('auto' by default for both) without options of the MATLAB engines goes to the C router instead (its rule, both
+% engines in C: ltratio_croute).  Where the rule takes the general engine for a case string the two engines agree
+% to about 1e-9; opts.engine = 'classical' gives the classical programs.
 %   ltratio_engine - the rule of opts.engine = 'auto'
 %   ltratio_croute - the hand-over to the C router of the MEX file
 %   ltratio_spec, ltratio_route - the design, start and case of a computation; helpers of the router
