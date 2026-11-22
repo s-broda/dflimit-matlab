@@ -58,7 +58,10 @@ contours disagree. The point-optimal statistic refuses where the grid of its inv
 between -0.1 and 3.4 at c = 5; the error names the grid size that serves) and at |q| beyond 0.15/h (1000 with the default
 grid); 0, 1 and NaN at -Inf, Inf and NaN. The U-shapes of the zero and the stationary start stop with an error beyond 1e6
 nodes, as those of the fixed start did (the design (1 + r, 1{r < 0.4}), whose positive root runs off on the vertical
-line, took gigabytes within seconds; it is now refused at every c). The checked computation (`verified`) falls back to the
+line, took gigabytes within seconds; it is now refused at every c). The refusal comes before any U-shape is built: the
+outer path carries the roots at its nodes, and the count is checked at every node where the transform is not negligible
+before the outer sum (`ushape_guard`, as in DFLimit.jl), so that such a design fails within 0.1 s and a few MB in C, where
+the guard in the U-shapes refused after 1.4 s and 1.2 GB. The checked computation (`verified`) falls back to the
 variant at the default angle after any error of the steeper variant, except an exhausted memory. Values at c <= 0
 unchanged (bit for bit in the reference values of both tests).
 

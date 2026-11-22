@@ -10,6 +10,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#ifndef _WIN32
+#include <sys/resource.h>
+#endif
+#ifdef __APPLE__
+#include <libproc.h>
+#include <unistd.h>
+#endif
 
 #define MAXD 64
 static dfl_design DS[MAXD];
@@ -200,6 +207,48 @@ static void selftest_warnings(void)
 #undef WCHK
     dfl_design_free(&T0);
 }
+/* the memory of the process in MB: the footprint on macOS (what Activity Monitor shows), the peak resident size on other
+ * unix systems, 0 on Windows (not measured there) */
+static double mem_mb(void)
+{
+#ifdef _WIN32
+    return 0;
+#else
+#ifdef __APPLE__
+    struct rusage_info_v0 ri;
+    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V0, (rusage_info_t *) &ri) == 0) return ri.ri_phys_footprint / 1048576.0;
+#endif
+    struct rusage ru; getrusage(RUSAGE_SELF, &ru);
+    return ru.ru_maxrss / 1024.0;          /* (kilobytes on Linux) */
+#endif
+}
+/* the guard on the nodes of the U-shapes, before the outer sum (ushape_guard): the design (1 + r, 1{r <= 0.4}) on the
+ * vertical line, whose positive root runs off, and d(r) = 1 + r with a fixed start at c = 0 are refused with the error of
+ * the guard within half a second and with a few MB (the guard in the U-shapes refused after 1.4 s and 1.2 GB); run first,
+ * so that the memory measured is that of these calls */
+static void selftest_guard(void)
+{
+    char err[512]; double v, x = -2.0;
+    double br2[3] = {0, 0.4, 1}, C2[8] = {1, 1, 1, 0, 1, 1, 0, 0}, br1[2] = {0, 1}, C1[2] = {1, 1};
+    dfl_design D2 = {2, 2, 1, br2, C2, 0, 0}, D1 = {1, 1, 1, br1, C1, 0, 0};
+    dfl_det_opts o; dfl_det_defaults(&o);
+    double m0 = mem_mb(), t0 = dfl_wtime();
+    int rc = dfl_det_dist(2, &D2, 1, &x, 1.0, &o, &v, err, sizeof err);
+    double dt = dfl_wtime() - t0, dm = mem_mb() - m0;
+    if (VERB) printf("     guard, zero start: %.3f s, %+.0f MB: %s\n", dt, dm, err);
+    check("guard", rc && strstr(err, "the U-shapes of the zero start") && strstr(err, "a root runs off") ? 0 : 1, 0, 0, "(1 + r, 1{r <= 0.4}) at c = 1 refused by the guard");
+    check("guard", dt < 0.5 ? 0 : dt, 0, 0, "(1 + r, 1{r <= 0.4}) at c = 1 refused within 0.5 s (the deviation: the time)");
+    check("guard", dm < 100 ? 0 : dm, 0, 0, "(1 + r, 1{r <= 0.4}) at c = 1 refused with less than 100 MB (the deviation: MB)");
+    o.start = DFL_START_FIXED; o.gamma0 = 1.0;
+    m0 = mem_mb(); t0 = dfl_wtime();
+    rc = dfl_det_dist(2, &D1, 1, &x, 0.0, &o, &v, err, sizeof err);
+    dt = dfl_wtime() - t0; dm = mem_mb() - m0;
+    if (VERB) printf("     guard, fixed start: %.3f s, %+.0f MB: %s\n", dt, dm, err);
+    check("guard", rc && strstr(err, "the U-shapes of the fixed start") && strstr(err, "the roots run off") ? 0 : 1, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused by the guard");
+    check("guard", dt < 0.5 ? 0 : dt, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused within 0.5 s (the deviation: the time)");
+    check("guard", dm < 100 ? 0 : dm, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused with less than 100 MB (the deviation: MB)");
+    dfl_det_empty_caches();
+}
 static det_prep *prep_of(int id, double cb, char *err)
 {
     det_prep *P = NULL;
@@ -214,6 +263,7 @@ int main(int argc, char **argv)
     static char line[1 << 16]; char err[512], what[256];
 
     double t0 = dfl_wtime();
+    selftest_guard();
     while (fgets(line, sizeof line, f)) {
 
         char tag[32]; int nc = 0;
