@@ -330,4 +330,112 @@ const char *dfl_warning(void);
 int dfl_icdf(int n, const double *p, int model, double c, double c0, double g0, bool stat, int method, double tol,
              const dfl_single_opts *so, const dfl_double_opts *dopt, double *q, double *Fq, int *iter, int *conv, char *err, size_t errlen);
 
+/* =====================================================================================================================
+ * The general engine (dfl_det_*.c; a port of src/DFDet.jl and src/DFDet_paper2.jl of DFLimit.jl): the limiting law of the
+ * Dickey-Fuller t-ratio and its companions for any piecewise smooth deterministic design (polynomial trends of any order,
+ * breaks in level and slope at several dates, designs given by a function or by the regressor matrix of a sample),
+ * through the joint moment generating function of numerator and denominator as a small determinant and the inversion
+ * formula on paths around its singularities in the first argument.  Zero, fixed or stationary start, a local null value,
+ * GLS detrending, the statistic that detrends first.  Functions return 0, or an error code (1) with a message in err;
+ * the warnings of a call (the regimes where one evaluation is brittle, a large estimate of the rounding error) are in
+ * dfl_det_warning() on the calling thread.
+ * ===================================================================================================================== */
+/* A design: K regressors, piecewise polynomial on np pieces br[j] < r <= br[j+1] (0 = br[0] < ... < br[np] = 1; r = 0
+ * belongs to piece 0, a regressor is left-continuous at a break), the coefficient matrix of piece j at C + j (deg + 1) K,
+ * (deg + 1) x K column-major: column i holds the coefficients of r^k, k = 0..deg, of regressor i (of (r - br[j])^k with
+ * loc = 1).  first = 1: the statistic that detrends first (dfl_design_detrend_first).  The constructors allocate br and
+ * C (dfl_design_free releases them); a design filled by the caller is only read. */
+typedef struct {
+    int K, np, deg;
+    double *br;          /* np + 1 */
+    double *C;           /* np (deg + 1) K */
+    int loc;             /* 0: coefficients of r^k; 1: of (r - br[j])^k on piece j */
+    int first;           /* 0: the one-step regression of y_t on d(t/n) and y_{t-1}; 1: detrending first */
+} dfl_design;
+void dfl_design_free(dfl_design *D);
+int dfl_design_copy(const dfl_design *D, dfl_design *out);
+/* trend(p): d = (1, r, ..., r^p); p = -1 no deterministic terms (case DK), 0 an intercept (DU), 1 a linear trend (DT) */
+int dfl_design_trend(int p, dfl_design *D, char *err, size_t errlen);
+/* Perron's models with q breaks at the fractions lam (0 < lam_1 < ... < lam_q < 1): model 'A' (1, r, 1{r > lam_i}),
+ * 'B' (1, r, (r - lam_i)+), 'C' (both for every break) */
+int dfl_design_perron(char model, int q, const double *lam, dfl_design *D, char *err, size_t errlen);
+/* a design given by a function: f(r, out, ctx) writes the K regressors at r, smooth between the breaks (nb of them, inside
+ * (0, 1)); Chebyshev interpolants of the smallest degree 2^m - 1 >= 15 on each piece whose coefficients beyond the last
+ * that exceeds tol (1e-14) times the largest fall below it, up to maxdeg (96), re-expanded about the left ends of sub
+ * computational pieces (sub <= 0: ceil(deg/4)) in local coefficients (fdesign) */
+int dfl_design_fdesign(void (*f)(double r, double *out, void *ctx), void *ctx, int K, int nb, const double *breaks, double tol,
+                       int maxdeg, int sub, dfl_design *D, char *err, size_t errlen);
+/* the polynomial trend of order p in the orthonormal shifted Legendre basis (ltrend): the span of trend(p), G = I */
+int dfl_design_ltrend(int p, dfl_design *D, char *err, size_t errlen);
+/* the design of the limit from the n x K regressor matrix X (column-major) of a regression (design_from_matrix): the
+ * breaks after the indices TB[0..nb-1] (nb >= 0), or detected (nb < 0); tol (1e-8), maxdeg (40), minlen (10) as in Julia;
+ * dependent columns are dropped (with a warning) */
+int dfl_design_from_matrix(int n, int K, const double *X, int nb, const int *TB, double tol, int maxdeg, int minlen, dfl_design *D,
+                           char *err, size_t errlen);
+/* the same design for the statistic that detrends first (detrend_first) */
+int dfl_design_detrend_first(const dfl_design *D, dfl_design *out, char *err, size_t errlen);
+/* the regressors at r (K values) and the n x K matrix d(t/n), t = 1..n (regmat) */
+void dfl_design_value(const dfl_design *D, double r, double *out);
+void dfl_design_regmat(const dfl_design *D, int n, double *X);
+
+/* the options of the general engine's functions */
+#define DFL_START_ZERO 0
+#define DFL_START_FIXED 1
+#define DFL_START_STAT 2
+typedef struct {
+    double c0;           /* the local null value: the t-ratio of phi = 1 + c0/n (0) */
+    int start;           /* DFL_START_ZERO (J(0) = 0), DFL_START_FIXED (J(0) = gamma0), DFL_START_STAT (J(0) ~ N(0, -1/(2c)), c < 0) */
+    double gamma0;       /* the fixed start (0) */
+    double gls;          /* GLS detrending at abar = 1 + gls/n (gls < 0), NaN: least squares (the default) */
+    int verified;        /* 0 (default): one evaluation; 1: the checked computation (two rules, a third where they differ by vtol) */
+    double vtol;         /* 1e-9 */
+    double phi, hfac;    /* the outer contour: its asymptotic angle (NaN: the default rule) and the factor of its step (1) */
+} dfl_det_opts;
+void dfl_det_defaults(dfl_det_opts *o);
+const char *dfl_det_warning(void);   /* the warnings of the last call on this thread, or NULL */
+void dfl_det_empty_caches(void);      /* drop the cached prepared designs and outer paths (empty_caches!) */
+
+/* the distribution function (kind 2) or density (kind 1) of the limit (U - c0 V)/sqrt(V) of the t-ratio at x[0..n-1]
+ * under phi = 1 + c/n (dist_cdf, dist_pdf); non-finite x: 0 at -Inf, 1 (cdf) or 0 (density) at Inf, NaN at NaN.  The
+ * points of one call share the paths of the inversion (as in Julia, where the values depend on the points evaluated
+ * together only through the rules of the paths, far below 1e-10). */
+int dfl_det_dist(int kind, const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+/* the p-quantiles (dist_quantile): Newton's method from x0 (-2), the safeguarded search where it does not converge */
+int dfl_det_quantile(const dfl_design *D, int n, const double *p, double c, double x0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen);
+/* the coefficient statistic (U - c0 V)/V of n(phi^ - phi0): distribution function (kind 2) and density (kind 1) at y, its
+ * quantiles from y0 (-10), and its distribution function by the inversion of Gil-Pelaez (coef_cdf_gp, N 60000, umax 4000) */
+int dfl_det_coef(int kind, const dfl_design *D, int n, const double *y, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+int dfl_det_coef_quantile(const dfl_design *D, int n, const double *p, double c, double y0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen);
+int dfl_det_coef_cdf_gp(const dfl_design *D, int n, const double *y, double c, const dfl_det_opts *o, int N, double umax, double *out, char *err, size_t errlen);
+/* the moments E tau^k, k = 1..pmax, and the differences to the rule of twice the step (dist_moments; errest may be NULL) */
+int dfl_det_moments(const dfl_design *D, double c, int pmax, const dfl_det_opts *o, double *m, double *errest, char *err, size_t errlen);
+/* the asymptotic local power at c[0..n-1] of the level test of phi = 1 + c0/n (statistic 0: the t-ratio, 1: the
+ * coefficient statistic; local_power) */
+int dfl_det_local_power(const dfl_design *D, int n, const double *cs, double level, int statistic, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+/* P(U - aV <= b) (kind 2) and its density (kind 1) at b[0..n-1]; a = NaN: P(V <= b) and its density (lin_cdf, lin_pdf,
+ * v_cdf, v_pdf); the p-quantile of U - aV from b0 (lin_quantile) */
+int dfl_det_lin(int kind, const dfl_design *D, int n, const double *b, double a, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+int dfl_det_lin_quantile(const dfl_design *D, double p, double a, double c, double b0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen);
+/* the power envelope of Elliott, Rothenberg and Stock for trend(-1), trend(0), trend(1) (power_envelope) */
+int dfl_det_power_envelope(const dfl_design *D, int n, const double *cs, double level, double *out, char *err, size_t errlen);
+/* ADFmax: distribution function (kind 2), density (kind 1), quantile from x0 (adfmax_cdf, adfmax_pdf, adfmax_quantile) */
+int dfl_det_adfmax(int kind, const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+int dfl_det_adfmax_quantile(const dfl_design *D, double p, double c, double x0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen);
+/* P{U <= g(V)}: type 1 the line g(v) = par[1] + par[0] v, type 2 the parabola par[0] sqrt(v) + par[1] v (region_prob) */
+int dfl_det_region(const dfl_design *D, int type, const double *par, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+/* the companions: the point-optimal statistic against cbar and its envelope (pt_cdf, pt_pdf, pt_quantile, pt_power,
+ * pt_envelope; zero start, Gil-Pelaez with N steps to umax: 0 for 60000, 4000), the LM statistic (lm_cdf, lm_quantile,
+ * lm_power), MZ_alpha and MSB with the data GLS-detrended at gls (mza_cdf, mza_quantile, msb_cdf, msb_quantile) */
+int dfl_det_pt(int kind, const dfl_design *D, int n, const double *q, double cbar, double c, int N, double umax, double *out, char *err, size_t errlen);
+int dfl_det_pt_quantile(const dfl_design *D, double p, double cbar, int N, double umax, double *q, char *err, size_t errlen);
+int dfl_det_pt_power(const dfl_design *D, double cbar, double c, double level, int N, double umax, double *b, double *power, char *err, size_t errlen);
+int dfl_det_pt_envelope(const dfl_design *D, int n, const double *cs, double level, int N, double umax, double *out, char *err, size_t errlen);
+int dfl_det_lm_cdf(const dfl_design *D, int n, const double *x, double c, double *out, char *err, size_t errlen);
+int dfl_det_lm_quantile(const dfl_design *D, double p, double c, double *q, char *err, size_t errlen);
+int dfl_det_lm_power(const dfl_design *D, int n, const double *cs, double level, double *q, double *out, char *err, size_t errlen);
+int dfl_det_mza_cdf(const dfl_design *D, int n, const double *y, double c, double gls, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+int dfl_det_mza_quantile(const dfl_design *D, double p, double c, double gls, double y0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen);
+int dfl_det_msb_cdf(const dfl_design *D, int n, const double *x, double c, double gls, double *out, char *err, size_t errlen);
+int dfl_det_msb_quantile(const dfl_design *D, double p, double c, double gls, double *q, char *err, size_t errlen);
+
 #endif
