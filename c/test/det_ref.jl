@@ -427,5 +427,58 @@ for (fn, e) in (("icdf", 0), ("icdf", 2), ("coefq", 0), ("coefq", 2))
     rerr(fn, e, "case", 2, 0, 0.0, NaN, -5.0, fn == "icdf" ? -1.0 : 0.0, 0.0, [1.5], "must lie in (0, 1)")
 end
 rerr("env", 0, "case", 1, 0, 0.0, NaN, 0.0, 0.0, 1.5, [-5.0], "must lie in (0, 1)")
+# ---------------------------------------------------------------------------------------------------------------------
+# the line integral with the explicit kernel for the designs whose numerator has rank one or two ('cdf@line', 'pdf@line',
+# 'quant@line'; the general engine's method = :line), the inversion on paths ('@paths') and the automatic choice ('@auto',
+# against the Julia values of the line integral): polynomial trends of degree 2, 3, 4, an intercept with the first sine and
+# cosine, the statistic that detrends first for a continuous design (perron B at 0.3); zero and stationary start; c in
+# {0, -5, -13.5, -20, -50, 2}; a local null value under :line; the refusals of :line; and the rule of the router at x = 0
+# (the points of the coefficient statistic)
+defd(25, "fdesign trig", DG.fdesign(r -> [1.0, sin(2pi * r), cos(2pi * r)]))
+defd(26, "fdesign rlin", DG.fdesign(r -> [r]))
+defd(27, "first 26", DG.detrend_first(designs[26]))
+mval(m, func, id, st, c, c0, xs, f; tol = 1e-9) = val("$func@$m", id, NaN, st, 0.0, c, c0, 0, 0.0, xs, f; tol)
+function bulk(id, c, st)
+    D = id == 18 ? designs[17] : designs[id]                 # (the statistic that detrends first has no moments: those of its design)
+    m = DG.dist_moments(D, c; p = 2, start = startsym(st))[1]; sd = sqrt(m[2] - m[1]^2)
+    [m[1] + k * sd for k in (-2.0, -1.0, 0.0, 1.0, 2.0)]
+end
+for id in (4, 5, 6, 25, 18), c in (0.0, -5.0, -13.5, -20.0, -50.0, 2.0)
+    D = designs[id]; xs = bulk(id, c, 0)
+    mval(:line, "cdf", id, 0, c, 0.0, xs, () -> DG.dist_cdf(D, xs, c; method = :line))
+    mval(:line, "pdf", id, 0, c, 0.0, xs, () -> DG.dist_pdf(D, xs, c; method = :line))
+    mval(:auto, "cdf", id, 0, c, 0.0, xs, () -> DG.dist_cdf(D, xs, c; method = :line))
+    id in (4, 25) && mval(:paths, "cdf", id, 0, c, 0.0, xs, () -> DG.dist_cdf(D, xs, c; method = :paths))
+end
+for id in (4, 6, 25), c in (-5.0, -13.5, -50.0)
+    D = designs[id]; xs = bulk(id, c, 2)
+    mval(:line, "cdf", id, 2, c, 0.0, xs, () -> DG.dist_cdf(D, xs, c; start = :stationary, method = :line))
+    mval(:line, "pdf", id, 2, c, 0.0, xs, () -> DG.dist_pdf(D, xs, c; start = :stationary, method = :line))
+end
+for (id, c0) in ((4, -3.0), (25, 3.0))
+    xs = [-3.0, -1.5, 0.5]
+    mval(:line, "cdf", id, 0, -5.0, c0, xs, () -> DG.dist_cdf(designs[id], xs, -5.0; c0, method = :line))
+    mval(:line, "pdf", id, 0, -5.0, c0, xs, () -> DG.dist_pdf(designs[id], xs, -5.0; c0, method = :line))
+end
+for (id, st, c) in ((4, 0, 0.0), (6, 0, -13.5), (25, 2, -5.0), (18, 0, -5.0)), p in (0.05, 0.5)
+    D = designs[id]
+    val("quant@line", id, NaN, st, 0.0, c, 0.0, 0, -2.0, [p], () -> DG.dist_quantile(D, p, c; x0 = -2.0, start = startsym(st), method = :line); tol = 1e-7)
+end
+errline("cdf@line", 4, -13.5, 0, 0.0, -5.0, 0.0, 0.0, [-2.0], "GLS detrending is not covered")
+errline("cdf@line", 4, NaN, 1, 1.0, -5.0, 0.0, 0.0, [-2.0], "a fixed start is not covered")
+errline("cdf@line", 7, NaN, 0, 0.0, 0.0, 0.0, 0.0, [-2.0], "the design has a jump")
+errline("cdf@line", 26, NaN, 0, 0.0, 0.0, 0.0, 0.0, [-2.0], "d(0) = 0")
+errline("cdf@line", 27, NaN, 0, 0.0, 0.0, 0.0, 0.0, [-2.0], "d(0) = 0, a numerator of rank one")
+errline("cdf@line", 4, NaN, 2, 0.0, -1e-5, 0.0, 0.0, [-2.0], "a stationary start needs c <= -0.0001")
+errline("cdf@line", 4, NaN, 0, 0.0, 0.0, -1e-4, 0.0, [1.5], "more nodes than the engine allows")
+# (method = :auto takes the paths there, silently)
+for (id, cb, st, g0) in ((26, NaN, 0, 0.0), (7, NaN, 0, 0.0), (4, -13.5, 0, 0.0), (4, NaN, 1, 1.0))
+    xs = [-2.0, -1.0]
+    val("cdf@auto", id, cb, st, g0, -5.0, 0.0, 0, 0.0, xs, () -> DG.dist_cdf(designs[id], xs, -5.0; start = startsym(st), gamma0 = g0, gls = isnan(cb) ? nothing : cb, method = :paths))
+end
+# the rule at x = 0, the points of the coefficient statistic
+for m in 1:3, c in (1.0, 0.0, -2.0, -5.0, -10.0, -50.0, -80.0), c0 in (-3.0, 2.0)
+    aline(1, m, 0, 0.0, NaN, c, c0, 0.0)
+end
 close(io)
 println("written ", OUT)

@@ -25,6 +25,8 @@ static int HAVE[MAXD];
 static void f_sincos(double r, double *o, void *c) { (void) c; o[0] = sin(2 * M_PI * r); o[1] = cos(2 * M_PI * r); }
 static void f_perronC04(double r, double *o, void *c) { (void) c; o[0] = 1; o[1] = r; o[2] = r > 0.4 ? 1.0 : 0.0; o[3] = r > 0.4 ? r - 0.4 : 0.0; }
 static void f_expr(double r, double *o, void *c) { (void) c; o[0] = exp(r); }
+static void f_trig(double r, double *o, void *c) { (void) c; o[0] = 1; o[1] = sin(2 * M_PI * r); o[2] = cos(2 * M_PI * r); }
+static void f_rlin(double r, double *o, void *c) { (void) c; o[0] = r; }
 
 /* the groups of comparisons: name, count, largest deviation (absolute), failures */
 typedef struct { const char *name; int n, fail; double worst, worst_rel_tol; } group_t;
@@ -67,6 +69,8 @@ static int read_design(char *rest, int id)
         if (!strcmp(nm, "sincos")) rc = dfl_design_fdesign(f_sincos, NULL, 2, 0, NULL, 0, 0, 0, D, err, sizeof err);
         else if (!strcmp(nm, "perronC04")) { double b = 0.4; rc = dfl_design_fdesign(f_perronC04, NULL, 4, 1, &b, 0, 0, 0, D, err, sizeof err); }
         else if (!strcmp(nm, "expr")) rc = dfl_design_fdesign(f_expr, NULL, 1, 0, NULL, 0, 0, 0, D, err, sizeof err);
+        else if (!strcmp(nm, "trig")) rc = dfl_design_fdesign(f_trig, NULL, 3, 0, NULL, 0, 0, 0, D, err, sizeof err);
+        else if (!strcmp(nm, "rlin")) rc = dfl_design_fdesign(f_rlin, NULL, 1, 0, NULL, 0, 0, 0, D, err, sizeof err);
     } else if (!strcmp(kind, "matrix")) {
         int base = (int) strtol(p, &p, 10), n = (int) strtol(p, &p, 10);
         double *X = malloc((size_t) n * DS[base].K * sizeof(double));
@@ -113,9 +117,12 @@ static int moved(int f, int model, int stat, double g0, double gls, double c, do
     }
 }
 /* the user-level value functions of the 'val' and 'err' lines: rc and the values in got */
-static int val_call(const char *fn, int id, double cb, int st, double g0, double c, double c0, int ver, double par, int n, const double *x, double *got, char *err)
+static int val_call(const char *fn0, int id, double cb, int st, double g0, double c, double c0, int ver, double par, int n, const double *x, double *got, char *err)
 {
     dfl_det_opts o; dfl_det_defaults(&o); o.c0 = c0; o.start = st; o.gamma0 = g0; o.gls = cb; o.verified = ver;
+    /* (fn@line, fn@paths, fn@auto: the method of the t-ratio) */
+    char fn[32]; snprintf(fn, sizeof fn, "%s", fn0); char *at = strchr(fn, '@');
+    if (at) { *at = 0; o.method = !strcmp(at + 1, "line") ? DFL_DET_LINE : !strcmp(at + 1, "paths") ? DFL_DET_PATHS : DFL_DET_AUTO; }
     int rc = 1;
     if (!strcmp(fn, "cdf")) rc = dfl_det_dist(2, &DS[id], n, x, c, &o, got, err, 512);
     else if (!strcmp(fn, "pdf")) rc = dfl_det_dist(1, &DS[id], n, x, c, &o, got, err, 512);
@@ -336,6 +343,31 @@ static void selftest_nonfinite(void)
 }
 /* the rules far from the unit root from c = -60 on (DET_FAR_CMIN; until November 2026 from c = -100): on -100 <= c < -60
  * the general engine was off by up to 1.4e-9 against the line integral (the 45-degree hyperbola), now within 1e-10 */
+/* method auto of the general engine takes the faster method's values bit for bit (det_line_auto: the line integral at c0 = 0
+ * for c >= -20, the inversion on paths otherwise), the quantiles too, and the cache of the providers is bounded and emptied */
+static void selftest_line_auto(void)
+{
+    group_t *g = grp("line-auto");
+    dfl_design D; char err[512];
+    if (dfl_design_trend(2, &D, err, sizeof err)) { g->fail++; return; }
+    double xs[3] = {-3.5, -2.5, -1.5}, cs[4] = {0, -13.5, -20, -50}, c0s[2] = {0, -3};
+    for (int i = 0; i < 4; i++) for (int j = 0; j < 2; j++) for (int st = 0; st <= 2; st += 2) {
+        if (st == 2 && cs[i] >= 0) continue;
+        dfl_det_opts oa, om; dfl_det_defaults(&oa); dfl_det_defaults(&om);
+        oa.c0 = om.c0 = c0s[j]; oa.start = om.start = st;
+        int line = c0s[j] == 0 && cs[i] >= -20;
+        om.method = line ? DFL_DET_LINE : DFL_DET_PATHS;
+        double va[3], vm[3], qa, qm, p = 0.05;
+        int rc = dfl_det_dist(2, &D, 3, xs, cs[i], &oa, va, err, sizeof err) || dfl_det_dist(2, &D, 3, xs, cs[i], &om, vm, err, sizeof err)
+              || dfl_det_quantile(&D, 1, &p, cs[i], -3.0, 1e-10, &oa, &qa, err, sizeof err) || dfl_det_quantile(&D, 1, &p, cs[i], -3.0, 1e-10, &om, &qm, err, sizeof err);
+        g->n++;
+        if (rc || memcmp(va, vm, sizeof va) || qa != qm) { g->fail++; printf("FAIL line-auto c %g c0 %g start %d: auto is not the %s method%s%s\n", cs[i], c0s[j], st, line ? "line" : "paths", rc ? ": " : "", rc ? err : ""); }
+    }
+    g->n++; if (det_line_cache_size() == 0) { g->fail++; printf("FAIL line-auto: no provider cached\n"); }
+    dfl_det_empty_caches();
+    g->n++; if (det_line_cache_size() != 0) { g->fail++; printf("FAIL line-auto: dfl_det_empty_caches kept the providers\n"); }
+    dfl_design_free(&D);
+}
 static void selftest_far(void)
 {
     char err[512]; int models[4][2] = {{1, 0}, {2, 0}, {3, 0}, {2, 1}}; double cs[3] = {-70, -85, -100}, p[3] = {0.01, 0.5, 0.99};
@@ -575,6 +607,7 @@ int main(int argc, char **argv)
     selftest_warnings();
     selftest_nonfinite();
     selftest_far();
+    selftest_line_auto();
     int fails = 0, n = 0;
     printf("%-10s %8s %8s %12s %10s\n", "group", "values", "failed", "largest dev", "dev/tol");
     for (int i = 0; i < NG; i++) { printf("%-10s %8d %8d %12.2e %10.2e\n", G[i].name, G[i].n, G[i].fail, G[i].worst, G[i].worst_rel_tol); fails += G[i].fail; n += G[i].n; }

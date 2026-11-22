@@ -12,7 +12,7 @@ on:
     paths: ['c/**', '.github/workflows/mex.yml']
   workflow_dispatch:
 env:
-  CSRC: dfl_special dfl_mgf dfl_single dfl_batch dfl_gen dfl_moments dfl_double dfl_gilpelaez dfl_api dfl_threads tables dfl_det_la dfl_det_design dfl_det_mgf dfl_det_path dfl_det_inner dfl_det_api dfl_det_paper2 dfl_det_route dfl_det_tables
+  CSRC: dfl_special dfl_mgf dfl_single dfl_batch dfl_gen dfl_moments dfl_double dfl_gilpelaez dfl_api dfl_threads tables dfl_det_la dfl_det_design dfl_det_mgf dfl_det_path dfl_det_inner dfl_det_api dfl_det_paper2 dfl_det_route dfl_det_line dfl_det_tables
   CFLAGS: -std=c11 -O2 -Wall -Wno-unused-function -Wno-logical-op-parentheses -fPIC
 jobs:
   build:
@@ -58,7 +58,7 @@ jobs:
           mkdir build\ltratio
           lib /nologo /def:c\mex\win\libmx.def /machine:x64 /out:build\libmx.lib
           lib /nologo /def:c\mex\win\libmex.def /machine:x64 /out:build\libmex.lib
-          cl /nologo /LD /O2 /std:c11 /DDFLIMIT_STUB /Fo:build\ /Fe:build\ltratio\ltratio_mex.mexw64 c\mex\ltratio_mex.c c\dfl_special.c c\dfl_mgf.c c\dfl_single.c c\dfl_batch.c c\dfl_gen.c c\dfl_moments.c c\dfl_double.c c\dfl_gilpelaez.c c\dfl_api.c c\dfl_threads.c c\tables.c c\dfl_det_la.c c\dfl_det_design.c c\dfl_det_mgf.c c\dfl_det_path.c c\dfl_det_inner.c c\dfl_det_api.c c\dfl_det_paper2.c c\dfl_det_route.c c\dfl_det_tables.c c\faddeeva\Faddeeva.cc c\faddeeva\faddeeva_shim.cpp build\libmx.lib build\libmex.lib
+          cl /nologo /LD /O2 /std:c11 /DDFLIMIT_STUB /Fo:build\ /Fe:build\ltratio\ltratio_mex.mexw64 c\mex\ltratio_mex.c c\dfl_special.c c\dfl_mgf.c c\dfl_single.c c\dfl_batch.c c\dfl_gen.c c\dfl_moments.c c\dfl_double.c c\dfl_gilpelaez.c c\dfl_api.c c\dfl_threads.c c\tables.c c\dfl_det_la.c c\dfl_det_design.c c\dfl_det_mgf.c c\dfl_det_path.c c\dfl_det_inner.c c\dfl_det_api.c c\dfl_det_paper2.c c\dfl_det_route.c c\dfl_det_line.c c\dfl_det_tables.c c\faddeeva\Faddeeva.cc c\faddeeva\faddeeva_shim.cpp build\libmx.lib build\libmex.lib
           del build\ltratio\*.exp build\ltratio\*.lib
       - name: package
         shell: bash

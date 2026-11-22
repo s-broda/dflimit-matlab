@@ -381,8 +381,8 @@ static void batch_smooth(const dfl_batch *bt, int kind, int n, const cdouble *ts
 static int outer_c0(int kind, int model, double c, double q, double tau, bool stat, const dfl_single_opts *o, const dfl_batch *bt, double e1, double *out, dfl_bound_t *bd)
 {
     *out = NAN;
-    int kern = ((model == 1 || model == 4) && !stat) ? 1 : 2;
-    double hu = o->hu * dfl_hufac(c), cde = tau, Wm = dfl_wmaxc(c); int N = o->N;
+    int kern = dfl_kern(model, stat);
+    double hu = o->hu * dfl_hufac(c), cde = tau, Wm = dfl_wmaxc_m(model, c); int N = o->N;
     /* the smooth part: the trapezoidal rule in u, w = tau sinh u */
     double umax = asinh(Wm / cde); int nu = (int) floor(umax / hu) + 1;
     cdouble *ts = malloc(nu * sizeof(cdouble)), *P = malloc(nu * sizeof(cdouble)), *s1 = malloc(nu * sizeof(cdouble)), *s2 = malloc(nu * sizeof(cdouble)), *M0 = malloc(nu * sizeof(cdouble));
@@ -461,7 +461,7 @@ static int outer_c0(int kind, int model, double c, double q, double tau, bool st
     dfl_tparts(model, c, nw + 1, te, stat, Pe, s1e, s2e, M0e);
     cdouble *G = malloc(nw * sizeof(cdouble));
     octx oe = {kern, kind, nw, q, te, s1e, s2e, M0e, Pe, NULL, NULL, G, y, cde, NULL, INFINITY, &fail};
-    /* the K_0 kernel for c < -20 (dfl_k0first): the first piece of the edge
+    /* the K_0 kernel for c < -20 (and for a provider where |s_1(tau)| is large: dfl_k0first): the first piece of the edge
      * segment is at most 1/b long, b = (s_2 - s_1)/2 at tau, the scale on which K_0(b X) turns from its logarithm to its
      * exponential decay (with a zero start b ~ c^2/2 in case U; the 48 nodes of a first piece of up to 1/16 lose 5e-10 in F at
      * c = -480); unchanged on [-20, inf) (k0first, edgehead in DFExact.jl) */
@@ -492,7 +492,7 @@ static void uni_body(int j, void *v) { uctx *o = v; cdouble Is, Ie;
     cdouble val = cmul(o->P[j], cadd(Is, Ie)); if (o->kind == 2) val = cdiv(val, o->t[j]); o->g[j] = creal(val); }
 static int uniform_c0(int kind, int model, double c, double q, double tau, bool stat, double hw, double *out, dfl_bound_t *bd)
 {
-    int kern = ((model == 1 || model == 4) && !stat) ? 1 : 2; int n = (int) floor(WMAX / hw) + 1;
+    int kern = dfl_kern(model, stat); int n = (int) floor(WMAX / hw) + 1;
     cdouble *t = malloc(n * sizeof(cdouble)), *P = malloc(n * sizeof(cdouble)), *s1 = malloc(n * sizeof(cdouble)), *s2 = malloc(n * sizeof(cdouble)), *M0 = malloc(n * sizeof(cdouble));
     double *g = malloc(n * sizeof(double));
     for (int j = 0; j < n; j++) t[j] = CPX(tau, j * hw);
@@ -512,6 +512,7 @@ void dfl_single_defaults(dfl_single_opts *o)
 }
 double dfl_default_tau(int model, double c, bool stat)
 {
+    if (model == DFL_MODEL_PROV) return dfl_prov_tau();
     if (c <= 0 && !stat) return 1.0;
     return fmin(1.0, dfl_tstar(model, c, stat) / 2);
 }
@@ -526,7 +527,7 @@ int dfl_single_value_c0_b(int kind, double x, int model, double c, bool stat, co
     if (o->uniform_hw > 0) return uniform_c0(kind, model, c, q, tau, stat, o->uniform_hw, out, bd);
     /* the fixed layouts (dfl_batch.c) where they serve: the chi-square kernel at tau = 1, the K_0 kernel's density at any tau
      * and its distribution function at tau = 1 (density, cdf of DFExact.jl) */
-    int kern = ((model == 1 || model == 4) && !stat) ? 1 : 2;
+    int kern = dfl_kern(model, stat);
     double e1 = INFINITY, r1 = INFINITY;
     if (kern == 2) dfl_k0first(model, c, stat, tau, &e1, &r1);
     const dfl_batch *bt = NULL;
@@ -538,14 +539,17 @@ int dfl_single_value_c0_b(int kind, double x, int model, double c, bool stat, co
     dfl_batch_release(bt);
     return rc;
 }
-/* the caps of the first pieces of the K_0 kernel's edge segment and ray X < 0 (k0first of DFExact.jl).  The scales of the kernel near X = 0 shrink as c decreases: the ray carries e^{-s_1 X}, and K_0(b X) turns
+/* the caps of the first pieces of the K_0 kernel's edge segment and ray X < 0 (k0first of DFExact.jl; for a provider, also
+ * where |s_1(tau)| exceeds DFL_K0FIRST_S1: the root scale of case DU at c = -20, which higher-order trends reach nearer the
+ * unit root).  The scales of the kernel near X = 0 shrink as c decreases: the ray carries e^{-s_1 X}, and K_0(b X) turns
  * from its logarithm to its exponential decay at X ~ 1/b; for c < -20 the first panels are at most 1/b and 1e-2/|s_1| long */
 void dfl_k0first(int model, double c, bool stat, double tau, double *e1, double *r1)
 {
     *e1 = *r1 = INFINITY;
-    if (c >= -20) return;
+    if (c >= -20 && model != DFL_MODEL_PROV) return;
     cdouble t0 = CPX(tau, 0), P0, a1, a2, m0;
     dfl_tparts(model, c, 1, &t0, stat, &P0, &a1, &a2, &m0);
+    if (c >= -20 && fabs(creal(a1)) <= DFL_K0FIRST_S1) return;
     *e1 = 1 / fabs(creal(csub(a2, a1)) / 2); *r1 = 1e-2 / fabs(creal(a1));
 }
 double dfl_single_value_c0(int kind, double x, int model, double c, bool stat, const dfl_single_opts *o)
