@@ -287,6 +287,7 @@ function CP = table_path(Mo,c)
 % DFDET_MAKE_PATHS from the tables of DFDet.jl); [] for any other model, or when the file is missing
 CP = [];
 if ~(c == 0 && strcmp(Mo.start,'zero') && isnan(Mo.P.cbar)), return, end
+if ~isfield(Mo,'key') || isempty(strfind(Mo.key,'|ls|')), return, end   % (the least squares statistic, not the LM one)
 D = Mo.P.D;
 if ~(strcmp(D.detrend,'onestep') && ~D.loc && isequal(D.br,[0 1])), return, end
 p = -2;

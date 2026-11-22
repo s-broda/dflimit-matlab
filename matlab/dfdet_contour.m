@@ -150,18 +150,51 @@ Uc = [];
 if U.cache
     ukey = sprintf('%s|%.17g|%.17g|%d|%d|%.17g',CP.key,U.c0s,U.alpha,U.n,U.ntail,U.A);
     Uc = dfdet_cache('get','ushape',ukey);
-    if isempty(Uc), Uc = struct('ch',{cell(1,ceil(K1/CH))}); end
+    if isempty(Uc), Uc = struct('ch',{cell(1,ceil(K1/CH))},'n',0); end
 end
 while done < K1
     k1 = done + 1; k2 = min(done + CH,K1); ich = ceil(k2/CH);
     if ~isempty(Uc) && ~isempty(Uc.ch{ich})
         B = Uc.ch{ich};
+        [GF(k1:k2,:),Gf(k1:k2,:),AF(k1:k2,:),Af(k1:k2,:),jF,jf] = chunk_terms(CP,k1:k2,B,ev,U,vr);
+        if fil, JF(k1:k2,:) = jF; Jf(k1:k2,:) = jf; end
     else
-        B = chunk_nodes(CP,k1:k2,ev,U);
-        if ~isempty(Uc), Uc.ch{ich} = B; end
+        % the U-shapes of the outer nodes one by one, their terms in batches of at most 2e5 nodes of the U-shapes (where
+        % the roots run off, as for designs without a proper intercept on the vertical line, a U-shape can carry 1e5
+        % nodes and more)
+        kb = k1; Bs = {};
+        for k = k1:k2
+            Bk = chunk_nodes(CP,k,ev,U);
+            if isfield(Bk,'lm')
+                % a large U-shape (the roots far out): the terms of the outer node from parts of 2e5 of its nodes, summed
+                if ~isempty(Bs)
+                    B = catnodes(Bs);
+                    [GF(kb:k-1,:),Gf(kb:k-1,:),AF(kb:k-1,:),Af(kb:k-1,:),jF,jf] = chunk_terms(CP,kb:k-1,B,ev,U,vr);
+                    if fil, JF(kb:k-1,:) = jF; Jf(kb:k-1,:) = jf; end
+                end
+                GF(k,:) = 0; Gf(k,:) = 0; AF(k,:) = 0; Af(k,:) = 0; if fil, JF(k,:) = 0; Jf(k,:) = 0; end
+                n = numel(Bk.s);
+                for a = 1:2e5:n
+                    r = (a:min(a + 2e5 - 1,n))'; L = Bk.lm(Bk.s(r));
+                    Bp = struct('s',Bk.s(r),'g',ones(numel(r),1),'side',Bk.side(r),'m',exp(L).*Bk.W(r),'E',1 + abs(L));
+                    [g1,g2,g3,g4,jF,jf] = chunk_terms(CP,k,Bp,ev,U,vr);
+                    GF(k,:) = GF(k,:) + g1; Gf(k,:) = Gf(k,:) + g2; AF(k,:) = AF(k,:) + g3; Af(k,:) = Af(k,:) + g4;
+                    if fil, JF(k,:) = JF(k,:) + jF; Jf(k,:) = Jf(k,:) + jf; end
+                end
+                kb = k + 1; Bs = {}; Uc = []; continue
+            end
+            Bs{end+1} = Bk; %#ok<AGROW>
+            nb = sum(cellfun(@(b) numel(b.s),Bs));
+            if nb > 2e5 || k == k2
+                B = catnodes(Bs);
+                [GF(kb:k,:),Gf(kb:k,:),AF(kb:k,:),Af(kb:k,:),jF,jf] = chunk_terms(CP,kb:k,B,ev,U,vr);
+                if fil, JF(kb:k,:) = jF; Jf(kb:k,:) = jf; end
+                % (the nodes of a path are kept up to 2e6 of them, some 100 MB, a chunk at a time)
+                if ~isempty(Uc) && kb == k1 && k == k2 && Uc.n + numel(B.s) <= 2e6, Uc.ch{ich} = B; Uc.n = Uc.n + numel(B.s); end
+                kb = k + 1; Bs = {};
+            end
+        end
     end
-    [GF(k1:k2,:),Gf(k1:k2,:),AF(k1:k2,:),Af(k1:k2,:),jF,jf] = chunk_terms(CP,k1:k2,B,ev,U,vr);
-    if fil, JF(k1:k2,:) = jF; Jf(k1:k2,:) = jf; end
     done = k2;
     mx = max([max(max(abs(GF(k1:k2,:)))) max(max(abs(Gf(k1:k2,:))))]);
     if fil
@@ -170,7 +203,7 @@ while done < K1
     last = mx*max(CP.wt(k1:k2));
     if mx < tol, break, end
 end
-if ~isempty(Uc), dfdet_cache('put','ushape',ukey,Uc); end
+if ~isempty(Uc), dfdet_cache('put','ushape',ukey,Uc); end          % (not where a U-shape was large)
 w = CP.wt(1:done);
 F = (w.'*GF(1:done,:)); f = (w.'*Gf(1:done,:));
 if fil
@@ -301,11 +334,24 @@ for i = 1:nk
     end
     lm = logmt_fun(CP,k);
     [Sp,Wp,Sm,Wm] = ushapes(CP,k,lm,U.c0s,rsp,rsm,U.alpha,U.A,U.n,U.ntail,U.xq,fixed);
-    s = [Sp; Sm]; L = lm(s); W = [Wp; Wm];
+    s = [Sp; Sm]; W = [Wp; Wm];
     Sc{i} = s; Gc{i} = i*ones(numel(s),1); Dc{i} = [ones(numel(Sp),1); -ones(numel(Sm),1)];
-    Mc{i} = exp(L).*W; Ec{i} = 1 + abs(L);
+    if numel(kk) == 1 && numel(s) > 2e5
+        % (a large U-shape: Mt and the weights of its nodes in parts, by the caller)
+        B = struct('s',s,'g',Gc{i},'side',Dc{i},'W',W,'lm',lm); return
+    end
+    L = lm(s); Mc{i} = exp(L).*W; Ec{i} = 1 + abs(L);
 end
 B = struct('s',vertcat(Sc{:}),'g',vertcat(Gc{:}),'side',vertcat(Dc{:}),'m',vertcat(Mc{:}),'E',vertcat(Ec{:}));
+end
+
+function B = catnodes(Bs)
+% the nodes of the U-shapes of consecutive outer nodes (each built alone) as those of one batch
+n = cellfun(@(b) numel(b.s),Bs); g = cell(size(Bs));
+for i = 1:numel(Bs), g{i} = i*ones(n(i),1); end
+B = struct('s',cell2mat(cellfun(@(b) b.s,Bs(:),'UniformOutput',false)),'g',vertcat(g{:}), ...
+    'side',cell2mat(cellfun(@(b) b.side,Bs(:),'UniformOutput',false)),'m',cell2mat(cellfun(@(b) b.m,Bs(:),'UniformOutput',false)), ...
+    'E',cell2mat(cellfun(@(b) b.E,Bs(:),'UniformOutput',false)));
 end
 
 function lm = logmt_fun(CP,k)
@@ -629,7 +675,14 @@ function [n,R0,R1,R2,R3] = rend(a,z,i1,Ea,nk)
 % the terms of the end a: Ea times the incomplete Gaussian integrals from a, reflected where Re z < 0 (flag n)
 n = double(~(real(z) >= 0));
 zz = z; ng = n == 1; zz(ng) = -z(ng);
-[g0,g1,g2,g3] = hfun(zz,nk);
+% (where the factor Ea underflows to zero the terms vanish: the h-functions only where it does not)
+g0 = complex(zeros(size(z))); g1 = g0; g2 = g0; g3 = g0;
+nz = Ea ~= 0;
+if all(nz)
+    [g0,g1,g2,g3] = hfun(zz,nk);
+elseif any(nz)
+    [g0(nz),g1(nz),g2(nz),g3(nz)] = hfun(zz(nz),nk);
+end
 g0(ng) = -g0(ng); g2(ng) = -g2(ng);
 i2 = i1.*i1; i3 = i2.*i1;
 R0 = Ea.*i1.*g0;
@@ -663,31 +716,38 @@ if any(sm)
 end
 lg = ~sm;
 if any(lg)
-    zl = z(lg); pos = find(lg);
-    w = 1./(2*zl); w2 = w.*w;
-    a0 = w; a1 = w2; a2 = 2*w2.*w; a3 = 6*w2.*w2;
-    s0 = a0; s1 = a1; s2 = a2; s3 = a3;
-    j = 0;
-    while ~isempty(pos)
-        if nk == 4, rl = -(2*j + 4)*(2*j + 5)/(j + 1)*w2; else, rl = -(2*j + 3)*(2*j + 4)/(j + 1)*w2; end
-        stop = ~(real(rl).^2 + imag(rl).^2 < 1);       % the smallest term is reached: no update
-        if any(stop)
-            h0(pos(stop)) = s0(stop); h1(pos(stop)) = s1(stop); h2(pos(stop)) = s2(stop); h3(pos(stop)) = s3(stop);
-            k = ~stop; pos = pos(k); w2 = w2(k);
-            a0 = a0(k); a1 = a1(k); a2 = a2(k); a3 = a3(k); s0 = s0(k); s1 = s1(k); s2 = s2(k); s3 = s3(k);
-            if isempty(pos), break, end
+    % the asymptotic series, in bands of |z|: in each band the number of terms at which the series at the smallest |z|
+    % of the band has converged to 1e-17 or reached its smallest term (ctr_h stops each element there; the elements of
+    % larger |z| converge earlier and their further terms are smaller still, before their own smallest term)
+    pos = find(lg); zl = z(lg); az = abs(zl);
+    edges = [6 7 8.5 10 12 15 20 30 50 100 Inf];
+    for b = 1:numel(edges)-1
+        sel = az >= edges(b) & az < edges(b+1);
+        if ~any(sel), continue, end
+        J = nterms(min(az(sel)),nk);
+        zb = zl(sel); w = 1./(2*zb); w2 = w.*w;
+        a0 = w; a1 = w2; a2 = 2*w2.*w; a3 = 6*w2.*w2;
+        s0 = a0; s1 = a1; s2 = a2; s3 = a3;
+        for j = 0:J-1
+            a0 = a0.*(-(2*j + 1)*(2*j + 2)/(j + 1)*w2); a1 = a1.*(-(2*j + 2)*(2*j + 3)/(j + 1)*w2); a2 = a2.*(-(2*j + 3)*(2*j + 4)/(j + 1)*w2);
+            s0 = s0 + a0; s1 = s1 + a1; s2 = s2 + a2;
+            if nk == 4, a3 = a3.*(-(2*j + 4)*(2*j + 5)/(j + 1)*w2); s3 = s3 + a3; end
         end
-        r0 = -(2*j + 1)*(2*j + 2)/(j + 1)*w2; r1 = -(2*j + 2)*(2*j + 3)/(j + 1)*w2; r2 = -(2*j + 3)*(2*j + 4)/(j + 1)*w2;
-        a0 = a0.*r0; a1 = a1.*r1; a2 = a2.*r2; s0 = s0 + a0; s1 = s1 + a1; s2 = s2 + a2;
-        if nk == 4, r3 = -(2*j + 4)*(2*j + 5)/(j + 1)*w2; a3 = a3.*r3; s3 = s3 + a3; cl = a3; cs = s3; else, cl = a2; cs = s2; end
-        j = j + 1;
-        cv = real(a0).^2 + imag(a0).^2 < 1e-34*(real(s0).^2 + imag(s0).^2) & real(cl).^2 + imag(cl).^2 < 1e-34*(real(cs).^2 + imag(cs).^2);
-        if any(cv)
-            h0(pos(cv)) = s0(cv); h1(pos(cv)) = s1(cv); h2(pos(cv)) = s2(cv); h3(pos(cv)) = s3(cv);
-            k = ~cv; pos = pos(k); w2 = w2(k);
-            a0 = a0(k); a1 = a1(k); a2 = a2(k); a3 = a3(k); s0 = s0(k); s1 = s1(k); s2 = s2(k); s3 = s3(k);
-        end
+        q = pos(sel); h0(q) = s0; h1(q) = s1; h2(q) = s2; h3(q) = s3;
     end
+end
+end
+
+function J = nterms(rho,nk)
+% the number of terms of the asymptotic series of h_k at |z| = rho: until the terms of h_0 and of the last h_k fall below
+% 1e-17 of the first, or the smallest term is reached (the next ratio at least one)
+v = 1/(4*rho*rho); p0 = 1; pl = 1; J = 0;
+while true
+    if nk == 4, rl = (2*J + 4)*(2*J + 5)/(J + 1)*v; else, rl = (2*J + 3)*(2*J + 4)/(J + 1)*v; end
+    if rl >= 1, return, end
+    p0 = p0*(2*J + 1)*(2*J + 2)/(J + 1)*v; pl = pl*rl;
+    J = J + 1;
+    if p0 < 1e-17 && pl < 1e-17, return, end
 end
 end
 
