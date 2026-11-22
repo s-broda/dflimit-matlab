@@ -33,7 +33,7 @@ for it = 1:maxit
     Ff = FF(x); F = Ff(1); f = Ff(2);
     if F > p, hi = x; else, lo = x; end
     xn = x - (F - p)/f;
-    if ~(lo < xn && xn < hi && isfinite(xn)), xn = (lo + hi)/2; end
+    if ~(lo <= xn && xn <= hi && isfinite(xn)), xn = (lo + hi)/2; end   % (a step below half an ulp lands on the end of the bracket: converged)
     if abs(xn - x) < tol, x = xn; return, end
     x = xn;
 end

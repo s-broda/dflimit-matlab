@@ -282,7 +282,7 @@ static int routed_icdf(int n, const double *p, const spec_t *R, double c, double
             CDF(x, F); PDF(x, f);
             if (F > pk) hi = x; else lo = x;
             double xn = x - (F - pk) / f;
-            if (!(lo < xn && xn < hi && isfinite(xn))) xn = (lo + hi) / 2;
+            if (!(lo <= xn && xn <= hi && isfinite(xn))) xn = (lo + hi) / 2;   /* (a step below half an ulp lands on the end of the bracket: converged) */
             if (fabs(xn - x) < tol) { x = xn; conv = 1; break; }
             x = xn;
         }

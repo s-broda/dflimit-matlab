@@ -42,7 +42,7 @@ for k = 1:numel(p)
         F = adfmax_cdf(x,cas,c,o); f = adfmax_pdf(x,cas,c,o);
         if F > pk, hi = x; else, lo = x; end
         xn = x - (F - pk)/f;
-        if ~(lo < xn && xn < hi) || ~isfinite(xn), xn = (lo + hi)/2; end
+        if ~(lo <= xn && xn <= hi) || ~isfinite(xn), xn = (lo + hi)/2; end   % (a step below half an ulp lands on the end of the bracket: converged)
         if abs(xn - x) < tol, x = xn; conv = true; break, end
         x = xn;
     end

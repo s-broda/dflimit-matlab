@@ -142,7 +142,7 @@ static int newton_safe(ff_t ff, void *ctx, double p, double x0, double step, dou
         if (ff(x, ctx, &F, &f, err, errlen)) return 1;
         if (F > p) hi = x; else lo = x;
         double xn = x - (F - p) / f;
-        if (!(lo < xn && xn < hi && isfinite(xn))) xn = (lo + hi) / 2;
+        if (!(lo <= xn && xn <= hi && isfinite(xn))) xn = (lo + hi) / 2;   /* (a step below half an ulp lands on the end of the bracket: converged) */
         if (fabs(xn - x) < tol) { *xout = xn; return 0; }
         x = xn;
     }
