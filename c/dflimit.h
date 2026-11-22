@@ -438,4 +438,50 @@ int dfl_det_mza_quantile(const dfl_design *D, double p, double c, double gls, do
 int dfl_det_msb_cdf(const dfl_design *D, int n, const double *x, double c, double gls, double *out, char *err, size_t errlen);
 int dfl_det_msb_quantile(const dfl_design *D, double p, double c, double gls, double *q, char *err, size_t errlen);
 
+/* ---- one interface over the two engines (dfl_det_route.c; merged.jl of DFLimit.jl) ----
+ * A computation names a classical case (D NULL: model 1 DK/SK, 2 DU/SU, 3 DT/ST, 4 DG, with start 0, 1 (g0 != 0) or 2) or a
+ * design D (with start, g0 and gls: NaN for least squares, cbar for GLS detrending).  engine: DFL_ENGINE_AUTO (the default
+ * rule, dfl_autoengine: for a case code after the classical engine's checks of the arguments, which give their errors;
+ * for a design where the classical engine accepts it, the general engine elsewhere), DFL_ENGINE_CLASSICAL, DFL_ENGINE_GENERAL.
+ * With engine auto a method other than 0 or verified = 1 keeps the classical engine (its representations and its checked
+ * computation, as before the merge). */
+#define DFL_ENGINE_AUTO 0
+#define DFL_ENGINE_CLASSICAL 1
+#define DFL_ENGINE_GENERAL 2
+typedef struct {
+    const dfl_design *D;  /* the design, or NULL: the classical case model */
+    int model;            /* (D NULL) 1, 2, 3, 4 */
+    int start;            /* DFL_START_ZERO, DFL_START_FIXED, DFL_START_STAT */
+    double g0;            /* the fixed start */
+    double gls;           /* (a design) NaN, or GLS detrending at cbar */
+} dfl_spec;
+/* the functions of the rule */
+#define DFL_F_DIST 1
+#define DFL_F_ICDF 2
+#define DFL_F_MOM 3
+#define DFL_F_LINCDF 4
+#define DFL_F_ADFMAX 5
+#define DFL_F_ENVELOPE 6
+#define DFL_F_REGION 7
+/* the engine of engine = auto for a computation the classical engine accepts: DFL_ENGINE_CLASSICAL or DFL_ENGINE_GENERAL;
+ * x: the point of the t-ratio (DFL_F_DIST), a of the linear form (DFL_F_LINCDF); gls the cbar of case DG's linear form */
+int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, double c0, double x);
+/* the t-ratio: distribution function (kind 2) or density (kind 1) at x[0..n-1]; method and verified as in dfl_dist */
+int dfl_engine_dist(int kind, int n, const double *x, const dfl_spec *S, double c, double c0, int engine, int method, int verified, double *out, char *err, size_t errlen);
+/* its p-quantiles to tol (1e-10) */
+int dfl_engine_icdf(int n, const double *p, const dfl_spec *S, double c, double c0, int engine, int method, double tol, double *q, char *err, size_t errlen);
+/* its moments E t^k, k = 1..pmax */
+int dfl_engine_mom(int pmax, const dfl_spec *S, double c, double c0, int engine, double *m, char *err, size_t errlen);
+/* the coefficient statistic: distribution function at y and its p-quantiles to tol (1e-9) */
+int dfl_engine_coef(int n, const double *y, const dfl_spec *S, double c, double c0, int engine, double *out, char *err, size_t errlen);
+int dfl_engine_coef_icdf(int n, const double *p, const dfl_spec *S, double c, double c0, int engine, double tol, double *q, char *err, size_t errlen);
+/* P(U - aV <= b) of case DK (model 1, or 2) or DG (model 4, detrended at cbar; NaN for -13.5); a = NaN: P(V <= b) */
+int dfl_engine_lincdf(int n, const double *b, double a, int model, double c, double cbar, int engine, double *out, char *err, size_t errlen);
+/* the power envelope of case DK (model 1, or 2) or DG (model 4) at c[0..n-1] */
+int dfl_engine_envelope(int n, const double *c, int model, double alpha, int engine, double *out, char *err, size_t errlen);
+/* ADFmax (kind 2 distribution function, 1 density) */
+int dfl_engine_adfmax(int kind, int n, const double *x, const dfl_spec *S, double c, int engine, double *out, char *err, size_t errlen);
+/* P{U <= g(V)}: type 1 the line, 2 the parabola (both engines), 3 the WAP boundary (the classical engine, case DK) */
+int dfl_engine_region(int type, const double *par, const dfl_spec *S, double c, int engine, double *out, char *err, size_t errlen);
+
 #endif

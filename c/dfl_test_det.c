@@ -264,6 +264,36 @@ int main(int argc, char **argv)
             dfl_det_empty_caches();
             continue;
         }
+        if (!strcmp(tag, "route")) {
+            char fn[32], sp[16]; int k2; sscanf(p, "%31s%n", fn, &k2); p += k2;
+            int e = inum(&p); sscanf(p, "%15s%n", sp, &k2); p += k2;
+            int a = inum(&p), st = inum(&p); double g0 = num(&p), gl = num(&p), c = num(&p), c0 = num(&p), par = num(&p); int n = inum(&p);
+            double *x = malloc(n * sizeof(double)), *want = malloc(64 * sizeof(double)), *got = malloc(64 * sizeof(double));
+            for (int i = 0; i < n; i++) x[i] = num(&p);
+            int nw = inum(&p); for (int i = 0; i < nw; i++) want[i] = num(&p);
+            double tol = num(&p);
+            dfl_spec S; S.D = strcmp(sp, "design") ? NULL : &DS[a]; S.model = S.D ? 0 : a; S.start = st; S.g0 = g0; S.gls = S.D ? gl : NAN;
+            int rc = 1;
+            if (!strcmp(fn, "cdf")) rc = dfl_engine_dist(2, n, x, &S, c, c0, e, 0, 0, got, err, sizeof err);
+            else if (!strcmp(fn, "pdf")) rc = dfl_engine_dist(1, n, x, &S, c, c0, e, 0, 0, got, err, sizeof err);
+            else if (!strcmp(fn, "icdf")) rc = dfl_engine_icdf(n, x, &S, c, c0, e, 0, 1e-10, got, err, sizeof err);
+            else if (!strcmp(fn, "mom")) rc = dfl_engine_mom((int) x[0], &S, c, c0, e, got, err, sizeof err);
+            else if (!strcmp(fn, "coef")) rc = dfl_engine_coef(n, x, &S, c, c0, e, got, err, sizeof err);
+            else if (!strcmp(fn, "coefq")) rc = dfl_engine_coef_icdf(n, x, &S, c, c0, e, 1e-9, got, err, sizeof err);
+            else if (!strcmp(fn, "lin")) rc = dfl_engine_lincdf(n, x, par, a, c, gl, e, got, err, sizeof err);
+            else if (!strcmp(fn, "env")) rc = dfl_engine_envelope(n, x, a, par, e, got, err, sizeof err);
+            else if (!strcmp(fn, "adf")) rc = dfl_engine_adfmax(2, n, x, &S, c, e, got, err, sizeof err);
+            else if (!strcmp(fn, "adfpdf")) rc = dfl_engine_adfmax(1, n, x, &S, c, e, got, err, sizeof err);
+            else if (!strcmp(fn, "region1")) { double pr[2] = {par, x[0]}; rc = dfl_engine_region(1, pr, &S, c, e, got, err, sizeof err); }
+            else if (!strcmp(fn, "region2")) { double pr[2] = {x[0], 0.0}; rc = dfl_engine_region(2, pr, &S, c, e, got, err, sizeof err); }
+            char gname[48]; snprintf(gname, sizeof gname, "route-%s", e == 0 ? "auto" : e == 1 ? "classical" : "general");
+            snprintf(what, sizeof what, "%s engine %d %s %d start %d g0 %g gls %g c %g c0 %g", fn, e, sp, a, st, g0, gl, c, c0);
+            if (rc) { grp(gname)->fail++; grp(gname)->n++; printf("FAIL %s: %s\n", what, err); }
+            else for (int i = 0; i < nw; i++) { char w2[400]; snprintf(w2, sizeof w2, "%s [%d]", what, i); check(gname, got[i], want[i], !strcmp(fn, "mom") ? tol * fmax(1, fabs(want[i])) : tol, w2); }
+            free(x); free(want); free(got);
+            dfl_det_empty_caches();
+            continue;
+        }
     }
     fclose(f);
     int fails = 0, n = 0;

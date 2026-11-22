@@ -270,5 +270,52 @@ for (id, cb, c) in ((3, -13.5, 0.0), (3, -13.5, -10.0), (20, -13.5, -5.0), (5, -
 end
 val("mzaq", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [0.05], () -> DG.mza_quantile(designs[3], 0.05, 0.0; gls = -13.5); tol = 1e-7)
 val("msbq", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [0.05], () -> DG.msb_quantile(designs[3], 0.05, 0.0; gls = -13.5); tol = 1e-7)
+# ---------------------------------------------------------------------------------------------------------------------
+# the router (merged.jl): 'route func engine spec a b c d c c0 par n x... nv v... tol', spec 'case' (a = model, b = start,
+# c = g0) or 'design' (a = id, b = start, c = g0, d = gls); engine 0 auto, 1 classical, 2 general
+const ENG = (:auto, :classical, :general)
+casestr(m, st) = m == 4 ? "DG" : (st == 2 ? "S" : "D") * "KUT"[m]
+function rline(func, e, spec, a, b, cc, d, c, c0, par, xs, f; tol = 1e-9)
+    v, w = warned(f); v = vcat(v); DG.empty_caches!()
+    println(io, join(["route", func, string(e), spec, string(a), string(b), fmt(cc), fmt(d), fmt(c), fmt(c0), fmt(par), string(length(xs)), fmt.(xs)...,
+                      string(length(v)), fmt.(v)..., fmt(w ? max(tol, 1e-6) : tol)], " ") * (w ? " brittle" : ""))
+end
+for e in 0:2
+    eng = ENG[e+1]
+    for (m, st, g0, c, c0) in ((2, 0, 0.0, -5.0, 0.0), (1, 0, 0.0, -5.0, 2.0), (2, 2, 0.0, -10.0, -10.0), (1, 1, 1.0, -5.0, 0.0), (3, 0, 0.0, 0.0, 0.0), (4, 0, 0.0, -5.0, 0.0))
+        xs = [-3.5, -2.5, -1.6, -0.5, 1.0]; cs = casestr(m, st)
+        rline("cdf", e, "case", m, st, g0, NaN, c, c0, 0.0, xs, () -> DFLimit.ltratio_cdf(xs, cs, c; c0, g0, engine = eng))
+        rline("pdf", e, "case", m, st, g0, NaN, c, c0, 0.0, xs, () -> DFLimit.ltratio_pdf(xs, cs, c; c0, g0, engine = eng))
+    end
+    for (id, st, g0, gl, c, c0) in ((3, 0, 0.0, NaN, -5.0, 0.0), (9, 0, 0.0, NaN, -5.0, 0.0), (3, 0, 0.0, -13.5, -5.0, 0.0), (2, 2, 0.0, NaN, -5.0, -5.0))
+        e == 1 && id == 9 && continue
+        xs = [-3.5, -2.5, -1.6, -0.5, 1.0]
+        rline("cdf", e, "design", id, st, g0, gl, c, c0, 0.0, xs, () -> DFLimit.ltratio_cdf(xs, designs[id], c; c0, g0, start = startsym(st), gls = isnan(gl) ? nothing : gl, engine = eng))
+    end
+    for (m, st, g0, c) in ((3, 0, 0.0, -5.0), (1, 0, 0.0, 0.0), (2, 0, 1.0, -5.0))
+        ps = [0.05, 0.5]; cs = casestr(m, st)
+        rline("icdf", e, "case", m, st, g0, NaN, c, 0.0, 0.0, ps, () -> DFLimit.ltratio_icdf(ps, cs, c; g0, engine = eng); tol = 1e-7)
+    end
+    for (m, st, c, c0) in ((2, 0, -5.0, 0.0), (1, 0, -5.0, -5.0), (3, 2, -5.0, 0.0))
+        rline("mom", e, "case", m, st, 0.0, NaN, c, c0, 0.0, [4.0], () -> DFLimit.ltratio_mom(4, casestr(m, st), c; c0, engine = eng); tol = 1e-8)
+    end
+    ys = [-20.0, -10.0, -5.0]
+    rline("coef", e, "case", 2, 0, 0.0, NaN, 0.0, 0.0, 0.0, ys, () -> DFLimit.coef_cdf(ys, "DU", 0.0; engine = eng))
+    rline("coefq", e, "case", 2, 0, 0.0, NaN, 0.0, 0.0, 0.0, [0.05], () -> DFLimit.coef_icdf(0.05, "DU"; engine = eng); tol = 1e-7)
+    bs = [-0.6, -0.2639, 0.3]
+    rline("lin", e, "case", 1, 0, 0.0, NaN, 0.0, 0.0, -3.5, bs, () -> DFLimit.ltratio_lincdf(bs, -3.5, "DK", 0.0; engine = eng))
+    vs = [0.02, 0.06, 0.2]
+    rline("lin", e, "case", 1, 0, 0.0, NaN, -5.0, 0.0, NaN, vs, () -> DFLimit.ltratio_lincdf(vs, NaN, "DK", -5.0; engine = eng))
+    rline("lin", e, "case", 4, 0, 0.0, -13.5, 0.0, 0.0, -7.3, [-0.9, -0.5, 0.0], () -> DFLimit.ltratio_lincdf([-0.9, -0.5, 0.0], -7.3, "DG", 0.0; engine = eng))
+    rline("env", e, "case", 1, 0, 0.0, NaN, 0.0, 0.0, 0.05, [-5.0, -10.0], () -> DFLimit.power_envelope([-5.0, -10.0], "DK"; engine = eng); tol = 1e-8)
+    rline("env", e, "case", 4, 0, 0.0, NaN, 0.0, 0.0, 0.05, [-5.0], () -> DFLimit.power_envelope([-5.0], "DG"; engine = eng); tol = 1e-8)
+    for (m, st, c) in ((2, 0, 0.0), (2, 2, -10.0))
+        xs = [-3.0, -2.4, -1.5]; cs = casestr(m, st)
+        rline("adf", e, "case", m, st, 0.0, NaN, c, 0.0, 0.0, xs, () -> DFLimit.adfmax_cdf(xs, cs, c; engine = eng))
+        rline("adfpdf", e, "case", m, st, 0.0, NaN, c, 0.0, 0.0, xs, () -> DFLimit.adfmax_pdf(xs, cs, c; engine = eng))
+    end
+    rline("region1", e, "case", 1, 0, 0.0, NaN, -5.0, 0.0, -3.5, [-0.2639], () -> DFLimit.ltratio_region((type = "line", a = -3.5, b = -0.2639), "DK", -5.0; engine = eng))
+    rline("region2", e, "case", 1, 0, 0.0, NaN, -7.0, 0.0, 0.0, [-1.94087], () -> DFLimit.ltratio_region((type = "parabola", x = -1.94087), "DK", -7.0; engine = eng))
+end
 close(io)
 println("written ", OUT)
