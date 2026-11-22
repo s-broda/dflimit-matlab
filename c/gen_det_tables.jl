@@ -16,7 +16,9 @@ function writevec(name, v)
     for (k, x) in enumerate(v); @printf(out, "%s%.17g", k == 1 ? "" : ",", x); k % 6 == 0 && print(out, "\n"); end
     println(out, "};")
 end
-cnum(x) = isnan(x) ? "NAN" : isinf(x) ? (x > 0 ? "INFINITY" : "-INFINITY") : @sprintf("%.17g", x)
+# (an infinite scalar as +-1e308, which the engine reads back as infinite: MSVC's INFINITY is not a constant expression in
+# a static initializer)
+cnum(x) = isnan(x) ? "0" : isinf(x) ? (x > 0 ? "1e308" : "-1e308") : @sprintf("%.17g", x)
 cplx(v) = reduce(vcat, [[real(z), imag(z)] for z in vec(v)])
 names = ("DK", "DU", "DT")
 scs = Dict{String,Vector{Float64}}(); krs = Dict{String,NTuple{3,Int}}()

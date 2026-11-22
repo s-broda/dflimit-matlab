@@ -447,6 +447,8 @@ static det_path *table_path(det_model_ref *mr, int p)
     det_path *CP = path_alloc(T->K, T->r);
     CP->c = T->sc[0]; CP->tau = T->sc[1]; CP->tstar = T->sc[2]; CP->a = T->sc[3]; CP->b = T->sc[4]; CP->h = T->sc[5]; CP->phi = T->sc[6];
     CP->minpos = T->sc[7]; CP->maxneg = T->sc[8];
+    if (CP->maxneg <= -1e300) CP->maxneg = -INFINITY;      /* (the tables store an infinite scalar as +-1e308) */
+    if (CP->minpos >= 1e300) CP->minpos = INFINITY;
     CP->R = malloc((size_t) T->K * T->r * sizeof(cdouble));
     for (int k = 0; k < T->K; k++) {
         CP->t[k] = CPX(T->t[2 * k], T->t[2 * k + 1]); CP->dt[k] = CPX(T->dt[2 * k], T->dt[2 * k + 1]);
