@@ -28,7 +28,12 @@ if nargin < 6 || isempty(opts), opts = struct; end
 if ~(isnumeric(x) && isreal(x)), error('dfdet:args','dfdet: the argument must be real.'); end
 x = double(x);
 if strcmp(stat,'lin') && isnan(a), stat = 'v'; end
-if strcmp(stat,'adfmax'), gls = []; end
+if strcmp(stat,'adfmax')
+    % (ADFmax: least-squares detrending at the null value phi = 1; GLS detrending and a local null value were dropped
+    % without notice)
+    if ~isempty(gls), error('dfdet:args','dfdet_adfmax: ADFmax has least-squares detrending only (opts.gls must be empty).'); end
+    if c0 ~= 0, error('dfdet:args','dfdet_adfmax: ADFmax is the statistic of the null value phi = 1 (opts.c0 must be 0).'); end
+end
 Mo = dfdet_startmodel(D,c,start,g0,gls);
 po = struct('phi',getf(o,'phi',[]),'hfac',getf(o,'hfac',1));
 CP = dfdet_cpath(Mo,c,po);
@@ -60,6 +65,7 @@ end
 cdf = strcmp(mode,'cdf');
 v = zeros(size(x)); fin = isfinite(x);
 v(isnan(x)) = NaN; if cdf, v(x == Inf) = 1; end
+if strcmp(stat,'v'), fin = fin & x > 0; end            % (V > 0: 0 at y <= 0, where e^{-t y} grows along the path and the sum gave NaN)
 if ~any(fin(:)), return, end
 xf = x(fin); xf = xf(:).';
 switch stat

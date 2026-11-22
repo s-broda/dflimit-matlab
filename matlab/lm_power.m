@@ -10,6 +10,7 @@ function [q,P] = lm_power(c,D,opts)
 %   See also LM_CDF, LM_QUANTILE.
 if nargin < 3 || isempty(opts), opts = struct; end
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
+if ~(isnumeric(alpha) && isscalar(alpha) && alpha > 0 && alpha < 1), error('dfdet:args','lm_power: the level opts.alpha must lie in (0, 1).'); end
 q = lm_quantile(alpha,D);
 P = zeros(size(c));
 for k = 1:numel(c), P(k) = dfdet_lmpath(dfdet_lmpath(D,c(k)),1/(4*q^2)); end

@@ -11,8 +11,9 @@ function P = pt_envelope(c,D,opts)
 %   See also PT_POWER, DFDET_POWER_ENVELOPE, POWER_ENVELOPE.
 if nargin < 3 || isempty(opts), opts = struct; end
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
+if ~(isnumeric(alpha) && isscalar(alpha) && alpha > 0 && alpha < 1), error('dfdet:args','pt_envelope: the level opts.alpha must lie in (0, 1).'); end
 P = zeros(size(c));
 for k = 1:numel(c)
-    if c(k) < 0, [~,P(k)] = pt_power(c(k),D,c(k),opts); else, P(k) = alpha; end
+    if c(k) < 0, [~,P(k)] = pt_power(c(k),D,c(k),opts); elseif isnan(c(k)), P(k) = NaN; else, P(k) = alpha; end   % (NaN at NaN, as POWER_ENVELOPE)
 end
 end
