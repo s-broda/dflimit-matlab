@@ -129,6 +129,14 @@ int det_prep_lm(const dfl_design *D, det_prep **out, double *a1norm, char *err, 
 det_prep *det_prep_cached(const dfl_design *D, double cbar, char *err, size_t errlen);
 unsigned long long det_design_key(const dfl_design *D, double cbar);
 void det_prep_release(det_prep *P);
+/* the helpers of the preparations (dfl_det_design.c) shared with dfl_det_paper2.c */
+det_prep *det_prep_new(const dfl_design *D);
+void det_prep_rank1(det_prep *P, double a11);
+int det_ortho_basis(const dfl_design *D, int nF, const double *F, int *pp, double **gout, double **Phiout);
+int det_keep_eig(int N, const double *A, double **Dv, double **L, int *r, int *rp, int *rm);
+int det_gls_directions(const dfl_design *D, double **Zout);
+void det_delta_blocks(const dfl_design *D, int k, const double *Z, double *Cd, double *Cd1, double *Cd2);
+void det_evblk(const dfl_design *D, int k, const double *Cs, int j, double r, double *out);
 /* the design's values at r */
 void det_dval(const dfl_design *D, double r, double *out);
 /* Gram matrix of the columns of the piecewise polynomials F[j] ((deg+1) x n each, np blocks) on [0, 1] */

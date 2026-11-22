@@ -214,7 +214,7 @@ int main(int argc, char **argv)
             int id = inum(&p); double cb = num(&p); int st = inum(&p); double g0 = num(&p), c = num(&p), c0 = num(&p); int ver = inum(&p); double par = num(&p); int n = inum(&p);
             double *x = malloc(n * sizeof(double)), *want = malloc((n + 8) * sizeof(double)), *got = malloc((n + 8) * sizeof(double));
             for (int i = 0; i < n; i++) x[i] = num(&p);
-            int nw = n;
+            int nw = inum(&p);
             for (int i = 0; i < nw; i++) want[i] = num(&p);
             double tol = num(&p);
             int brittle = strstr(p, "brittle") != NULL;
@@ -236,6 +236,18 @@ int main(int argc, char **argv)
             else if (!strcmp(fn, "adfpdf")) rc = dfl_det_adfmax(1, &DS[id], n, x, c, &o, got, err, sizeof err);
             else if (!strcmp(fn, "adfq")) rc = dfl_det_adfmax_quantile(&DS[id], x[0], c, par, 1e-10, &o, got, err, sizeof err);
             else if (!strcmp(fn, "env")) rc = dfl_det_power_envelope(&DS[id], n, x, par, got, err, sizeof err);
+            else if (!strcmp(fn, "ptcdf")) rc = dfl_det_pt(2, &DS[id], n, x, par, c, 0, 0, got, err, sizeof err);
+            else if (!strcmp(fn, "ptpdf")) rc = dfl_det_pt(1, &DS[id], n, x, par, c, 0, 0, got, err, sizeof err);
+            else if (!strcmp(fn, "ptq")) rc = dfl_det_pt_quantile(&DS[id], x[0], par, 0, 0, got, err, sizeof err);
+            else if (!strcmp(fn, "ptpow")) rc = dfl_det_pt_power(&DS[id], par, c, x[0], 0, 0, &got[0], &got[1], err, sizeof err);
+            else if (!strcmp(fn, "ptenv")) rc = dfl_det_pt_envelope(&DS[id], n, x, par, 0, 0, got, err, sizeof err);
+            else if (!strcmp(fn, "lmcdf")) rc = dfl_det_lm_cdf(&DS[id], n, x, c, got, err, sizeof err);
+            else if (!strcmp(fn, "lmq")) rc = dfl_det_lm_quantile(&DS[id], x[0], c, got, err, sizeof err);
+            else if (!strcmp(fn, "lmpow")) rc = dfl_det_lm_power(&DS[id], n, x, par, &got[0], got + 1, err, sizeof err);
+            else if (!strcmp(fn, "mzacdf")) rc = dfl_det_mza_cdf(&DS[id], n, x, c, par, NULL, got, err, sizeof err);
+            else if (!strcmp(fn, "mzaq")) rc = dfl_det_mza_quantile(&DS[id], x[0], c, par, NAN, 1e-9, NULL, got, err, sizeof err);
+            else if (!strcmp(fn, "msbcdf")) rc = dfl_det_msb_cdf(&DS[id], n, x, c, par, got, err, sizeof err);
+            else if (!strcmp(fn, "msbq")) rc = dfl_det_msb_quantile(&DS[id], x[0], c, par, got, err, sizeof err);
             else { printf("unknown value function %s\n", fn); }
             double dt = dfl_wtime() - t1;
             char gname[48]; snprintf(gname, sizeof gname, "%s%s", fn, brittle ? "*" : "");

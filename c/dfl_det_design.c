@@ -374,7 +374,7 @@ static int jumps(const dfl_design *D, int n, const double *Cs, double thr, doubl
 }
 /* the orthonormal basis of the span of the columns of the blocks F (np blocks of (deg + 1) x nF): p, g (np blocks of
  * (deg + 1) x p) and Phi (nF x p, F = Phi g on the span) */
-static int ortho_basis(const dfl_design *D, int nF, const double *F, int *pp, double **gout, double **Phiout)
+int det_ortho_basis(const dfl_design *D, int nF, const double *F, int *pp, double **gout, double **Phiout)
 {
     int d1 = D->deg + 1, np = D->np;
     double *Gf = malloc((size_t) nF * nF * sizeof(double)), *w = malloc(nF * sizeof(double)), *V = malloc((size_t) nF * nF * sizeof(double));
@@ -399,7 +399,7 @@ static int ortho_basis(const dfl_design *D, int nF, const double *F, int *pp, do
     return 0;
 }
 /* the eigen-decomposition of the symmetric N x N matrix A with the eigenvalues |.| > 1e-10 max kept: Dv, L, r, rp, rm */
-static int keep_eig(int N, const double *A, double **Dv, double **L, int *r, int *rp, int *rm)
+int det_keep_eig(int N, const double *A, double **Dv, double **L, int *r, int *rp, int *rm)
 {
     double *w = malloc(N * sizeof(double)), *V = malloc((size_t) N * N * sizeof(double));
     det_symeig(N, A, w, V);
@@ -421,7 +421,7 @@ void det_prep_free(det_prep *P)
     free(P->br); free(P->C); free(P->g); free(P->jl); free(P->A); free(P->B); free(P->L); free(P->Dv); free(P->b); free(P->off);
     free(P);
 }
-static det_prep *prep_new(const dfl_design *D)
+det_prep *det_prep_new(const dfl_design *D)
 {
     det_prep *P = calloc(1, sizeof(det_prep));
     P->K = D->K; P->Kd = D->K; P->np = D->np; P->deg = D->deg; P->loc = D->loc; P->first = D->first;
@@ -433,7 +433,7 @@ static det_prep *prep_new(const dfl_design *D)
     return P;
 }
 /* the prepared design with a rank-one numerator 1/2 J(1)^2 only (no deterministic terms after GLS detrending) */
-static void prep_rank1(det_prep *P, double a11)
+void det_prep_rank1(det_prep *P, double a11)
 {
     P->p = 0; P->nj = 0; P->N = 1; P->K = 0;
     P->g = calloc(1, sizeof(double)); P->jl = calloc(1, sizeof(double));
@@ -446,11 +446,11 @@ static void prep_rank1(det_prep *P, double a11)
 static int prep_ols(const dfl_design *D, det_prep **out, char *err, size_t errlen)
 {
     int K = D->K, np = D->np, d1 = D->deg + 1;
-    det_prep *P = prep_new(D);
+    det_prep *P = det_prep_new(D);
     double *jl = malloc(np * sizeof(double)), *Dl = malloc((size_t) np * imax(K, 1) * sizeof(double));
     int nj = K > 0 ? jumps(D, K, D->C, 1e-12, jl, Dl) : 0;
     if (K == 0) {
-        prep_rank1(P, 0.5);
+        det_prep_rank1(P, 0.5);
         free(jl); free(Dl); *out = P; return 0;
     }
     double *F = malloc((size_t) np * d1 * 2 * K * sizeof(double));
@@ -461,7 +461,7 @@ static int prep_ols(const dfl_design *D, det_prep **out, char *err, size_t errle
     double *Gf = malloc((size_t) 4 * K * K * sizeof(double));
     det_gram(np, D->deg, 2 * K, F, D->br, D->loc, Gf);
     int p; double *g, *Phi;
-    ortho_basis(D, 2 * K, F, &p, &g, &Phi);
+    det_ortho_basis(D, 2 * K, F, &p, &g, &Phi);
     /* Phid = Phi[0:K, :], Phin = Phi[K:2K, :]; G = Gf[0:K, 0:K]; Pm = Phid' G^{-1} (p x K) */
     double *G = malloc((size_t) K * K * sizeof(double)), *X = malloc((size_t) K * imax(p, 1) * sizeof(double));
     for (int a = 0; a < K; a++) for (int b = 0; b < K; b++) G[a + b * K] = Gf[a + (size_t) b * 2 * K];
@@ -508,7 +508,7 @@ static int prep_ols(const dfl_design *D, det_prep **out, char *err, size_t errle
     for (int k = 0; k < p; k++) for (int l = 0; l < p; l++) B[(iz + k) + (iz + l) * N] = -(Md[k + l * p] + Md[l + k * p]) / 2;
 #undef PM
     P->A = A; P->B = B; P->b = bv;
-    keep_eig(N, A, &P->Dv, &P->L, &P->r, &P->rp, &P->rm);
+    det_keep_eig(N, A, &P->Dv, &P->L, &P->r, &P->rp, &P->rm);
     free(F); free(Gf); free(Phi); free(G); free(X); free(jl); free(Dl); free(d0); free(dd1); free(Mn); free(Md); free(M);
     *out = P;
     return 0;
@@ -516,7 +516,7 @@ static int prep_ols(const dfl_design *D, det_prep **out, char *err, size_t errle
 
 static const char *FIRST_GLS_MSG = "GLS detrending (gls = cbar) detrends first already: use the design itself, not detrend_first(D), with gls";
 /* the directions b with d(0)' b = 0 and Delta_i' b = 0 (GLS detrending, the point-optimal and the LM statistic): k and Z */
-static int gls_directions(const dfl_design *D, double **Zout)
+int det_gls_directions(const dfl_design *D, double **Zout)
 {
     int K = D->K;
     double *Dl = malloc((size_t) D->np * imax(K, 1) * sizeof(double));
@@ -534,7 +534,7 @@ static int gls_directions(const dfl_design *D, double **Zout)
     return k;
 }
 /* the blocks of delta = Z' d (np blocks of (deg + 1) x k), and its first and second derivatives */
-static void delta_blocks(const dfl_design *D, int k, const double *Z, double *Cd, double *Cd1, double *Cd2)
+void det_delta_blocks(const dfl_design *D, int k, const double *Z, double *Cd, double *Cd1, double *Cd2)
 {
     int d1 = D->deg + 1, K = D->K;
     for (int j = 0; j < D->np; j++) {
@@ -546,7 +546,7 @@ static void delta_blocks(const dfl_design *D, int k, const double *Z, double *Cd
         dcoef(D->deg, k, Cd1 + (size_t) j * d1 * k, Cd2 + (size_t) j * d1 * k);
     }
 }
-static void evblk(const dfl_design *D, int k, const double *Cs, int j, double r, double *out)
+void det_evblk(const dfl_design *D, int k, const double *Cs, int j, double r, double *out)
 {
     int d1 = D->deg + 1;
     for (int i = 0; i < k; i++) out[i] = evalpoly(r - poff(D, j), Cs + ((size_t) j * k + i) * d1, d1);
@@ -558,27 +558,27 @@ static int prep_gls(const dfl_design *D, double cbar, det_prep **out, char *err,
     if (!(cbar < 0)) { snprintf(err, errlen, "GLS detrending needs cbar < 0"); return 1; }
     if (D->first) { snprintf(err, errlen, "%s", FIRST_GLS_MSG); return 1; }
     int np = D->np, d1 = D->deg + 1;
-    det_prep *P = prep_new(D); P->cbar = cbar; P->kind = 1;
-    double *Z; int k = gls_directions(D, &Z);
-    if (k == 0) { free(Z); prep_rank1(P, 0.5); *out = P; return 0; }
+    det_prep *P = det_prep_new(D); P->cbar = cbar; P->kind = 1;
+    double *Z; int k = det_gls_directions(D, &Z);
+    if (k == 0) { free(Z); det_prep_rank1(P, 0.5); *out = P; return 0; }
     double *Cd = malloc((size_t) np * d1 * k * sizeof(double)), *Cd1 = malloc((size_t) np * d1 * k * sizeof(double)), *Cd2 = malloc((size_t) np * d1 * k * sizeof(double));
-    delta_blocks(D, k, Z, Cd, Cd1, Cd2);
+    det_delta_blocks(D, k, Z, Cd, Cd1, Cd2);
     double *T = malloc((size_t) np * d1 * k * sizeof(double));
     for (size_t i = 0; i < (size_t) np * d1 * k; i++) T[i] = Cd1[i] - cbar * Cd[i];
     double *Psi = malloc((size_t) k * k * sizeof(double)), *Gd = malloc((size_t) k * k * sizeof(double));
     det_gram(np, D->deg, k, T, D->br, D->loc, Psi); det_gram(np, D->deg, k, Cd, D->br, D->loc, Gd);
     double *psi1 = malloc(k * sizeof(double)), *delta1 = malloc(k * sizeof(double)), *e1 = malloc(k * sizeof(double)), *e2 = malloc(k * sizeof(double));
-    evblk(D, k, Cd1, np - 1, 1.0, e1); evblk(D, k, Cd, np - 1, 1.0, delta1);
+    det_evblk(D, k, Cd1, np - 1, 1.0, e1); det_evblk(D, k, Cd, np - 1, 1.0, delta1);
     for (int i = 0; i < k; i++) psi1[i] = e1[i] - cbar * delta1[i];
     /* the jumps of delta' (slope breaks); delta itself is continuous */
     double *jl = malloc(np * sizeof(double)), *vs = malloc((size_t) np * k * sizeof(double));
     int nj = 0, rc = 0;
     for (int j = 0; j < np - 1; j++) {
         double lam = D->br[j + 1], mxd = 0, mxe = 0, mxs = 0;
-        evblk(D, k, Cd, j + 1, lam, e1); evblk(D, k, Cd, j, lam, e2);
+        det_evblk(D, k, Cd, j + 1, lam, e1); det_evblk(D, k, Cd, j, lam, e2);
         for (int i = 0; i < k; i++) { mxd = dmax(mxd, fabs(e1[i] - e2[i])); mxe = dmax(mxe, fabs(e2[i])); }
         if (!(mxd < 1e-9 * dmax(1.0, mxe))) { snprintf(err, errlen, "prep_gls: delta not continuous at %g", lam); rc = 1; break; }
-        evblk(D, k, Cd1, j + 1, lam, e1); evblk(D, k, Cd1, j, lam, e2);
+        det_evblk(D, k, Cd1, j + 1, lam, e1); det_evblk(D, k, Cd1, j, lam, e2);
         for (int i = 0; i < k; i++) { vs[(size_t) nj * k + i] = e1[i] - e2[i]; mxs = dmax(mxs, fabs(e1[i] - e2[i])); }
         if (mxs > 1e-12) jl[nj++] = lam;
     }
@@ -589,7 +589,7 @@ static int prep_gls(const dfl_design *D, double cbar, det_prep **out, char *err,
     }
     int p = 0; double *g = NULL, *Phi = NULL;
     if (!rc) {
-        ortho_basis(D, 2 * k, F, &p, &g, &Phi);
+        det_ortho_basis(D, 2 * k, F, &p, &g, &Phi);
         double gm = 0, dev = 0;
         for (int a = 0; a < k; a++) for (int b = 0; b < k; b++) {
             gm = dmax(gm, fabs(Gd[a + b * k]));
@@ -629,7 +629,7 @@ static int prep_gls(const dfl_design *D, double cbar, det_prep **out, char *err,
         P->K = k; P->p = p; P->nj = nj; P->N = N; P->g = g;
         P->jl = malloc(imax(nj, 1) * sizeof(double)); memcpy(P->jl, jl, nj * sizeof(double));
         P->A = A; P->B = B; P->b = calloc(N, sizeof(double));
-        keep_eig(N, A, &P->Dv, &P->L, &P->r, &P->rp, &P->rm);
+        det_keep_eig(N, A, &P->Dv, &P->L, &P->r, &P->rp, &P->rm);
         free(H); free(PiH); free(pd); free(av); free(PS);
     } else free(g);
     free(Phi); free(F); free(Z); free(Cd); free(Cd1); free(Cd2); free(T); free(Psi); free(Gd); free(psi1); free(delta1); free(e1); free(e2); free(jl); free(vs);
@@ -703,7 +703,7 @@ int det_model_make(const det_prep *P, int start, double g0, det_model *Mo, char 
         for (int i = 0; i < n; i++) { A[i + (size_t) n * M] = A[n + (size_t) i * M] = P->b[i] / 2; }
         A[n + (size_t) n * M] = -0.5;
         Mo->start = 2; Mo->g0 = 0; Mo->N = M; Mo->A = A; Mo->B = B; Mo->own = 1;
-        keep_eig(M, A, &Mo->Dv, &Mo->L, &Mo->r, &Mo->rp, &Mo->rm);
+        det_keep_eig(M, A, &Mo->Dv, &Mo->L, &Mo->r, &Mo->rp, &Mo->rm);
         Mo->a = 0.5; Mo->kappa = 0.5; Mo->yb = calloc(M, sizeof(double));
         return 0;
     }

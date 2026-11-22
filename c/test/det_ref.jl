@@ -137,7 +137,7 @@ function val(func, id, cb, st, g0, c, c0, ver, par, xs, f; tol = 1e-9)
     DG.empty_caches!()
     t = w ? max(tol, 1e-6) : tol
     println(io, join(["val", func, string(id), fmt(cb), string(st), fmt(g0), fmt(c), fmt(c0), string(ver), fmt(par), string(length(xs)),
-                      fmt.(xs)..., fmt.(v)..., fmt(t)], " ") * (w ? " brittle" : ""))
+                      fmt.(xs)..., string(length(v)), fmt.(v)..., fmt(t)], " ") * (w ? " brittle" : ""))
 end
 kw(cb, st, g0, c0, ver) = (c0 = c0, start = startsym(st), gamma0 = g0, gls = isnan(cb) ? nothing : cb, verified = ver)
 kw4(cb, st, g0, c0) = (c0 = c0, start = startsym(st), gamma0 = g0, gls = isnan(cb) ? nothing : cb)
@@ -246,5 +246,29 @@ val("adfq", 2, NaN, 0, 0.0, 0.0, 0.0, 0, -2.0, [0.05], () -> DG.adfmax_quantile(
 # the power envelope
 val("env", 1, NaN, 0, 0.0, 0.0, 0.0, 0, 0.05, [-5.0, -10.0], () -> DG.power_envelope(designs[1], [-5.0, -10.0]); tol = 1e-8)
 val("env", 3, NaN, 0, 0.0, 0.0, 0.0, 0, 0.05, [-5.0, -10.0], () -> DG.power_envelope(designs[3], [-5.0, -10.0]); tol = 1e-8)
+# the companions: the point-optimal statistic and the envelope, the LM statistic, MZ_alpha, MSB
+for (id, cb, c) in ((3, -13.5, 0.0), (3, -13.5, -10.0), (2, -7.0, 0.0), (1, -7.0, -5.0), (20, -10.0, -5.0), (9, -10.0, 0.0))
+    qs = [2.0, 4.0, 7.0, 12.0]
+    val("ptcdf", id, cb, 0, 0.0, c, 0.0, 0, cb, qs, () -> DG.pt_cdf(designs[id], qs, cb, c))
+    val("ptpdf", id, cb, 0, 0.0, c, 0.0, 0, cb, qs, () -> DG.pt_pdf(designs[id], qs, cb, c))
+end
+val("ptq", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [0.05], () -> DG.pt_quantile(designs[3], 0.05, -13.5); tol = 1e-7)
+val("ptpow", 20, -10.0, 0, 0.0, -10.0, 0.0, 0, -10.0, [0.05], () -> collect(DG.pt_power(designs[20], -10.0, -10.0)); tol = 1e-7)
+val("ptenv", 9, NaN, 0, 0.0, 0.0, 0.0, 0, 0.05, [-5.0, -10.0, 1.0], () -> DG.pt_envelope(designs[9], [-5.0, -10.0, 1.0]); tol = 1e-8)
+for (id, c) in ((3, 0.0), (3, -10.0), (8, -5.0), (9, 0.0), (10, -13.5))
+    xs = [-3.0, -2.2, -1.6, -1.0, 0.5]
+    val("lmcdf", id, NaN, 0, 0.0, c, 0.0, 0, 0.0, xs, () -> DG.lm_cdf(designs[id], xs, c))
+end
+val("lmq", 3, NaN, 0, 0.0, 0.0, 0.0, 0, 0.0, [0.05], () -> DG.lm_quantile(designs[3], 0.05); tol = 1e-7)
+val("lmq", 9, NaN, 0, 0.0, -5.0, 0.0, 0, 0.0, [0.1], () -> DG.lm_quantile(designs[9], 0.1; c = -5.0); tol = 1e-7)
+val("lmpow", 8, NaN, 0, 0.0, 0.0, 0.0, 0, 0.05, [-5.0, -10.0], () -> (r = DG.lm_power(designs[8], [-5.0, -10.0]); [r[1]; r[2]]); tol = 1e-7)
+for (id, cb, c) in ((3, -13.5, 0.0), (3, -13.5, -10.0), (20, -13.5, -5.0), (5, -10.0, 0.0))
+    ys = [-25.0, -12.0, -5.0, -1.0]
+    val("mzacdf", id, cb, 0, 0.0, c, 0.0, 0, cb, ys, () -> DG.mza_cdf(designs[id], ys, c; gls = cb))
+    xs = [0.08, 0.15, 0.25, 0.4]
+    val("msbcdf", id, cb, 0, 0.0, c, 0.0, 0, cb, xs, () -> DG.msb_cdf(designs[id], xs, c; gls = cb))
+end
+val("mzaq", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [0.05], () -> DG.mza_quantile(designs[3], 0.05, 0.0; gls = -13.5); tol = 1e-7)
+val("msbq", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [0.05], () -> DG.msb_quantile(designs[3], 0.05, 0.0; gls = -13.5); tol = 1e-7)
 close(io)
 println("written ", OUT)
