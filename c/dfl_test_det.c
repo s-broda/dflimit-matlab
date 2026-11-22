@@ -105,6 +105,101 @@ static int moved(int f, int model, int stat, double g0, double gls, double c, do
     default: return 0;
     }
 }
+/* the user-level value functions of the 'val' and 'err' lines: rc and the values in got */
+static int val_call(const char *fn, int id, double cb, int st, double g0, double c, double c0, int ver, double par, int n, const double *x, double *got, char *err)
+{
+    dfl_det_opts o; dfl_det_defaults(&o); o.c0 = c0; o.start = st; o.gamma0 = g0; o.gls = cb; o.verified = ver;
+    int rc = 1;
+    if (!strcmp(fn, "cdf")) rc = dfl_det_dist(2, &DS[id], n, x, c, &o, got, err, 512);
+    else if (!strcmp(fn, "pdf")) rc = dfl_det_dist(1, &DS[id], n, x, c, &o, got, err, 512);
+    else if (!strcmp(fn, "quant")) rc = dfl_det_quantile(&DS[id], n, x, c, par, 1e-9, &o, got, err, 512);
+    else if (!strcmp(fn, "coefcdf")) rc = dfl_det_coef(2, &DS[id], n, x, c, &o, got, err, 512);
+    else if (!strcmp(fn, "coefpdf")) rc = dfl_det_coef(1, &DS[id], n, x, c, &o, got, err, 512);
+    else if (!strcmp(fn, "coefq")) rc = dfl_det_coef_quantile(&DS[id], n, x, c, par, 1e-9, &o, got, err, 512);
+    else if (!strcmp(fn, "coefgp")) rc = dfl_det_coef_cdf_gp(&DS[id], n, x, c, &o, 60000, 4000, got, err, 512);
+    else if (!strcmp(fn, "mom")) rc = dfl_det_moments(&DS[id], c, n, &o, got, NULL, err, 512);
+    else if (!strcmp(fn, "lpow")) { o.c0 = 0; rc = dfl_det_local_power(&DS[id], n, x, 0.05, (int) par, &o, got, err, 512); }
+    else if (!strcmp(fn, "lincdf")) rc = dfl_det_lin(2, &DS[id], n, x, par, c, &o, got, err, 512);
+    else if (!strcmp(fn, "linpdf")) rc = dfl_det_lin(1, &DS[id], n, x, par, c, &o, got, err, 512);
+    else if (!strcmp(fn, "linq")) rc = dfl_det_lin_quantile(&DS[id], x[0], par, c, 0.0, 1e-10, &o, got, err, 512);
+    else if (!strcmp(fn, "adfcdf")) rc = dfl_det_adfmax(2, &DS[id], n, x, c, &o, got, err, 512);
+    else if (!strcmp(fn, "adfpdf")) rc = dfl_det_adfmax(1, &DS[id], n, x, c, &o, got, err, 512);
+    else if (!strcmp(fn, "adfq")) rc = dfl_det_adfmax_quantile(&DS[id], x[0], c, par, 1e-10, &o, got, err, 512);
+    else if (!strcmp(fn, "env")) rc = dfl_det_power_envelope(&DS[id], n, x, par, got, err, 512);
+    else if (!strcmp(fn, "ptcdf")) rc = dfl_det_pt(2, &DS[id], n, x, par, c, 0, 0, got, err, 512);
+    else if (!strcmp(fn, "ptcdfN")) rc = dfl_det_pt(2, &DS[id], n, x, par, c, (int) c0, 0, got, err, 512);   /* (c0 carries N) */
+    else if (!strcmp(fn, "ptpdf")) rc = dfl_det_pt(1, &DS[id], n, x, par, c, 0, 0, got, err, 512);
+    else if (!strcmp(fn, "ptq")) rc = dfl_det_pt_quantile(&DS[id], x[0], par, 0, 0, got, err, 512);
+    else if (!strcmp(fn, "ptpow")) rc = dfl_det_pt_power(&DS[id], par, c, x[0], 0, 0, &got[0], &got[1], err, 512);
+    else if (!strcmp(fn, "ptenv")) rc = dfl_det_pt_envelope(&DS[id], n, x, par, 0, 0, got, err, 512);
+    else if (!strcmp(fn, "lmcdf")) rc = dfl_det_lm_cdf(&DS[id], n, x, c, got, err, 512);
+    else if (!strcmp(fn, "lmq")) rc = dfl_det_lm_quantile(&DS[id], x[0], c, got, err, 512);
+    else if (!strcmp(fn, "lmpow")) rc = dfl_det_lm_power(&DS[id], n, x, par, &got[0], got + 1, err, 512);
+    else if (!strcmp(fn, "mzacdf")) rc = dfl_det_mza_cdf(&DS[id], n, x, c, par, NULL, got, err, 512);
+    else if (!strcmp(fn, "mzaq")) rc = dfl_det_mza_quantile(&DS[id], x[0], c, par, NAN, 1e-9, NULL, got, err, 512);
+    else if (!strcmp(fn, "msbcdf")) rc = dfl_det_msb_cdf(&DS[id], n, x, c, par, got, err, 512);
+    else if (!strcmp(fn, "msbq")) rc = dfl_det_msb_quantile(&DS[id], x[0], c, par, got, err, 512);
+    else { printf("unknown value function %s\n", fn); snprintf(err, 512, "unknown value function %s", fn); }
+    return rc;
+}
+/* the router's functions of the 'route' and 'rerr' lines */
+static int route_call(const char *fn, int e, const char *sp, int a, int st, double g0, double gl, double c, double c0, double par, int n, const double *x, double *got, char *err)
+{
+    dfl_spec S; S.D = strcmp(sp, "design") ? NULL : &DS[a]; S.model = S.D ? 0 : a; S.start = st; S.g0 = g0; S.gls = gl;   /* (NaN on the lines of a case, except where a line tests the refusal of gls) */
+    int rc = 1;
+    if (!strcmp(fn, "cdf")) rc = dfl_engine_dist(2, n, x, &S, c, c0, e, 0, 0, got, err, 512);
+    else if (!strcmp(fn, "pdf")) rc = dfl_engine_dist(1, n, x, &S, c, c0, e, 0, 0, got, err, 512);
+    else if (!strcmp(fn, "icdf")) rc = dfl_engine_icdf(n, x, &S, c, c0, e, 0, 1e-10, got, err, 512);
+    else if (!strcmp(fn, "mom")) rc = dfl_engine_mom((int) x[0], &S, c, c0, e, got, err, 512);
+    else if (!strcmp(fn, "coef")) rc = dfl_engine_coef(n, x, &S, c, c0, e, got, err, 512);
+    else if (!strcmp(fn, "coefq")) rc = dfl_engine_coef_icdf(n, x, &S, c, c0, e, 1e-9, got, err, 512);
+    else if (!strcmp(fn, "lin")) rc = dfl_engine_lincdf(n, x, par, a, c, gl, e, got, err, 512);
+    else if (!strcmp(fn, "env")) rc = dfl_engine_envelope(n, x, a, par, e, got, err, 512);
+    else if (!strcmp(fn, "adf")) rc = dfl_engine_adfmax(2, n, x, &S, c, e, got, err, 512);
+    else if (!strcmp(fn, "adfpdf")) rc = dfl_engine_adfmax(1, n, x, &S, c, e, got, err, 512);
+    else if (!strcmp(fn, "region1")) { double pr[2] = {par, x[0]}; rc = dfl_engine_region(1, pr, &S, c, e, got, err, 512); }
+    else if (!strcmp(fn, "region2")) { double pr[2] = {x[0], 0.0}; rc = dfl_engine_region(2, pr, &S, c, e, got, err, 512); }
+    else snprintf(err, 512, "unknown route function %s", fn);
+    return rc;
+}
+/* the warnings of the router and the general engine: cleared at the start of every router call and by
+ * dfl_design_from_matrix, the public clear functions, the hold released where a search fails (no reference values) */
+static void selftest_warnings(void)
+{
+    char err[512]; dfl_design T0, M; double v[4], x = -2.0;
+    dfl_design_trend(0, &T0, err, sizeof err);
+    int n = 50; double X[150];
+    for (int t = 0; t < n; t++) { X[t] = 1; X[n + t] = (t + 1.0) / n; X[2 * n + t] = 2 * X[n + t]; }
+#define WCHK(cond, what) check("warnings", (cond) ? 0 : 1, 0, 0, what)
+    dfl_design_from_matrix(n, 3, X, 0, NULL, 0, 0, 0, &M, err, sizeof err); dfl_design_free(&M);
+    WCHK(dfl_det_warning() && strstr(dfl_det_warning(), "linearly dependent"), "design_from_matrix warns of a dependent column");
+    dfl_spec S = {NULL, 2, 0, 0.0, NAN};
+    dfl_engine_dist(2, 1, &x, &S, -5, 0, DFL_ENGINE_CLASSICAL, 0, 0, v, err, sizeof err);
+    WCHK(dfl_det_warning() == NULL, "a classical router call clears dfl_det_warning");
+    dfl_warning_join("a stale classical warning");
+    dfl_engine_dist(2, 1, &x, &S, -5, 0, DFL_ENGINE_GENERAL, 0, 0, v, err, sizeof err);
+    WCHK(dfl_warning() == NULL, "a general router call clears dfl_warning");
+    dfl_warning_join("a stale classical warning");
+    dfl_design_from_matrix(n, 3, X, 0, NULL, 0, 0, 0, &M, err, sizeof err); dfl_design_free(&M);
+    WCHK(dfl_warning() == NULL, "design_from_matrix clears dfl_warning");
+    dfl_warning_join("x"); dfl_warning_clear(); WCHK(dfl_warning() == NULL, "dfl_warning_clear");
+    det_warn("x"); dfl_det_warning_clear(); WCHK(dfl_det_warning() == NULL, "dfl_det_warning_clear");
+    /* the hold of the routed search, released at p outside (0, 1): the next general call clears the warning */
+    double p = 1.5;
+    int rc = dfl_engine_icdf(1, &p, &S, -5, -1.0, DFL_ENGINE_AUTO, 0, 1e-10, v, err, sizeof err);
+    WCHK(rc != 0, "the routed quantile search refuses p = 1.5");
+    dfl_design_from_matrix(n, 3, X, 0, NULL, 0, 0, 0, &M, err, sizeof err); dfl_design_free(&M);
+    dfl_det_opts o; dfl_det_defaults(&o);
+    dfl_det_dist(2, &T0, 1, &x, -5, &o, v, err, sizeof err);
+    WCHK(dfl_det_warning() == NULL, "after a refused routed search the general engine's warning is cleared again (the hold released)");
+    /* a hold left by a call is dropped by dfl_det_warning_clear */
+    det_warn_hold(1); det_warn("held"); dfl_det_warning_clear();
+    dfl_det_dist(2, &T0, 1, &x, -5, &o, v, err, sizeof err);
+    det_warn("y"); dfl_det_dist(2, &T0, 1, &x, -5, &o, v, err, sizeof err);
+    WCHK(dfl_det_warning() == NULL, "dfl_det_warning_clear drops a hold");
+#undef WCHK
+    dfl_design_free(&T0);
+}
 static det_prep *prep_of(int id, double cb, char *err)
 {
     det_prep *P = NULL;
@@ -239,37 +334,7 @@ int main(int argc, char **argv)
             for (int i = 0; i < nw; i++) want[i] = num(&p);
             double tol = num(&p);
             int brittle = strstr(p, "brittle") != NULL;
-            dfl_det_opts o; dfl_det_defaults(&o); o.c0 = c0; o.start = st; o.gamma0 = g0; o.gls = cb; o.verified = ver;
-            double t1 = dfl_wtime(); int rc = 1;
-            if (!strcmp(fn, "cdf")) rc = dfl_det_dist(2, &DS[id], n, x, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "pdf")) rc = dfl_det_dist(1, &DS[id], n, x, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "quant")) rc = dfl_det_quantile(&DS[id], n, x, c, par, 1e-9, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "coefcdf")) rc = dfl_det_coef(2, &DS[id], n, x, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "coefpdf")) rc = dfl_det_coef(1, &DS[id], n, x, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "coefq")) rc = dfl_det_coef_quantile(&DS[id], n, x, c, par, 1e-9, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "coefgp")) rc = dfl_det_coef_cdf_gp(&DS[id], n, x, c, &o, 60000, 4000, got, err, sizeof err);
-            else if (!strcmp(fn, "mom")) rc = dfl_det_moments(&DS[id], c, n, &o, got, NULL, err, sizeof err);
-            else if (!strcmp(fn, "lpow")) { o.c0 = 0; rc = dfl_det_local_power(&DS[id], n, x, 0.05, (int) par, &o, got, err, sizeof err); }
-            else if (!strcmp(fn, "lincdf")) rc = dfl_det_lin(2, &DS[id], n, x, par, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "linpdf")) rc = dfl_det_lin(1, &DS[id], n, x, par, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "linq")) rc = dfl_det_lin_quantile(&DS[id], x[0], par, c, 0.0, 1e-10, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "adfcdf")) rc = dfl_det_adfmax(2, &DS[id], n, x, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "adfpdf")) rc = dfl_det_adfmax(1, &DS[id], n, x, c, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "adfq")) rc = dfl_det_adfmax_quantile(&DS[id], x[0], c, par, 1e-10, &o, got, err, sizeof err);
-            else if (!strcmp(fn, "env")) rc = dfl_det_power_envelope(&DS[id], n, x, par, got, err, sizeof err);
-            else if (!strcmp(fn, "ptcdf")) rc = dfl_det_pt(2, &DS[id], n, x, par, c, 0, 0, got, err, sizeof err);
-            else if (!strcmp(fn, "ptpdf")) rc = dfl_det_pt(1, &DS[id], n, x, par, c, 0, 0, got, err, sizeof err);
-            else if (!strcmp(fn, "ptq")) rc = dfl_det_pt_quantile(&DS[id], x[0], par, 0, 0, got, err, sizeof err);
-            else if (!strcmp(fn, "ptpow")) rc = dfl_det_pt_power(&DS[id], par, c, x[0], 0, 0, &got[0], &got[1], err, sizeof err);
-            else if (!strcmp(fn, "ptenv")) rc = dfl_det_pt_envelope(&DS[id], n, x, par, 0, 0, got, err, sizeof err);
-            else if (!strcmp(fn, "lmcdf")) rc = dfl_det_lm_cdf(&DS[id], n, x, c, got, err, sizeof err);
-            else if (!strcmp(fn, "lmq")) rc = dfl_det_lm_quantile(&DS[id], x[0], c, got, err, sizeof err);
-            else if (!strcmp(fn, "lmpow")) rc = dfl_det_lm_power(&DS[id], n, x, par, &got[0], got + 1, err, sizeof err);
-            else if (!strcmp(fn, "mzacdf")) rc = dfl_det_mza_cdf(&DS[id], n, x, c, par, NULL, got, err, sizeof err);
-            else if (!strcmp(fn, "mzaq")) rc = dfl_det_mza_quantile(&DS[id], x[0], c, par, NAN, 1e-9, NULL, got, err, sizeof err);
-            else if (!strcmp(fn, "msbcdf")) rc = dfl_det_msb_cdf(&DS[id], n, x, c, par, got, err, sizeof err);
-            else if (!strcmp(fn, "msbq")) rc = dfl_det_msb_quantile(&DS[id], x[0], c, par, got, err, sizeof err);
-            else { printf("unknown value function %s\n", fn); }
+            double t1 = dfl_wtime(); int rc = val_call(fn, id, cb, st, g0, c, c0, ver, par, n, x, got, err);
             double dt = dfl_wtime() - t1;
             char gname[48]; snprintf(gname, sizeof gname, "%s%s", fn, brittle ? "*" : "");
             snprintf(what, sizeof what, "%s design %d cbar %g start %d g0 %g c %g c0 %g%s", fn, id, cb, st, g0, c, c0, ver ? " verified" : "");
@@ -283,6 +348,47 @@ int main(int argc, char **argv)
             if (VERB) printf("     %.1f ms %s%s%s\n", 1e3 * dt, what, dfl_det_warning() ? " warning: " : "", dfl_det_warning() ? dfl_det_warning() : "");
             free(x); free(want); free(got);
             dfl_det_empty_caches();
+            continue;
+        }
+        if (!strcmp(tag, "err") || !strcmp(tag, "rerr")) {
+            /* a call that must fail with an error whose message contains the text after '|' */
+            char fn[32], sp[16] = ""; int k2; sscanf(p, "%31s%n", fn, &k2); p += k2;
+            int r = !strcmp(tag, "rerr"), e = 0, id, st; double cb = NAN, gl = NAN, g0, c, c0, par;
+            if (r) { e = inum(&p); sscanf(p, "%15s%n", sp, &k2); p += k2; id = inum(&p); st = inum(&p); g0 = num(&p); gl = num(&p); c = num(&p); c0 = num(&p); par = num(&p); }
+            else { id = inum(&p); cb = num(&p); st = inum(&p); g0 = num(&p); c = num(&p); c0 = num(&p); (void) inum(&p); par = num(&p); }
+            int n = inum(&p); double x[64], got[72];
+            for (int i = 0; i < n; i++) x[i] = num(&p);
+            char *bar = strchr(p, '|'), txt[256] = "";
+            if (bar) { snprintf(txt, sizeof txt, "%s", bar + 2); size_t l = strlen(txt); while (l && (txt[l - 1] == '\n' || txt[l - 1] == '\r')) txt[--l] = 0; }
+            err[0] = 0;
+            double t1 = dfl_wtime();
+            int rc = r ? route_call(fn, e, sp, id, st, g0, gl, c, c0, par, n, x, got, err) : val_call(fn, id, cb, st, g0, c, c0, 0, par, n, x, got, err);
+            group_t *g = grp(r ? "route-err" : "errors"); g->n++;
+            snprintf(what, sizeof what, "%s %s %s %d start %d g0 %g gls/cbar %g c %g c0 %g x[0] %g (%.2f s)", tag, fn, sp, id, st, g0, r ? gl : cb, c, c0, n ? x[0] : NAN, dfl_wtime() - t1);
+            if (!rc || !strstr(err, txt)) { g->fail++; printf("FAIL %s: %s (wanted an error with \"%s\")\n", what, rc ? err : "no error", txt); }
+            else if (VERB) printf("ok   %s: %s\n", what, err);
+            dfl_det_empty_caches();
+            continue;
+        }
+        if (!strcmp(tag, "lmtstar")) {
+            /* the edge of the LM statistic's transform: t_* and the sign of D_V on (0.01, 0.99) t_* and at 1.01 t_* */
+            int id = inum(&p); double c = num(&p), ts = num(&p), tol = num(&p), a1, tsc;
+            det_prep *P; det_model Mo;
+            if (det_prep_lm(&DS[id], &P, &a1, err, sizeof err) || det_model_make(P, 0, 0.0, &Mo, err, sizeof err)) { grp("lmtstar")->fail++; printf("FAIL lmtstar %d: %s\n", id, err); continue; }
+            int rc = det_tstar(&Mo, c, &tsc, NULL, err, sizeof err);
+            snprintf(what, sizeof what, "LM statistic, design %d c %g: t_*", id, c);
+            check("lmtstar", rc ? NAN : tsc, ts, tol, what);
+            det_work W; char buf[DET_WORK_STACK]; det_work_init(&W, &Mo, buf, sizeof buf);
+            int bad = 0; cdouble th, ld, mu[64];
+            for (int i = 0; i <= 200 && !rc; i++) {
+                double t = i < 200 ? (0.01 + 0.98 * i / 199.0) * tsc : 1.01 * tsc;
+                det_mgfparts(&W, c, CPX(t, 0), &th, &ld, mu, NULL);
+                double dv = creal(cexp(ld));
+                if (i < 200 ? !(dv > 0) : !(dv < 0)) bad = 1;
+            }
+            snprintf(what, sizeof what, "LM statistic, design %d c %g: D_V > 0 below t_* and < 0 at 1.01 t_*", id, c);
+            check("lmtstar", bad, 0, 0, what);
+            det_work_free(&W); det_model_free(&Mo); det_prep_free(P);
             continue;
         }
         if (!strcmp(tag, "auto")) {
@@ -303,20 +409,7 @@ int main(int argc, char **argv)
             for (int i = 0; i < n; i++) x[i] = num(&p);
             int nw = inum(&p); for (int i = 0; i < nw; i++) want[i] = num(&p);
             double tol = num(&p);
-            dfl_spec S; S.D = strcmp(sp, "design") ? NULL : &DS[a]; S.model = S.D ? 0 : a; S.start = st; S.g0 = g0; S.gls = S.D ? gl : NAN;
-            int rc = 1;
-            if (!strcmp(fn, "cdf")) rc = dfl_engine_dist(2, n, x, &S, c, c0, e, 0, 0, got, err, sizeof err);
-            else if (!strcmp(fn, "pdf")) rc = dfl_engine_dist(1, n, x, &S, c, c0, e, 0, 0, got, err, sizeof err);
-            else if (!strcmp(fn, "icdf")) rc = dfl_engine_icdf(n, x, &S, c, c0, e, 0, 1e-10, got, err, sizeof err);
-            else if (!strcmp(fn, "mom")) rc = dfl_engine_mom((int) x[0], &S, c, c0, e, got, err, sizeof err);
-            else if (!strcmp(fn, "coef")) rc = dfl_engine_coef(n, x, &S, c, c0, e, got, err, sizeof err);
-            else if (!strcmp(fn, "coefq")) rc = dfl_engine_coef_icdf(n, x, &S, c, c0, e, 1e-9, got, err, sizeof err);
-            else if (!strcmp(fn, "lin")) rc = dfl_engine_lincdf(n, x, par, a, c, gl, e, got, err, sizeof err);
-            else if (!strcmp(fn, "env")) rc = dfl_engine_envelope(n, x, a, par, e, got, err, sizeof err);
-            else if (!strcmp(fn, "adf")) rc = dfl_engine_adfmax(2, n, x, &S, c, e, got, err, sizeof err);
-            else if (!strcmp(fn, "adfpdf")) rc = dfl_engine_adfmax(1, n, x, &S, c, e, got, err, sizeof err);
-            else if (!strcmp(fn, "region1")) { double pr[2] = {par, x[0]}; rc = dfl_engine_region(1, pr, &S, c, e, got, err, sizeof err); }
-            else if (!strcmp(fn, "region2")) { double pr[2] = {x[0], 0.0}; rc = dfl_engine_region(2, pr, &S, c, e, got, err, sizeof err); }
+            int rc = route_call(fn, e, sp, a, st, g0, gl, c, c0, par, n, x, got, err);
             char gname[48]; snprintf(gname, sizeof gname, "route-%s", e == 0 ? "auto" : e == 1 ? "classical" : "general");
             snprintf(what, sizeof what, "%s engine %d %s %d start %d g0 %g gls %g c %g c0 %g", fn, e, sp, a, st, g0, gl, c, c0);
             if (rc) { grp(gname)->fail++; grp(gname)->n++; printf("FAIL %s: %s\n", what, err); }
@@ -327,6 +420,7 @@ int main(int argc, char **argv)
         }
     }
     fclose(f);
+    selftest_warnings();
     int fails = 0, n = 0;
     printf("%-10s %8s %8s %12s %10s\n", "group", "values", "failed", "largest dev", "dev/tol");
     for (int i = 0; i < NG; i++) { printf("%-10s %8d %8d %12.2e %10.2e\n", G[i].name, G[i].n, G[i].fail, G[i].worst, G[i].worst_rel_tol); fails += G[i].fail; n += G[i].n; }

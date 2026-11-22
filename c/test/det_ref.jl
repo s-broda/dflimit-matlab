@@ -345,5 +345,87 @@ end
 for c in cgrid, a in (NaN, -3.5, 0.0); aline(4, 1, 0, 0.0, NaN, c, 0.0, a); end
 for c in cgrid, gl in (-13.5, -5.0, -2.0, -1.0), a in (-7.3, 0.0); aline(4, 4, 0, 0.0, gl, c, 0.0, a); end
 for m in (1, 4), c in (-10.0, -1.0, -0.5, -0.01, -1e-4); aline(6, m, 0, 0.0, NaN, c, 0.0, 0.0); end
+
+# ---------------------------------------------------------------------------------------------------------------------
+# the repairs of November 2026 (DFLimit.jl 6e3109e to 30fd050 and the defects of the C interface).  'lmtstar id c t_* tol':
+# the edge of the LM statistic's transform (the first zero of its D_V; the C test also checks the sign of D_V on both
+# sides).  'err func id cbar start g0 c c0 verified par n x... | text' and 'rerr func engine spec a b g0 gls c c0 par n x...
+# | text': a call that must fail with an error whose message contains text (the arguments as in 'val' and 'route').
+# Values that the Julia engine does not give in the same form (the law of V off its support, the envelopes at c = NaN,
+# where the Julia functions return the level) are written here by hand.
+for id in (3, 4, 7, 8, 10), c in (-20.0, 2.0, 5.0)
+    Mo = DG.model(DG.lmprep(designs[id])); tl = DG.tstar(Mo, c)[1]
+    line("lmtstar", string(id), c, tl, 1e-11 * tl)
+end
+defd(23, "perron A 1 0.5", DG.perron(:A, 0.5))
+# the level breaks have the law of the linear trend at c = 3, 4 (the edge estimate failed there); c = 5, 7 on the path of
+# V alone (the vertical line was off by 6e-3); above c = 10 an error
+xl = [-0.5, -0.2, -0.1, -0.05]
+for id in (3, 7, 23), c in (3.0, 4.0)
+    val("lmcdf", id, NaN, 0, 0.0, c, 0.0, 0, 0.0, xl, () -> DG.lm_cdf(designs[id], xl, c))
+end
+for c in (2.5, 5.0, 7.0); val("lmcdf", 3, NaN, 0, 0.0, c, 0.0, 0, 0.0, xl, () -> DG.lm_cdf(designs[3], xl, c)); end
+val("lmq", 3, NaN, 0, 0.0, 5.0, 0.0, 0, 0.0, [0.05], () -> DG.lm_quantile(designs[3], 0.05; c = 5.0); tol = 1e-7)
+errline(fn, id, cb, st, g0, c, c0, par, xs, txt) = println(io, join(["err", fn, string(id), fmt(cb), string(st), fmt(g0), fmt(c), fmt(c0), "0", fmt(par),
+                                                               string(length(xs)), fmt.(xs)...], " ") * " | " * txt)
+errline("lmcdf", 3, NaN, 0, 0.0, 11.0, 0.0, 0.0, [-0.1], "must be at most 10")
+errline("lmq", 3, NaN, 0, 0.0, 11.0, 0.0, 0.0, [0.05], "must be at most 10")
+errline("lmpow", 3, NaN, 0, 0.0, 0.0, 0.0, 0.05, [-5.0, 11.0], "must be at most 10")
+# the guard on the U-shapes of the zero start: (1 + r, 1{r < 0.4}) at c = 1
+errline("cdf", 19, NaN, 0, 0.0, 1.0, 0.0, 0.0, [-2.0], "the U-shapes of the zero start")
+# the point-optimal statistic: the last values below the refusal and the first refused c (linear trend at cbar = -13.5,
+# intercept at -7, Perron B and C at 0.5), q beyond the range of the grid, the non-finite q; c = 5 with N = 1e6
+# ('ptcdfN': the field c0 carries N)
+qq = [4.0, 10.0, 30.0]
+for (id, cb, cok, cno) in ((3, -13.5, 3.6, 3.7), (2, -7.0, 3.0, 3.1), (8, -17.8, 4.3, 4.4), (24, -20.0, 4.2, 4.3))
+    id == 24 && !haskey(designs, 24) && defd(24, "perron C 1 0.5", DG.perron(:C, 0.5))
+    val("ptcdf", id, cb, 0, 0.0, cok, 0.0, 0, cb, qq, () -> DG.pt_cdf(designs[id], qq, cb, cok))
+    errline("ptcdf", id, cb, 0, 0.0, cno, 0.0, cb, qq, "does not resolve")
+end
+val("ptcdf", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [1e3, Inf, -Inf, NaN], () -> DG.pt_cdf(designs[3], [1e3, Inf, -Inf, NaN], -13.5, 0.0))
+errline("ptcdf", 3, -13.5, 0, 0.0, 0.0, 0.0, -13.5, [1e5], "beyond the range")
+val("ptcdfN", 3, -13.5, 0, 0.0, 5.0, 1e6, 0, -13.5, [73.28, 100.0], () -> DG.pt_cdf(designs[3], [73.28, 100.0], -13.5, 5.0; N = 1_000_000))
+# p outside (0, 1): an error, not a growing bracket
+for (fn, id, cb, par) in (("linq", 1, NaN, -3.5), ("adfq", 2, NaN, -2.0), ("ptq", 3, -13.5, -13.5), ("quant", 3, NaN, -2.0), ("coefq", 3, NaN, -10.0),
+                          ("lmq", 3, NaN, 0.0), ("msbq", 3, -13.5, -13.5), ("mzaq", 3, -13.5, -13.5)), p in (1.5, 0.0, NaN)
+    errline(fn, id, cb, 0, 0.0, 0.0, 0.0, par, [p], "must lie in (0, 1)")
+end
+errline("ptpow", 3, -13.5, 0, 0.0, 0.0, 0.0, -13.5, [1.5], "level must lie in (0, 1)")
+errline("env", 1, NaN, 0, 0.0, 0.0, 0.0, 1.5, [-5.0], "level must lie in (0, 1)")
+# the law of V off its support (0 at b <= 0 and -Inf, 1 or 0 at Inf, NaN at NaN), MSB at NaN and Inf, the envelopes at NaN
+vb = [-0.1, 0.0, NaN, Inf, -Inf]
+println(io, join(["val", "lincdf", "1", "NaN", "0", "0", "-5", "0", "0", "NaN", "5", fmt.(vb)..., "5", "0", "0", "NaN", "1", "0", "1e-15"], " "))
+println(io, join(["val", "linpdf", "1", "NaN", "0", "0", "-5", "0", "0", "NaN", "5", fmt.(vb)..., "5", "0", "0", "NaN", "0", "0", "1e-15"], " "))
+val("msbcdf", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [NaN, Inf, -1.0, 0.2], () -> [NaN; 1.0; 0.0; DG.msb_cdf(designs[3], [0.2], 0.0; gls = -13.5)])
+val("env", 1, NaN, 0, 0.0, 0.0, 0.0, 0, 0.05, [NaN, -5.0], () -> [NaN; DG.power_envelope(designs[1], [-5.0])]; tol = 1e-8)
+val("ptenv", 9, NaN, 0, 0.0, 0.0, 0.0, 0, 0.05, [NaN, -5.0], () -> [NaN; DG.pt_envelope(designs[9], [-5.0])]; tol = 1e-8)
+# ADFmax: a fixed start takes the general engine (the classical ADFmax has none; the zero start was computed), GLS
+# detrending and the classical engine with a fixed start refused
+xa = [-3.0, -2.4, -1.5]
+for e in (0, 2)
+    rline("adf", e, "case", 2, 1, 1.5, NaN, -5.0, 0.0, 0.0, xa, () -> DG.adfmax_cdf(designs[2], xa, -5.0; start = :fixed, gamma0 = 1.5))
+    rline("adfpdf", e, "case", 3, 1, 1.0, NaN, -5.0, 0.0, 0.0, xa, () -> DG.adfmax_pdf(designs[3], xa, -5.0; start = :fixed, gamma0 = 1.0))
+    rline("adf", e, "design", 2, 1, 1.5, NaN, -5.0, 0.0, 0.0, xa, () -> DG.adfmax_cdf(designs[2], xa, -5.0; start = :fixed, gamma0 = 1.5))
+end
+rerr(fn, e, sp, a, b, g0, gl, c, c0, par, xs, txt) = println(io, join(["rerr", fn, string(e), sp, string(a), string(b), fmt(g0), fmt(gl), fmt(c), fmt(c0), fmt(par),
+                                                                 string(length(xs)), fmt.(xs)...], " ") * " | " * txt)
+rerr("adf", 1, "case", 2, 1, 1.5, NaN, -5.0, 0.0, 0.0, xa, "with a zero or a stationary start")
+rerr("adf", 0, "design", 3, 0, 0.0, -13.5, -5.0, 0.0, 0.0, xa, "least-squares detrending only")
+rerr("adf", 2, "design", 9, 0, 0.0, -7.0, -5.0, 0.0, 0.0, xa, "least-squares detrending only")
+rerr("adf", 0, "case", 4, 0, 0.0, NaN, -5.0, 0.0, 0.0, xa, "the case must be one of DU, DT, SU, ST")
+rerr("cdf", 0, "case", 2, 0, 0.0, -7.0, -5.0, 0.0, 0.0, [-2.0], "gls applies to a design")
+errline("adfcdf", 2, -13.5, 0, 0.0, -5.0, 0.0, 0.0, xa, "least-squares detrending only")
+errline("adfcdf", 2, NaN, 0, 0.0, -5.0, 1.0, 0.0, xa, "c0 must be 0")
+# the regions without deterministic terms and with a fixed start (the classical regions have the zero start only)
+for e in (0, 2), sp in ("case", "design")
+    rline("region1", e, sp, 1, 1, 1.5, NaN, -5.0, 0.0, -3.5, [-0.2639], () -> DFLimit.ltratio_region((type = "line", a = -3.5, b = -0.2639), designs[1], -5.0; g0 = 1.5))
+    rline("region2", e, sp, 1, 1, 1.5, NaN, -5.0, 0.0, 0.0, [-2.0], () -> DFLimit.ltratio_region((type = "parabola", x = -2.0), designs[1], -5.0; g0 = 1.5))
+end
+rerr("region1", 1, "case", 1, 1, 1.5, NaN, -5.0, 0.0, -3.5, [-0.2639], "case DK only")
+# p outside (0, 1) in the router
+for (fn, e) in (("icdf", 0), ("icdf", 2), ("coefq", 0), ("coefq", 2))
+    rerr(fn, e, "case", 2, 0, 0.0, NaN, -5.0, fn == "icdf" ? -1.0 : 0.0, 0.0, [1.5], "must lie in (0, 1)")
+end
+rerr("env", 0, "case", 1, 0, 0.0, NaN, 0.0, 0.0, 1.5, [-5.0], "must lie in (0, 1)")
 close(io)
 println("written ", OUT)
