@@ -23,7 +23,9 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %       DT the classical conditional integral is 1.4 to 3 times faster);
 %     zero start, c0 > 0, c <= 1 (2 to 6 times; in case DK just above the
 %       tangency x* = -sqrt(2 c0) the classical line integral, the more
-%       accurate there), and c0 ~= 0 for c < -100 (3.7 to 8 times);
+%       accurate there; at x = 0, the points of COEF_CDF and COEF_ICDF, the
+%       classical line integral for c > -100 in cases DK, DU, DT, 3 to 8 times
+%       faster there), and c0 ~= 0 for c < -100 (3.7 to 8 times);
 %     stationary start, c0 ~= 0, c <= -3e-3 (2.4 to 70 times; nearer zero the
 %       general engine is off by 1e-10 to 1e-7, as in the Julia package);
 %     fixed start, case DK: c < -10 (the classical conditional integral is off
@@ -71,6 +73,9 @@ switch f
                 xs = -sqrt(2*c0);
                 gen(xs < x & x <= xs + 1e-3*max(1,abs(xs))) = false;
             end
+            % (x = 0, the points of the coefficient statistic, F at x = 0 with the null value c0 + y: the classical line
+            % integral, 3 to 8 times faster there, where X(v) = c0 v^2 + 1/2 has no root; as the Julia and the C rule)
+            if c > -100 && any(strcmp(cas,{'DK','DU','DT'})), gen(x == 0) = false; end
             return
         end
         if ~fixed && ~stat && c0 ~= 0 && c < -100, gen(:) = true; return, end

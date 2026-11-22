@@ -98,6 +98,20 @@ int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, 
     case DFL_F_DIST:
         /* the t-ratio: the faster engine where the two agree to 1e-10, the more accurate one where they do not */
         if (stat && c0 != 0 && c <= -3e-3) return DFL_ENGINE_GENERAL;
+        /* x = 0, the points of the coefficient statistic (dfl_engine_coef: F at x = 0 with the null value c0 + y), one point
+         * per call (scratch timings of November 2026, cases DK, DU, DT, c from 1 to -80, y at the 1 to 99% quantiles of the
+         * statistic and c0 = -3, 2; the Julia measurements agree): with c0 > 0 the classical line integral, 2 to 17 times
+         * faster there (X(v) = c0 v^2 + 1/2 has no root), where the rule below takes the general engine for the t-ratio; with
+         * c0 < 0 in case DK for c > -5 the general engine (1.0 to 2.1 times faster; the classical line integral with its
+         * general kernel), in case DU the classical engine (over the quantiles at c = 0, -5, -10 1.0 to 1.6 times faster,
+         * where the rule below takes the general engine for the t-ratio: coef_cdf of case DU at c = -5 was about three times
+         * slower in the R and Python packages at the median); case DT as the t-ratio (the general engine up to 1.7 times
+         * faster for -20 <= c <= 0) */
+        if (x == 0 && !fixed && !stat && c0 != 0 && -100 < c && c <= 1 && (DK || DU || DT)) {
+            if (c0 > 0) return DFL_ENGINE_CLASSICAL;
+            if (DK && c > -5) return DFL_ENGINE_GENERAL;
+            if (DU) return DFL_ENGINE_CLASSICAL;
+        }
         if (!fixed && !stat && c0 > 0 && -100 < c && c <= 1) {
             /* (case DK: the density is infinite at the tangency x* = -sqrt(2 c0); just above it the classical line integral) */
             if (DK) { double xs = -sqrt(2 * c0); if (xs < x && x <= xs + 1e-3 * dmax(1.0, fabs(xs))) return DFL_ENGINE_CLASSICAL; }
