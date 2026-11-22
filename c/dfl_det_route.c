@@ -28,6 +28,8 @@ static int resolve(const dfl_spec *S, spec_t *R, char *err, size_t errlen)
     if (S->D == NULL) {
         /* a classical case: the design trend(p) (case DG: trend(1) GLS-detrended at cbar = -13.5) */
         if (S->model < 1 || S->model > 4) { snprintf(err, errlen, "model must be 1, 2, 3 or 4 (no deterministic terms, intercept, intercept and trend, GLS-detrended trend)"); return 1; }
+        /* (gls applies to a design; a classical case has its detrending in its model: never a detrending silently dropped) */
+        if (!isnan(S->gls) && !(S->model == 4 && S->gls == DFL_CBAR_GLS)) { snprintf(err, errlen, "gls applies to a design (spec->D); a classical case has its detrending in its model (model 4: GLS detrending at cbar = -13.5), and gls must be NaN"); return 1; }
         R->model = S->model; R->stat = S->start == 2;
         if (R->model == 4) { R->gls = DFL_CBAR_GLS; if (R->stat) { snprintf(err, errlen, "the GLS-detrended case (model 4) has a zero start only"); return 1; } }
         else R->gls = NAN;
@@ -419,14 +421,19 @@ int dfl_engine_envelope(int n, const double *cs, int model, double alpha, int en
     dfl_design_free(&D);
     return rc;
 }
-/* ADFmax (kind 2 distribution function, 1 density) for a case DU, DT, SU, ST or a design */
+/* ADFmax (kind 2 distribution function, 1 density) for a case DU, DT, SU, ST or a design.  The classical ADFmax has the
+ * zero and the stationary start of cases DU, DT only: a fixed start (of a case code or of trend(0), trend(1)) takes the
+ * general engine, whose ADFmax is the same functional of the design's (U, V) for every start (it computed a zero start
+ * before); GLS detrending is refused (neither engine has the ADFmax of GLS-detrended data: the general engine detrends by
+ * least squares, and gls was dropped) */
 int dfl_engine_adfmax(int kind, int n, const double *x, const dfl_spec *S, double c, int engine, double *out, char *err, size_t errlen)
 {
     warn_entry();
     spec_t R; if (resolve(S, &R, err, errlen)) return 1;
-    int cls = R.model == 2 || R.model == 3;
-    if (S->D == NULL && !cls) { snprintf(err, errlen, "adfmax: the case must be one of DU, DT, SU, ST"); spec_free(&R); return 1; }
-    if (engine == DFL_ENGINE_CLASSICAL && !cls) { snprintf(err, errlen, "engine classical: ADFmax of the classical engine has the cases DU, DT, SU, ST only"); spec_free(&R); return 1; }
+    int clsmodel = R.model == 2 || R.model == 3, cls = clsmodel && R.start != 1;
+    if (S->D == NULL && !clsmodel) { snprintf(err, errlen, "adfmax: the case must be one of DU, DT, SU, ST"); spec_free(&R); return 1; }
+    if (!isnan(R.gls)) { snprintf(err, errlen, "adfmax: ADFmax has least-squares detrending only (gls must be NaN)"); spec_free(&R); return 1; }
+    if (engine == DFL_ENGINE_CLASSICAL && !cls) { snprintf(err, errlen, "engine classical: ADFmax of the classical engine has the cases DU, DT, SU, ST only, with a zero or a stationary start"); spec_free(&R); return 1; }
     if (engine != DFL_ENGINE_GENERAL && cls && (!isfinite(c) || c < DFL_CMIN || (R.stat && !(c <= DFL_CSTAT)))) {
         snprintf(err, errlen, "%s", !isfinite(c) ? "adfmax: c must be a finite real scalar" : c < DFL_CMIN ? DFL_CMIN_MSG : DFL_STAT_MSG); spec_free(&R); return 1;
     }

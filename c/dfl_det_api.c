@@ -526,13 +526,21 @@ int dfl_det_power_envelope(const dfl_design *D, int n, const double *cs, double 
     return rc;
 }
 
+/* ADFmax: least-squares detrending at the null value phi = 1 (the general engine has no ADFmax of GLS-detrended data and
+ * no local null value; both were dropped without notice before) */
+static int adf_opts_check(const dfl_det_opts *o, char *err, size_t errlen)
+{
+    if (!isnan(o->gls)) { snprintf(err, errlen, "adfmax: ADFmax has least-squares detrending only (gls must be NaN)"); return 1; }
+    if (o->c0 != 0) { snprintf(err, errlen, "adfmax: ADFmax is the statistic of the null value phi = 1 (c0 must be 0)"); return 1; }
+    return 0;
+}
 int dfl_det_adfmax(int kind, const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o0, double *out, char *err, size_t errlen)
 {
     dfl_det_opts od; const dfl_det_opts *o1 = opts_or_default(o0, &od);
-    dfl_det_opts o = *o1; o.gls = NAN;           /* (ADFmax: least squares detrending) */
+    dfl_det_opts o = *o1;
     det_warn_clear();
     if (kind != 1 && kind != 2) { snprintf(err, errlen, "kind must be 1 (density) or 2 (distribution function)"); return 1; }
-    if (check_common(D, c, &o, err, errlen)) return 1;
+    if (adf_opts_check(&o, err, errlen) || check_common(D, c, &o, err, errlen)) return 1;
     double *xf = malloc((n + 1) * sizeof(double)); int *ix = malloc((n + 1) * sizeof(int));
     int m = split_finite(n, x, kind == 2, out, xf, ix), rc = 0;
     if (m > 0) {
@@ -556,9 +564,10 @@ int dfl_det_adfmax(int kind, const dfl_design *D, int n, const double *x, double
 int dfl_det_adfmax_quantile(const dfl_design *D, double p, double c, double x0, double tol, const dfl_det_opts *o0, double *q, char *err, size_t errlen)
 {
     dfl_det_opts od; const dfl_det_opts *o1 = opts_or_default(o0, &od);
-    dfl_det_opts o = *o1; o.gls = NAN;
+    dfl_det_opts o = *o1;
     det_warn_clear();
-    if (check_common(D, c, &o, err, errlen)) return 1;
+    if (adf_opts_check(&o, err, errlen) || check_common(D, c, &o, err, errlen)) return 1;
+    if (!(p > 0 && p < 1)) { snprintf(err, errlen, "adfmax_quantile: p must lie in (0, 1)"); return 1; }
     if (isnan(x0)) x0 = -2.0;
     if (!(tol > 0)) tol = 1e-10;
     det_path *CP = user_path(D, c, &o, err, errlen);
