@@ -258,6 +258,82 @@ static void selftest_guard(void)
     dfl_design_free(&T1);
     dfl_det_empty_caches();
 }
+/* the public functions at non-finite arguments (November 2026): a limit where there is one, else an error that names the
+ * argument; none of them may hang (coef_cdf_gp at y = +-Inf, the searches from x0 = +-Inf, the point-optimal statistic at
+ * c = +-Inf and cbar = -Inf did not return) */
+static void selftest_nonfinite(void)
+{
+    char err[512]; double v[4], w[4]; int rc;
+    double INF = INFINITY, a2[2];
+    dfl_design DU, DT, PA; dfl_design_trend(0, &DU, err, sizeof err); dfl_design_trend(1, &DT, err, sizeof err);
+    double lam = 0.5; dfl_design_perron('A', 1, &lam, &PA, err, sizeof err);
+    dfl_det_opts o; dfl_det_defaults(&o);
+#define NFV(cond, what) check("nonfinite", (cond) ? 0 : 1, 0, 0, what)
+#define NFE(call, txt, what) do { err[0] = 0; rc = (call); NFV(rc && strstr(err, txt), what); } while (0)
+    a2[0] = INF; a2[1] = -INF;
+    rc = dfl_det_coef_cdf_gp(&DU, 2, a2, -5, &o, 0, 0, v, err, sizeof err);
+    NFV(!rc && v[0] == 1 && v[1] == 0, "coef_cdf_gp at y = Inf, -Inf: 1, 0");
+    a2[0] = NAN; rc = dfl_det_coef_cdf_gp(&DU, 1, a2, -5, &o, 0, 0, v, err, sizeof err);
+    NFV(!rc && isnan(v[0]), "coef_cdf_gp at y = NaN: NaN");
+    double p = 0.05, x = -2, b = -0.26;
+    NFE(dfl_det_coef_cdf_gp(&DU, 1, &x, -5, &o, 0, INF, v, err, sizeof err), "umax must be", "coef_cdf_gp refuses umax = Inf");
+    NFE(dfl_det_quantile(&DU, 1, &p, -5, INF, 1e-9, &o, v, err, sizeof err), "x0 must be a finite", "dist_quantile refuses x0 = Inf");
+    NFE(dfl_det_quantile(&DU, 1, &p, -5, -INF, 1e-9, &o, v, err, sizeof err), "x0 must be a finite", "dist_quantile refuses x0 = -Inf");
+    NFE(dfl_det_quantile(&DU, 1, &p, -5, -2, INF, &o, v, err, sizeof err), "tol must be", "dist_quantile refuses tol = Inf");
+    NFE(dfl_det_coef_quantile(&DU, 1, &p, -5, INF, 1e-9, &o, v, err, sizeof err), "y0 must be a finite", "coef_quantile refuses y0 = Inf");
+    NFE(dfl_det_lin_quantile(&DU, p, -3.5, -5, -INF, 1e-10, &o, v, err, sizeof err), "b0 must be a finite", "lin_quantile refuses b0 = -Inf");
+    NFE(dfl_det_adfmax_quantile(&DU, p, -5, INF, 1e-10, &o, v, err, sizeof err), "x0 must be a finite", "adfmax_quantile refuses x0 = Inf");
+    NFE(dfl_det_mza_quantile(&DT, p, -5, -13.5, -INF, 1e-9, NULL, v, err, sizeof err), "y0 must be a finite", "mza_quantile refuses y0 = -Inf");
+    NFE(dfl_det_lin(2, &DU, 1, &b, INF, -5, &o, v, err, sizeof err), "a must be a finite", "lin_cdf refuses a = Inf");
+    NFE(dfl_det_lin(1, &DU, 1, &b, -INF, -5, &o, v, err, sizeof err), "a must be a finite", "lin_pdf refuses a = -Inf");
+    double pl[2] = {NAN, -0.26};
+    NFE(dfl_det_region(&DU, 1, pl, -5, &o, v, err, sizeof err), "slope a of the line", "region_prob refuses the slope a = NaN");
+    a2[0] = -INF; a2[1] = NAN; double cs3[3] = {-INF, NAN, INF};
+    rc = dfl_det_power_envelope(&DU, 3, cs3, 0.05, v, err, sizeof err);
+    NFV(!rc && v[0] == 1 && isnan(v[1]) && v[2] == 0.05, "power_envelope at c = -Inf, NaN, Inf: 1, NaN, the level");
+    rc = dfl_det_pt_envelope(&DT, 3, cs3, 0.05, 0, 0, v, err, sizeof err);
+    NFV(!rc && v[0] == 1 && isnan(v[1]) && v[2] == 0.05, "pt_envelope at c = -Inf, NaN, Inf: 1, NaN, the level");
+    double q = 4;
+    NFE(dfl_det_pt(2, &DT, 1, &q, -13.5, INF, 0, 0, v, err, sizeof err), "c must be a finite", "pt_cdf refuses c = Inf");
+    NFE(dfl_det_pt(2, &DT, 1, &q, -INF, -5, 0, 0, v, err, sizeof err), "needs cbar < 0", "pt_cdf refuses cbar = -Inf");
+    NFE(dfl_det_pt_power(&DT, -13.5, -INF, 0.05, 0, 0, v, w, err, sizeof err), "c must be a finite", "pt_power refuses c = -Inf");
+    NFE(dfl_det_pt(2, &DT, 1, &q, -13.5, -5, 0, INF, v, err, sizeof err), "umax must be", "pt_cdf refuses umax = Inf");
+    double xm = 0.2;
+    NFE(dfl_det_msb_cdf(&DT, 1, &xm, NAN, -13.5, v, err, sizeof err), "c must be a finite", "msb_cdf refuses c = NaN");
+    NFE(dfl_det_msb_quantile(&DT, p, INF, -13.5, v, err, sizeof err), "c must be a finite", "msb_quantile refuses c = Inf");
+    o.gls = -INF;
+    NFE(dfl_det_dist(2, &DT, 1, &x, -5, &o, v, err, sizeof err), "needs cbar < 0", "dist_cdf refuses gls = -Inf");
+    dfl_det_defaults(&o);
+    double cs2[2] = {-5, -5};
+    NFE(dfl_det_local_power(&DU, 2, cs2, NAN, 0, &o, v, err, sizeof err), "local_power: the level must lie in (0, 1)", "local_power checks its level");
+    o.c0 = INF;
+    NFE(dfl_det_local_power(&DU, 2, cs2, 0.05, 0, &o, v, err, sizeof err), "c0 must be a finite", "local_power refuses c0 = Inf");
+    dfl_det_defaults(&o);
+    /* the router */
+    NFE(dfl_engine_lincdf(1, &b, INF, 1, -5, NAN, DFL_ENGINE_AUTO, v, err, sizeof err), "a must be a finite", "router: the linear form refuses a = Inf");
+    NFE(dfl_engine_lincdf(1, &b, -3.5, 4, -5, -INF, DFL_ENGINE_AUTO, v, err, sizeof err), "cbar must be a finite", "router: the linear form of case DG refuses cbar = -Inf");
+    rc = dfl_engine_envelope(3, cs3, 1, 0.05, DFL_ENGINE_AUTO, v, err, sizeof err);
+    NFV(!rc && v[0] == 1 && isnan(v[1]) && v[2] == 0.05, "router: the envelope at c = -Inf, NaN, Inf: 1, NaN, the level");
+    NFE(dfl_engine_envelope(1, cs2, 1, NAN, DFL_ENGINE_AUTO, v, err, sizeof err), "power_envelope: the level must lie in (0, 1)", "router: the envelope's level message");
+    dfl_spec SK = {NULL, 1, 0, 0.0, NAN}, SA = {&PA, 0, 0, 0.0, NAN};
+    for (int e = 0; e < 2; e++) {
+        const dfl_spec *S = e ? &SA : &SK; const char *nm = e ? "Perron A (general)" : "case DK (classical)";
+        char what[160];
+        double pr[2] = {-3.5, INF}; rc = dfl_engine_region(1, pr, S, -5, DFL_ENGINE_AUTO, v, err, sizeof err);
+        snprintf(what, sizeof what, "router: the region below the line at b = Inf is 1, %s", nm); NFV(!rc && v[0] == 1, what);
+        pr[1] = -INF; rc = dfl_engine_region(1, pr, S, -5, DFL_ENGINE_AUTO, v, err, sizeof err);
+        snprintf(what, sizeof what, "router: the region below the line at b = -Inf is 0, %s", nm); NFV(!rc && v[0] == 0, what);
+        pr[1] = NAN; rc = dfl_engine_region(1, pr, S, -5, DFL_ENGINE_AUTO, v, err, sizeof err);
+        snprintf(what, sizeof what, "router: the region below the line at b = NaN is NaN, %s", nm); NFV(!rc && isnan(v[0]), what);
+        pr[0] = INF; pr[1] = -0.26;
+        snprintf(what, sizeof what, "router: the region below the line refuses a = Inf, %s", nm);
+        NFE(dfl_engine_region(1, pr, S, -5, DFL_ENGINE_AUTO, v, err, sizeof err), "slope a of the line", what);
+    }
+#undef NFE
+#undef NFV
+    dfl_design_free(&DU); dfl_design_free(&DT); dfl_design_free(&PA);
+    dfl_det_empty_caches();
+}
 static det_prep *prep_of(int id, double cb, char *err)
 {
     det_prep *P = NULL;
@@ -480,6 +556,7 @@ int main(int argc, char **argv)
     }
     fclose(f);
     selftest_warnings();
+    selftest_nonfinite();
     int fails = 0, n = 0;
     printf("%-10s %8s %8s %12s %10s\n", "group", "values", "failed", "largest dev", "dev/tol");
     for (int i = 0; i < NG; i++) { printf("%-10s %8d %8d %12.2e %10.2e\n", G[i].name, G[i].n, G[i].fail, G[i].worst, G[i].worst_rel_tol); fails += G[i].fail; n += G[i].n; }

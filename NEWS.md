@@ -66,6 +66,22 @@ refused after 11 s. The checked computation (`verified`) falls back to the
 variant at the default angle after any error of the steeper variant, except an exhausted memory. Values at c <= 0
 unchanged (bit for bit in the reference values of both tests).
 
+**Non-finite arguments (C and MATLAB, as in DFLimit.jl).** Every public function of the general engine and of the router
+gives at +-Inf and NaN in each argument either the limit or an error that names the argument. `dfl_det_coef_cdf_gp` did not
+return at y = +-Inf (the full sum on all threads; now 1 and 0 without the sum, NaN at NaN); the searches from a start
+value of +-Inf (`dfl_det_quantile`, `dfl_det_coef_quantile`, `dfl_det_lin_quantile`, `dfl_det_adfmax_quantile`,
+`dfl_det_mza_quantile`) did not return or returned +-Inf, and a tolerance of +Inf stopped them after one step (now
+errors; NaN keeps the default); the point-optimal statistic at c = +-Inf or cbar = -Inf and with umax = +Inf, and
+`dfl_det_coef_cdf_gp` with umax = +Inf, did not return (now errors); the linear form at a = +-Inf gave NaN, through the
+router's classical code 0, also at cbar = +-Inf in case DG (now errors; a = NaN is the law of V as before); the region
+below a line gave NaN at a = +-Inf and the law of V at a = NaN, through the classical code 0 at b = Inf and at a = +-Inf
+(now an error for the slope, and 1, 0, NaN at b = Inf, -Inf, NaN); the envelopes failed at c = -Inf (now 1, the limit);
+GLS detrending at cbar = -Inf and MSB at a non-finite c gave errors that named another quantity (now named). The
+sizes of the general engine are bounded: the outer hyperbola refuses more than 1e5 nodes (a factor hfac of its step far
+below one, or not positive; in C the count overflowed an int) and the moments a grid of more than 1e6 points (c beyond
+2.5e4). `dfl_det_local_power` checks its own level and c0, and the router's message of the level is that of the general
+engine, "the level must lie in (0, 1)".
+
 **Defects of the C interface (the R and Python wrappers).** `dfl_warning()` and `dfl_det_warning()` are cleared at the
 start of every `dfl_engine_*` function and of `dfl_design_from_matrix` (a warning of an earlier call was read again), and
 the new public functions `dfl_warning_clear()` and `dfl_det_warning_clear()` clear each; the router's quantile search
