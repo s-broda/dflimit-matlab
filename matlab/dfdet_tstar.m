@@ -108,7 +108,7 @@ v0 = 0; if stat, v0 = -1/(2*c); end
 sw = sqrt(ws);
 Kw = sw.*oukernel(c,rs,rs',v0).*sw';
 if P.K > 0
-    D = P.D; X = zeros(numel(rs),P.K);
+    D = P.D; X = zeros(numel(rs),size(D.C{1},2));
     for q = 1:numel(rs), X(q,:) = dval(D,rs(q)).'; end
     X = X.*sw;
     [Q,~] = qr(X,0);

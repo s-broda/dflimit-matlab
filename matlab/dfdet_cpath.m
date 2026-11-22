@@ -29,6 +29,11 @@ function CP = dfdet_cpath(Mo,c,opts)
 %   See also DFDET_STARTMODEL, DFDET_CONTOUR, DFDET_TSTAR.
 if nargin < 3 || isempty(opts), opts = struct; end
 phi = getf(opts,'phi',[]); hfac = getf(opts,'hfac',1); tau = getf(opts,'tau',[]);
+if isfield(opts,'fixedphi')
+    % the angle of the rule of the fixed start alone (the law of V where the t-ratio takes the vertical line)
+    CP = fixed_phi(Mo,c,opts.ts,tau,hfac,default_rmax(c));
+    return
+end
 if isfield(opts,'cuts') || isfield(opts,'nq')
     % the vertical line with given panels or nodes per panel (line_refine, the variants of the checked computation)
     rmax = default_rmax(c); if ~isempty(getf(opts,'rmax',[])), rmax = opts.rmax; end
