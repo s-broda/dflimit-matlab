@@ -21,7 +21,36 @@ function P = power_envelope(c,cas,opts)
 %   See also LTRATIO_LINCDF, LTRATIO_CDF, COEF_CDF.
 if nargin < 2 || isempty(cas), cas = 'DK'; end
 if nargin < 3 || isempty(opts), opts = struct; end
+[engine,oc] = ltratio_route('engine',opts);
+alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
+if ~(ischar(cas) || isstring(cas))
+    % a design: dfdet_trend(-1) and dfdet_trend(0) the case DK, dfdet_trend(1) the case DG, any other the envelope of the
+    % general construction (PT_ENVELOPE)
+    D = cas; cs = '';
+    for p = -1:1
+        T = dfdet_trend(p);
+        if isequal(D.br,T.br) && numel(D.C) == 1 && isequal(size(D.C{1}),size(T.C{1})) && isequal(D.C{1},T.C{1}) && ~D.loc && strcmp(D.detrend,'onestep')
+            if p < 1, cs = 'DK'; else, cs = 'DG'; end
+        end
+    end
+    if ~isempty(cs), oc.engine = engine; P = power_envelope(c,cs,oc); return, end
+    if strcmp(engine,'classical'), error('ltratio:args','power_envelope: engine = ''classical'': the envelope of the classical programs has the cases DK (DU) and DG only.'); end
+    P = pt_envelope(c,D,struct('alpha',alpha)); return
+end
 cas = upper(char(cas)); if strcmp(cas,'DU'), cas = 'DK'; end
+if any(strcmp(cas,{'DK','DG'})) && ~strcmp(engine,'classical') && (strcmp(engine,'general') || isempty(setdiff(fieldnames(oc),{'alpha'})))
+    if strcmp(cas,'DK'), S = struct('D',dfdet_trend(-1),'start','zero','g0',0,'gls',[],'case','DK');
+    else, S = struct('D',dfdet_trend(1),'start','zero','g0',0,'gls',[],'case','DG'); end
+    gen = false(size(c));
+    for k = 1:numel(c), gen(k) = strcmp(engine,'general') || ltratio_engine('envelope',S,c(k),0,0); end
+    if any(gen(:))
+        P = zeros(size(c));
+        P(gen) = dfdet_power_envelope(c(gen),S.D,struct('alpha',alpha));
+        if any(~gen(:)), P(~gen) = power_envelope(c(~gen),cas,setfield(oc,'engine','classical')); end %#ok<SFLD>
+        return
+    end
+end
+opts = oc; if isfield(opts,'engine'), opts = rmfield(opts,'engine'); end
 if ~any(strcmp(cas,{'DK','DG'})), error('ltratio:args','power_envelope: the case must be DK (or DU) or DG.'); end
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
 P = zeros(size(c));

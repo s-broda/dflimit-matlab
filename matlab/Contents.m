@@ -123,7 +123,59 @@
 %   ltratio_bisect - bisection (as ltratio_bisect of julia/DFExact.jl)
 %   gls_parts, lam_gls - the GLS-detrended trend case at a given cbar
 %
+% The general engine (any deterministic terms: polynomial trends of any order, breaks in level and slope at
+% several known dates, smooth functions of t/n; the joint moment generating function of U and V through a small
+% determinant, its roots in the argument of U followed along an outer contour in t, and the inversion on paths
+% around the roots, a double integral of functions in closed form; a port of the Julia engine DFLimit.DFDet)
+%   dfdet_trend, dfdet_perron, dfdet_fdesign, dfdet_ltrend, dfdet_design_from_matrix, dfdet_detrend_first, dfdet_determ
+%                 - the designs: polynomial trends, Perron's models A, B, C with one or several breaks, regressors
+%                   given by a function (Chebyshev interpolants per piece), the orthonormal Legendre trend, the
+%                   design of a regressor matrix (its breaks detected), the statistic that detrends first, and
+%                   any piecewise polynomial regressors
+%   dfdet_cdf, dfdet_pdf, dfdet_icdf, dfdet_mom
+%                 - distribution function, density, quantiles and moments of the limiting t-ratio for a design
+%                   (options c0, start 'zero', 'fixed' with g0, 'stationary', gls = cbar for GLS detrending,
+%                   verified)
+%   dfdet_coef_cdf, dfdet_coef_pdf, dfdet_coef_icdf - the coefficient statistic
+%   dfdet_lin_cdf, dfdet_lin_pdf, dfdet_lin_icdf - the linear form U - aV
+%   dfdet_v_cdf, dfdet_v_pdf - the denominator V
+%   dfdet_adfmax_cdf, dfdet_adfmax_pdf, dfdet_adfmax_icdf - ADFmax
+%   dfdet_power_envelope, dfdet_local_power, dfdet_region - the envelope (no deterministic terms, intercept,
+%                   linear trend), local power of the left-tailed tests, regions bounded by lines and parabolas
+%   pt_cdf, pt_pdf, pt_quantile, pt_power, pt_envelope
+%                 - the point-optimal statistic of Elliott, Rothenberg and Stock and the Gaussian power envelope
+%                   for any design (one inversion of Gil-Pelaez)
+%   lm_cdf, lm_quantile, lm_power - the LM statistic (Schmidt and Phillips; with breaks, Lee and Strazicich)
+%   mza_cdf, mza_quantile, msb_cdf, msb_quantile - MZ_alpha and MSB of Ng and Perron with GLS detrending
+%   dfdet_prep    - the prepared design: the functionals ell, the matrices A, B of U + 1/2 and V - int J^2, the
+%                   roots and their signs (least squares, GLS, the point-optimal and the LM statistics)
+%   dfdet_model, dfdet_startmodel - the design with its start (the shift of the fixed start, the extended
+%                   matrices of the stationary start), cached
+%   dfdet_sigma   - the covariance Sigma(theta) of ell under the tilted Ornstein-Uhlenbeck law
+%   dfdet_mgf, dfdet_dval, dfdet_logmgf, dfdet_fixe1 - the joint moment generating function: log D_V(t), the
+%                   roots, the data of the fixed start, the determinant, its value at points (s, t)
+%   dfdet_tstar   - t_*, the first zero of D_V
+%   dfdet_cpath   - the outer contour (hyperbola or vertical line) with the roots and log P continued along it
+%   dfdet_contour - the U-shapes around the root groups, the closed-form v-kernels, the outer sum, Filon's
+%                   rule on the line
+%   dfdet_verify  - the checked computation (opts.verified)
+%   dfdet_dist, dfdet_stat, dfdet_args, dfdet_xspec, dfdet_qgrid, dfdet_lmpath, dfdet_newton, dfdet_cache,
+%   dfdet_key, dfdet_peval, dfdet_msg - dispatch, argument checks, parabola terms, the grid of the point-
+%                   optimal statistic, the safeguarded Newton's method, the caches, helpers
+%   dfdet_make_paths - the path tables dfdet_paths.mat of cases DK, DU, DT at the unit root (from the tables of
+%                   the Julia package)
+%
+% The two engines.  The user-level routines ltratio_cdf, ltratio_pdf, ltratio_icdf, ltratio_mom, coef_cdf,
+% coef_icdf, adfmax_cdf, adfmax_pdf, adfmax_icdf, ltratio_lincdf, power_envelope and ltratio_region take
+% opts.engine: 'classical' (the programs above), 'general' (the general engine) or 'auto' (the default: the
+% engine of ltratio_engine, by the timings of the two MATLAB engines), and a design of the general engine in
+% place of the case (a classical design is its case; any other goes to the general engine).
+%   ltratio_engine - the rule of opts.engine = 'auto'
+%   ltratio_spec, ltratio_route - the design, start and case of a computation; helpers of the router
+%
 % Validation
+%   dfdet_test    - the general engine and the router against the Julia engine DFLimit.DFDet
+%                   (validation/det_ref.txt, written by validation/det_ref.jl), with a failure count
 %   ltratio_test  - validation suite with a failure count: the two
 %                   representations against each other over the six cases,
 %                   both sides of the unit root and the local null value;
@@ -144,7 +196,8 @@
 %                   the MEX drop-ins).
 %   validation/   - the script behind the accuracy tables of earlier versions of the Supplementary Material,
 %                   the timings behind the automatic choice of the representation and the reference
-%                   values of dfx_test
+%                   values of dfx_test; the reference values of dfdet_test (det_ref.jl, det_ref.txt) and the
+%                   timings behind the choice of engine (engine_table_matlab.m, engine_table_matlab.txt)
 %
 % Reproduction of the paper: not part of this package.  The paper's replication
 % package has the scripts that recompute its tables, the numbers it quotes and
@@ -160,6 +213,9 @@
 %   ltratio_mom(4,'DT')                              % first four moments of tau_tau
 %   adfmax_icdf(0.05,'DU')                           % 5% critical value of ADFmax with a constant
 %   coef_cdf(-14.0936,'DU',-10)                      % power of the 5% coefficient test at c = -10
+%   dfdet_icdf(0.05,dfdet_perron('C',0.3))           % 5% critical value with a break in level and slope at 0.3
+%   dfdet_cdf(-3.5,dfdet_perron('C',0.3),-10)        % its power at c = -10
+%   ltratio_cdf(-2,'DU',-5,struct('engine','general')) % case DU by the general engine
 %
 % Requirements.  Base MATLAB (R2019b or later); runs on GNU Octave (tested
 % with Octave 8), more slowly.

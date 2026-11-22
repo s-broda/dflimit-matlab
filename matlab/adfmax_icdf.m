@@ -5,11 +5,23 @@ function [q,info] = adfmax_icdf(p,cas,c,opts)
 %   method with ADFMAX_PDF as the derivative, safeguarded by bisection on a bracket grown from [x0 - 1, x0 + 1]
 %   (x0 = opts.x0, default -2) to opts.tol (1e-10), as adfmax_icdf of julia/DFExact.jl.  info: F at q.
 %
+%   cas may be a design of the general engine (LTRATIO_SPEC; a design other than
+%   the cases DU, DT, SU, ST: DFDET_ADFMAX_ICDF).
+%
 %   Example: adfmax_icdf([0.01 0.05 0.10],'DT')   % -3.67949 -3.11891 -2.82890 (the quantiles of the ADFmax statistic in the paper)
 %
-%   See also ADFMAX_CDF, ADFMAX_PDF.
+%   See also ADFMAX_CDF, ADFMAX_PDF, DFDET_ADFMAX_ICDF.
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
+if ~(ischar(cas) || isstring(cas))
+    [engine,oc] = ltratio_route('engine',opts); S = ltratio_spec(cas,opts);
+    if ~strcmp(engine,'general') && any(strcmp(S.case,{'DU','DT','SU','ST'}))
+        oc.engine = engine; [q,info] = adfmax_icdf(p,S.case,c,oc); return
+    end
+    if strcmp(engine,'classical'), error('ltratio:args','adfmax_icdf: engine = ''classical'': ADFmax of the classical programs has the cases DU, DT, SU, ST only.'); end
+    go = ltratio_route('gopts',S,oc); go.gls = []; if isfield(oc,'tol'), go.tol = oc.tol; end; if isfield(oc,'x0'), go.x0 = oc.x0; end
+    q = dfdet_adfmax_icdf(p,S.D,c,go); info = struct('F',NaN(size(p)),'engine','general'); return
+end
 if ~(isnumeric(p) && isreal(p) && all(p(:) > 0 & p(:) < 1)), error('ltratio:args','adfmax_icdf: p must lie in (0,1).'); end
 tol = 1e-10; x0 = -2; o = opts;
 if isfield(o,'tol'), if ~isempty(o.tol), tol = o.tol; end, o = rmfield(o,'tol'); end

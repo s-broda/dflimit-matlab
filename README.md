@@ -58,6 +58,38 @@ the automatic choice of the Julia package (`dfl_autoengine`). It agrees with the
 functions and densities and to 1e-7 in quantiles (`c/dfl_test_det`); in MATLAB the MEX file reaches it through designs
 (`ltratio('design', ...)`, `c/mex/README.md`).
 
+## The general engine in MATLAB
+
+The folder `matlab/` also holds a port of the general engine of DFLimit.jl (`DFLimit.DFDet`, the engine of the
+companion paper on general deterministic terms) to plain MATLAB, the routines `dfdet_*`: the limiting t-ratio, the
+coefficient statistic, the linear form U - aV, the denominator V and ADFmax for any deterministic terms, polynomial
+trends of any order, breaks in level and slope at several known dates, smooth functions of t/n, with a zero, fixed or
+stationary start, GLS detrending, a local null value and the statistic that detrends first; and the companions of
+that paper, the point-optimal statistic and the Gaussian power envelope for any design (`pt_*`), the LM statistic
+(`lm_*`), MZ_alpha and MSB (`mza_*`, `msb_*`). A design is built by a constructor (`dfdet_trend`, `dfdet_perron`,
+`dfdet_fdesign`, `dfdet_ltrend`, `dfdet_design_from_matrix`, `dfdet_detrend_first`, `dfdet_determ`); the joint moment
+generating function of the numerator and the denominator is a small determinant, its roots are followed along an
+outer contour, and the distribution function and the density are the inversion on paths around the roots, a double
+integral of functions in closed form (`dfdet_contour`).
+
+```matlab
+D = dfdet_perron('C', 0.3);                       % a break in level and slope at 0.3
+dfdet_icdf([0.01 0.05 0.10], D)                   % critical values
+dfdet_cdf(-4.2, D, -10)                           % local power at c = -10
+dfdet_cdf(-2.9, dfdet_trend(1), -5, struct('gls', -13.5))      % DF-GLS
+dfdet_icdf(0.05, dfdet_detrend_first(dfdet_perron('B', 0.5)))  % a slope break, detrended first
+ltratio_cdf(-2.86157, 'DU', -5, struct('engine', 'general'))   % a classical case by the general engine
+```
+
+The user-level routines of the classical programs (`ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`, `ltratio_mom`,
+`coef_cdf`, `coef_icdf`, `adfmax_*`, `ltratio_lincdf`, `power_envelope`, `ltratio_region`) take `opts.engine`:
+`'classical'` (the programs above), `'general'`, or `'auto'` (the default), which takes in each cell the engine of
+`ltratio_engine`, the rule of the Julia package set by the timings of the two MATLAB engines
+(`matlab/validation/engine_table_matlab.txt`); they also take a design in place of the case, a classical design being
+its case and any other going to the general engine. With the MEX file on the path the classical engine is taken
+throughout. `dfdet_test` compares the general engine and the router with reference values of the Julia engine
+(`matlab/validation/det_ref.txt`, written by `matlab/validation/det_ref.jl`).
+
 ## Installation
 
 Clone the repository (or download it as a zip) and add the folder `matlab` to the MATLAB path:

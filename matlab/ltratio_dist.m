@@ -62,7 +62,80 @@ function [F,info] = ltratio_dist(x,cas,c,opts,mode)
 %   opts.verified = true a flagged point whose fallback, the line integral,
 %   refuses it keeps its flagged value, with the warning ltratio:bound.
 %
-%   See also LTRATIO_METHOD, LTRATIO_CDF, LTRATIO_PDF, DFX_CDF, TR_LIMDIST.
+%   The engine (opts.engine).  'classical' the programs above; 'general' the
+%   general engine (DFDET_CDF, DFDET_PDF: the inversion on paths around the
+%   roots of the joint moment generating function, for any deterministic
+%   terms); 'auto' (the default) the engine of LTRATIO_ENGINE at each point,
+%   after the checks of LTRATIO_ARGS, where opts.method is 'auto', opts.verified
+%   is false and no option of the classical engines is given (otherwise the
+%   classical programs, as before); the values of the general engine below
+%   1e-3 go back to the classical programs where their automatic method takes
+%   the conditional integral, whose error is relative.  cas may also be a design
+%   of the general engine (DFDET_TREND, DFDET_PERRON, ...; with opts.start and
+%   opts.gls): a design that is a classical case (LTRATIO_SPEC) is that case,
+%   within the checks of LTRATIO_ARGS; any other design, or one outside the
+%   checks, goes to the general engine.  info.engine names the engine, and
+%   info.ngeneral counts the points of the general engine.
+%
+%   See also LTRATIO_METHOD, LTRATIO_ENGINE, LTRATIO_CDF, LTRATIO_PDF, DFX_CDF, TR_LIMDIST, DFDET_CDF.
+t0 = tic;
+if ~isstruct(opts), error('ltratio:args','ltratio: opts must be a structure.'); end
+engine = 'auto'; if isfield(opts,'engine') && ~isempty(opts.engine), engine = lower(char(opts.engine)); end
+if ~any(strcmp(engine,{'auto','classical','general'})), error('ltratio:args','ltratio: opts.engine must be ''auto'', ''classical'' or ''general''.'); end
+oc = rmfield_safe(opts,{'engine','start','gls'});
+if ~(ischar(cas) || isstring(cas))
+    % a design of the general engine: its classical case where the classical programs accept the arguments
+    S = ltratio_spec(cas,opts);
+    if strcmp(engine,'classical') && isempty(S.case), error('ltratio:args','ltratio: engine = ''classical'': the classical programs have the cases DK, DU, DT, SK, SU, ST and DG only (dfdet_trend(-1), dfdet_trend(0), dfdet_trend(1), the last GLS-detrended at cbar = -13.5).'); end
+    if ~strcmp(engine,'general') && ~isempty(S.case) && (strcmp(engine,'classical') || valid(S,c,oc))
+        oc.g0 = S.g0; oc.engine = engine;
+        [F,info] = ltratio_dist(x,S.case,c,oc,mode);
+        return
+    end
+    nomethod(opts);
+    F = general_values(x,S,c,opts,mode);
+    info = struct('method','general','engine','general','ngeneral',nnz(isfinite(x)),'ndouble',0,'ncontour',0,'time',toc(t0));
+    return
+end
+if strcmp(engine,'general')
+    nomethod(opts);
+    S = ltratio_spec(cas,oc);
+    F = general_values(x,S,c,opts,mode);
+    info = struct('method','general','engine','general','ngeneral',nnz(isfinite(x)),'ndouble',0,'ncontour',0,'time',toc(t0));
+    return
+end
+if strcmp(engine,'auto') && plain(oc)
+    [cas,c,c0,g0] = ltratio_args(cas,c,oc);
+    S = ltratio_spec(cas,oc);
+    if ~(isnumeric(x) && isreal(x)), error('ltratio:args','ltratio_%s: x must be real.',mode); end
+    gen = ltratio_engine('dist',S,c,c0,x) & isfinite(x);
+    if any(gen(:))
+        Fg = general_values(x(gen),S,c,oc,mode);
+        % the tails: where the classical programs would take the conditional integral, whose error is relative, the
+        % values of the general engine below 1e-3 (absolute errors) go back to them
+        back = Fg < 1e-3 & ltratio_method(cas,c,c0,g0,x(gen),false);
+        ig = find(gen); gen(ig(back)) = false;
+        F = zeros(size(x)); F(ig(~back)) = Fg(~back);
+        cl = ~gen;
+        if any(cl(:))
+            [Fc,info] = classical_dist(x(cl),cas,c,oc,mode);
+            F(cl) = Fc;
+        else
+            info = struct('method','general','ndouble',0,'ncontour',0);
+        end
+        if ~isfield(info,'ndouble'), info.ndouble = 0; end
+        if ~isfield(info,'ncontour'), info.ncontour = 0; end
+        info.engine = 'general'; if any(cl(:) & isfinite(x(:))), info.engine = 'mixed'; end
+        info.ngeneral = nnz(gen); info.time = toc(t0);
+        return
+    end
+end
+[F,info] = classical_dist(x,cas,c,oc,mode);
+info.engine = 'classical'; info.ngeneral = 0;
+end
+
+function [F,info] = classical_dist(x,cas,c,opts,mode)
+% the classical programs (the line integral, the conditional integral, the contour integral with a fixed start)
 t0 = tic;
 [cas,c,c0,g0,method] = ltratio_args(cas,c,opts);
 if ~(isnumeric(x) && isreal(x)), error('ltratio:args','ltratio_%s: x must be real.',mode); end
@@ -143,6 +216,42 @@ if any(fin(:))
 end
 if strcmp(mode,'pdf'), F(F < 0) = 0; end            % a density below the error of the method
 info.time = toc(t0);
+end
+
+function F = general_values(x,S,c,opts,mode)
+% the general engine at the points x (a density below the error of the method returned as zero)
+o = struct('start',S.start,'g0',S.g0,'gls',S.gls);
+for f = {'c0','verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol'}
+    if isfield(opts,f{1}), o.(f{1}) = opts.(f{1}); end
+end
+F = dfdet_dist(x,S.D,c,o,mode);
+if strcmp(mode,'pdf'), F(F < 0) = 0; end
+end
+
+function ok = valid(S,c,opts)
+% whether the classical programs accept the arguments (the checks of LTRATIO_ARGS)
+o = rmfield_safe(opts,{'engine','start','gls'}); o.g0 = S.g0;
+try
+    ltratio_args(S.case,c,o); ok = true;
+catch ME
+    if ~strcmp(ME.identifier,'ltratio:args'), rethrow(ME); end
+    ok = false;
+end
+end
+
+function ok = plain(opts)
+% no representation named, not the checked computation, no option of the classical engines: the rule of the engines
+% applies (otherwise the classical programs, as before)
+fn = fieldnames(opts);
+ok = all(ismember(fn,{'c0','g0','method','verified'}));
+if isfield(opts,'method') && ~isempty(opts.method), ok = ok && strcmpi(char(opts.method),'auto'); end
+if isfield(opts,'verified') && ~isempty(opts.verified), ok = ok && ~logical(opts.verified); end
+end
+
+function nomethod(opts)
+if isfield(opts,'method') && ~isempty(opts.method) && ~strcmpi(char(opts.method),'auto')
+    error('ltratio:args','ltratio: opts.method = ''%s'' names a representation of the classical programs; it does not apply with engine = ''general''.',char(opts.method));
+end
 end
 
 function [F,info] = contour_auto(F,info,x,ctr,tails,cas,c,c0,g0,opts,mode)

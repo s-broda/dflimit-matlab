@@ -1,0 +1,269 @@
+function nfail = dfdet_test(quick,strict)
+%DFDET_TEST  Validation of the general engine against the Julia engine DFLimit.DFDet.
+%
+%   nfail = DFDET_TEST compares the general engine of these programs (DFDET_*,
+%   PT_*, LM_*, MZA_*, MSB_*, and the router of LTRATIO_CDF and the other
+%   user-level routines with opts.engine) with the reference values of the
+%   Julia engine in validation/det_ref.txt (written by validation/det_ref.jl),
+%   prints each comparison with its tolerance and a PASS/FAIL mark and
+%   returns the number of failures; DFDET_TEST(true) skips the slow groups
+%   (the point-optimal statistic, whose grid has 60000 points, the envelope,
+%   the moments with c0 ~= 0, c = 2), DFDET_TEST(quick,true) raises an error
+%   at the end when a check has failed.  The groups:
+%    1. the designs (every constructor: the polynomial trends of degrees 0 to
+%       4, Perron's models with one, two and three breaks, a function design,
+%       Legendre trends, designs from a matrix with and without given breaks,
+%       the statistic that detrends first): the sizes of the functionals, the
+%       number of roots and their signs, the eigenvalues of A; GLS detrending;
+%    2. the determinant of the joint moment generating function, its roots,
+%       t_* (zero, fixed and stationary start, GLS detrending);
+%    3. the distribution function and the density: c in {0, -5, -13.5, -20,
+%       -50, 2, -300}, the three starts, GLS detrending, local null values of
+%       both signs, far tails, the infinite density at the tangency;
+%    4. quantiles at the levels 0.01, 0.05, 0.10, 0.5, 0.95;
+%    5. moments;
+%    6. the coefficient statistic, the linear form (the law of U at the edge
+%       of its support), the law of V, ADFmax, the power envelope, local
+%       power, regions;
+%    7. the companions: the point-optimal statistic and the envelope of any
+%       design, the LM statistic, MZ_alpha, MSB;
+%    8. the router: LTRATIO_CDF, LTRATIO_PDF, LTRATIO_ICDF, LTRATIO_MOM,
+%       COEF_CDF, LTRATIO_LINCDF, ADFMAX_CDF, POWER_ENVELOPE, LTRATIO_REGION with
+%       opts.engine 'auto', 'classical' and 'general', with case strings and
+%       with designs;
+%    9. the path tables against the computed paths, non-finite x, argument
+%       errors.
+%   Tolerances: 1e-8 absolute for distribution functions, densities and
+%   probabilities, 1e-6 for quantiles and critical values, 1e-8 relative for
+%   moments, determinants, roots and eigenvalues, 1e-10 relative for t_*.
+%   About ten minutes (two in the quick version).
+%
+%   See also LTRATIO_TEST, DFDET_CDF.
+if nargin < 1 || isempty(quick), quick = false; end
+if nargin < 2 || isempty(strict), strict = false; end
+here = fileparts(mfilename('fullpath'));
+nfail = 0; ntest = 0; t00 = tic;
+G = containers.Map();                                  % per group: the number of comparisons and the largest deviation
+ws = warning('off','dfdet:line'); wr = warning('off','dfdet:rounding'); wc = warning('off','dfdet:contour'); wb = warning('off','ltratio:brittle');
+cl = onCleanup(@() warning([ws wr wc wb]));
+L = strsplit(strtrim(fileread(fullfile(here,'validation','det_ref.txt'))),newline);
+slow = {'ptq','ptcdf','ptpdf','ptenv','ptpow','env','renv'};
+cur = '';
+for i = 1:numel(L)
+    l = strtrim(L{i}); if isempty(l), continue, end
+    p = strtrim(strsplit(l,'|')); if numel(p) < 3, p{3} = ''; end
+    h = strsplit(p{1},' '); func = h{1}; dtok = h{2}; c = str2double(h{3}); o = opts_(h{4});
+    args = num_(p{2}); ref = num_(p{3});
+    g = group_(func);
+    if ~strcmp(g,cur), cur = g; fprintf('\n=== %s ===\n',g); end
+    if quick && (any(strcmp(func,slow)) || (strcmp(func,'mom') && isfield(o,'c0')) || c == 2 || c == -300), continue, end
+    t0 = tic;
+    [v,tol,rel] = compute_(func,dtok,c,o,args);
+    tt = toc(t0);
+    v = v(:); ref = ref(:);
+    if strcmp(func,'roots') && 2*numel(v) == numel(ref)
+        err = 0;                                       % (each reference root against the nearest computed one)
+        rr = complex(ref(1:2:end),ref(2:2:end));
+        for k = 1:numel(rr), err = max(err,min(abs(v - rr(k)))/max(1,abs(rr(k)))); end
+    elseif numel(v) ~= numel(ref), err = Inf;
+    elseif strcmp(func,'dval')
+        err = abs(complex(v(1),v(2)) - complex(ref(1),ref(2)))/abs(complex(ref(1),ref(2)));
+    elseif strcmp(func,'roots')
+        err = 0;                                       % (each reference root against the nearest computed one)
+        rr = complex(ref(1:2:end),ref(2:2:end));
+        for k = 1:numel(rr), err = max(err,min(abs(v - rr(k)))/max(1,abs(rr(k)))); end
+    else
+        inf_ = isinf(ref);
+        err = max([0; abs(v(~inf_) - ref(~inf_))./(rel*max(1,abs(ref(~inf_))) + ~rel)]);
+        if any(v(inf_) ~= ref(inf_)), err = Inf; end
+    end
+    check(sprintf('%-8s %-16s c = %-6g %-30s (%d values, %.2f s)',func,dtok,c,h{4},numel(ref),tt),err,tol);
+    if ~isKey(G,g), G(g) = [0 0]; end
+    gv = G(g); G(g) = [gv(1) + numel(ref), max(gv(2),err)];
+end
+
+fprintf('\n=== 9. the path tables, non-finite x, argument errors ===\n');
+f = fullfile(here,'dfdet_paths.mat');
+if exist(f,'file')
+    T = load(f); nm = {'DK','DU','DT'};
+    for q = -1:1
+        Mo = dfdet_startmodel(dfdet_trend(q),0,'zero',0,[]);
+        CP = dfdet_cpath(Mo,0,struct('phi',pi/4));      % (computed: an explicit angle bypasses the table)
+        Tq = T.(nm{q + 2});
+        d1 = max(abs(Tq.t(:) - CP.t(:)))/max(abs(CP.t)); d2 = max(abs(Tq.R(:) - CP.R(:)))/max(abs(CP.R(:)));
+        check(sprintf('path table %s against the computed path (nodes, roots; relative)',nm{q + 2}),max(d1,d2),1e-10);
+        xs = [-4 -2 0 1];
+        Ft = dfdet_cdf(xs,dfdet_trend(q)); Fc = dfdet_cdf(xs,dfdet_trend(q),0,struct('phi',pi/4));
+        check(sprintf('path table %s: F on the table against F on the computed path',nm{q + 2}),max(abs(Ft - Fc)),1e-13);
+    end
+else
+    check('path tables dfdet_paths.mat present',Inf,0);
+end
+F = dfdet_cdf([-Inf NaN -2 Inf],dfdet_trend(1),-5); f = dfdet_pdf([-Inf NaN -2 Inf],dfdet_trend(1),-5);
+check('F(-Inf), F(NaN), F(Inf) = 0, NaN, 1; f = 0, NaN, 0',abs(F(1)) + ~isnan(F(2)) + abs(F(4) - 1) + abs(f(1)) + ~isnan(f(2)) + abs(f(4)),0);
+E = {@() dfdet_cdf(-2,dfdet_trend(1),-5,struct('gls',-13.5,'start','fixed','g0',1)), ...
+     @() dfdet_cdf(-2,dfdet_trend(1),-5,struct('gls',-13.5,'start','stationary')), ...
+     @() dfdet_cdf(-2,dfdet_detrend_first(dfdet_perron('B',0.5)),-5,struct('start','stationary')), ...
+     @() dfdet_cdf(-2,dfdet_detrend_first(dfdet_perron('B',0.5)),-5,struct('gls',-13.5)), ...
+     @() dfdet_mom(2,dfdet_detrend_first(dfdet_perron('B',0.5)),-5), ...
+     @() dfdet_cdf(-2,dfdet_trend(1),0.5,struct('start','stationary')), ...
+     @() dfdet_cdf(-2,dfdet_trend(1),-5,struct('g0',1,'start','stationary')), ...
+     @() dfdet_region(struct('type','wap','k',3.6658,'omega',10),dfdet_trend(-1),0), ...
+     @() dfdet_power_envelope(-7,dfdet_perron('A',0.5)), @() lm_quantile(0.05,dfdet_trend(0)), ...
+     @() ltratio_cdf(-2,dfdet_perron('C',0.3),0,struct('engine','classical')), ...
+     @() ltratio_cdf(-2,'DU',0,struct('method','single','engine','general')), ...
+     @() ltratio_cdf(-2,'DU',0,struct('engine','fast')), ...
+     @() dfdet_design_from_matrix([ones(500,1), (1:500)'/500, double((1:500)' == 250)])};
+nerr = 0;
+for k = 1:numel(E)
+    try, E{k}(); catch ME, if strncmp(ME.identifier,'dfdet:',6) || strcmp(ME.identifier,'ltratio:args'), nerr = nerr + 1; end, end
+end
+check(sprintf('argument errors raised (%d of %d)',nerr,numel(E)),numel(E) - nerr,0);
+% the cases DK, DU, DT of the design and of the case string give the same values (a design that is its classical case)
+check('a classical design is its case (DU, c = -5)',max(abs(ltratio_cdf([-3 -2],dfdet_trend(0),-5) - ltratio_cdf([-3 -2],'DU',-5))),0);
+
+fprintf('\nlargest deviation by group (number of comparisons):\n');
+fn = keys(G);
+for k = 1:numel(fn), gv = G(fn{k}); fprintf('  %-78s %5d  %.2e\n',fn{k},gv(1),gv(2)); end
+fprintf('\n%d of %d checks failed (%.0f s).\n',nfail,ntest,toc(t00));
+if strict && nfail > 0, error('dfdet_test:fail','%d check(s) failed.',nfail); end
+
+    function check(name,err,tol)
+        ntest = ntest + 1; pass = ~isnan(err) && err <= tol;
+        if ~pass, nfail = nfail + 1; end
+        mk = {'FAIL','pass'};
+        fprintf('  %-100s %9.2e  (tol %7.1e)  %s\n',name,err,tol,mk{pass+1});
+    end
+end
+
+% ---------------------------------------------------------------------------------------------------------------------
+function g = group_(func)
+switch func
+    case {'prep','dv'}, g = '1. designs: the functionals, the roots and their signs, the eigenvalues of A';
+    case {'dval','roots','tstar'}, g = '2. the determinant, the roots, t_*';
+    case {'cdf','pdf'}, g = '3. the distribution function and the density';
+    case 'icdf', g = '4. quantiles';
+    case 'mom', g = '5. moments';
+    case {'coefcdf','coefpdf','coeficdf','lincdf','linpdf','linicdf','vcdf','vpdf','adfcdf','adfpdf','adficdf','env','lp','region'}
+        g = '6. the related statistics';
+    case {'ptq','ptcdf','ptpdf','ptenv','ptpow','lmq','lmp','lmcdf','mzacdf','mzaq','msbcdf','msbq'}, g = '7. the companions';
+    otherwise, g = '8. the router';
+end
+end
+
+function [v,tol,rel] = compute_(func,dtok,c,o,args)
+tol = 1e-8; rel = false;
+st = getf(o,'start','zero'); g0 = getf(o,'g0',0); gls = getf(o,'gls',[]);
+go = struct('c0',getf(o,'c0',0),'start',st,'g0',g0,'gls',gls);
+if any(strcmp(dtok,{'DK','DU','DT','SK','SU','ST','DG'})), D = dtok; else, D = design_(dtok); end
+eng = getf(o,'engine','');
+ro = struct; if ~isempty(eng), ro.engine = eng; end
+for f = {'c0','g0','start','gls'}, if isfield(o,f{1}), ro.(f{1}) = o.(f{1}); end, end
+switch func
+    case 'prep'
+        if isempty(gls), P = dfdet_prep(D); else, P = dfdet_prep(D,'gls',gls); end
+        v = [P.N P.r P.rp P.rm P.nj P.p]; tol = 0;
+    case 'dv'
+        P = dfdet_prep(D); v = sort(P.Dv); rel = true;
+    case 'dval'
+        Mo = dfdet_startmodel(D,c,st,g0,gls); d = dfdet_dval(Mo,c,complex(args(1),args(2)),complex(args(3),args(4)));
+        v = [real(d) imag(d)];
+    case 'roots'
+        Mo = dfdet_startmodel(D,c,st,g0,gls); [~,~,mu] = dfdet_mgf(Mo,c,complex(args(1),args(2))); v = 1./mu;
+    case 'tstar'
+        Mo = dfdet_startmodel(D,c,st,g0,gls); v = dfdet_tstar(Mo,c); tol = 1e-10; rel = true;
+    case 'cdf', v = dfdet_cdf(args,D,c,go);
+    case 'pdf', v = dfdet_pdf(args,D,c,go);
+    case 'icdf', v = dfdet_icdf(args,D,c,go); tol = 1e-6;
+    case 'mom', v = dfdet_mom(4,D,c,go); rel = true;
+    case 'coefcdf', v = dfdet_coef_cdf(args,D,c,go);
+    case 'coefpdf', v = dfdet_coef_pdf(args,D,c,go);
+    case 'coeficdf'
+        if strcmp(dtok,'pC0.3'), go.y0 = -25; end
+        v = dfdet_coef_icdf(args,D,c,go); tol = 1e-6;
+    case 'lincdf', v = dfdet_lin_cdf(args,o.a,D,c,go);
+    case 'linpdf', v = dfdet_lin_pdf(args,o.a,D,c,go);
+    case 'linicdf', v = dfdet_lin_icdf(args,o.a,D,c,go); tol = 1e-6;
+    case 'vcdf', v = dfdet_v_cdf(args,D,c,go);
+    case 'vpdf', v = dfdet_v_pdf(args,D,c,go);
+    case 'adfcdf', v = dfdet_adfmax_cdf(args,D,c,go);
+    case 'adfpdf', v = dfdet_adfmax_pdf(args,D,c,go);
+    case 'adficdf', v = dfdet_adfmax_icdf(args,D,c,go); tol = 1e-6;
+    case 'env', v = dfdet_power_envelope(args,D);
+    case 'lp', v = dfdet_local_power(args,D);
+    case 'region', v = dfdet_region(bnd_(o),D,c);
+    case 'ptq', v = pt_quantile(args,D,o.cbar); tol = 1e-6;
+    case 'ptcdf', v = pt_cdf(args,D,o.cbar,c);
+    case 'ptpdf', v = pt_pdf(args,D,o.cbar,c);
+    case 'ptenv', v = pt_envelope(args,D);
+    case 'ptpow', [b,P] = pt_power(args,D,o.cbar); v = [b P]; tol = 1e-6;
+    case 'lmq', v = lm_quantile(args,D); tol = 1e-6;
+    case 'lmp', [~,v] = lm_power(args,D);
+    case 'lmcdf', v = lm_cdf(args,D,c);
+    case 'mzacdf', v = mza_cdf(args,D,c,struct('gls',gls));
+    case 'mzaq', v = mza_quantile(args,D,c,struct('gls',gls,'y0',-25)); tol = 1e-6;
+    case 'msbcdf', v = msb_cdf(args,D,c,struct('gls',gls));
+    case 'msbq', v = msb_quantile(args,D,c,struct('gls',gls)); tol = 1e-6;
+    case 'rcdf', v = ltratio_cdf(args,D,c,ro);
+    case 'rpdf', v = ltratio_pdf(args,D,c,ro);
+    case 'ricdf', ro.tol = 1e-12; v = ltratio_icdf(args,D,c,ro); tol = 1e-6;
+    case 'rmom', v = ltratio_mom(4,D,c,ro); rel = true;
+    case 'rcoefcdf', v = coef_cdf(args,D,c,ro);
+    case 'rlincdf', a = o.a; ro = rmf(ro,'a'); v = ltratio_lincdf(args,a,D,c,ro);
+    case 'radfcdf', v = adfmax_cdf(args,D,c,ro);
+    case 'renv', v = power_envelope(args,D,ro);
+    case 'rregion', v = ltratio_region(bnd_(o),D,c,rmf(rmf(ro,'a'),'b'));
+    otherwise, error('dfdet_test: unknown function %s.',func);
+end
+end
+
+function b = bnd_(o)
+if isfield(o,'x'), b = struct('type','parabola','x',o.x); else, b = struct('type','line','a',o.a,'b',o.b); end
+end
+
+function D = design_(tok)
+% the designs of validation/det_ref.jl
+switch tok
+    case 't-1', D = dfdet_trend(-1);
+    case 'fourier', D = dfdet_fdesign(@(r) [1, sin(2*pi*r), cos(2*pi*r)]);
+    case 'lt3', D = dfdet_ltrend(3);
+    case 'lt8', D = dfdet_ltrend(8);
+    case 'dfm'
+        P = dfdet_perron('C',0.3); n = 500; X = zeros(n,4);
+        for t = 1:n, r = t/n; j = 1 + (r > 0.3); X(t,:) = dfdet_peval(P.C{j},r); end
+        D = dfdet_design_from_matrix(X);
+    case 'dfmb'
+        n = 400; t = (1:n)';
+        D = dfdet_design_from_matrix([ones(n,1), t/n, double(t > 120)],struct('breaks',120));
+    case 'df', D = dfdet_detrend_first(dfdet_perron('B',0.5));
+    case 'lev', D = dfdet_determ([0 0.4 1],{[1 1; 1 0],[1 0; 1 0]},'1 + r, 1{r < 0.4}');
+    case 'fdC', D = dfdet_fdesign(@(r) [1, r, double(r > 0.4), max(r - 0.4,0)],0.4);
+    otherwise
+        if tok(1) == 't', D = dfdet_trend(str2double(tok(2:end))); return, end
+        if tok(1) == 'p', D = dfdet_perron(tok(2),str2double(strsplit(tok(3:end),','))); return, end
+        error('dfdet_test: unknown design %s.',tok);
+end
+end
+
+function o = opts_(s)
+o = struct;
+if strcmp(s,'-'), return, end
+kv = strsplit(s,',');
+for k = 1:numel(kv)
+    e = strsplit(kv{k},'='); v = str2double(e{2});
+    if isnan(v) && ~strcmp(e{2},'NaN'), o.(e{1}) = e{2}; else, o.(e{1}) = v; end
+end
+end
+
+function v = num_(s)
+s = strtrim(s);
+if isempty(s), v = zeros(1,0); else, v = str2double(strsplit(s,' ')); end
+end
+
+function o = rmf(o,f)
+if isfield(o,f), o = rmfield(o,f); end
+end
+
+function v = getf(o,f,d)
+if isfield(o,f) && ~isempty(o.(f)), v = o.(f); else, v = d; end
+end
