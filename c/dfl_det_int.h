@@ -67,6 +67,8 @@ static inline int det_failed(const det_status *st) { return *(const volatile int
 void det_warn(const char *fmt, ...);
 void det_warn_clear(void);
 void det_warn_hold(int on);       /* on = 1: keep the warnings across the calls that follow, 0: release */
+/* the classical engine's warning (dfl_warning, dfl_api.c) joined with msg, each message once: the router's composite calls */
+void dfl_warning_join(const char *msg);
 
 /* ---- small dense linear algebra (dfl_det_la.c); matrices column-major ---- */
 /* symmetric eigen-decomposition by the cyclic Jacobi method: eigenvalues ascending in w, eigenvectors in the columns of V
