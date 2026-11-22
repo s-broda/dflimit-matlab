@@ -15,6 +15,8 @@ if nargin < 3 || isempty(opts), opts = struct; end
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; o = rmfield(opts,'alpha'); else, o = opts; end
 st = 'tratio'; if isfield(o,'statistic') && ~isempty(o.statistic), st = lower(char(o.statistic)); o = rmfield(o,'statistic'); end
 c0 = 0; if isfield(o,'c0') && ~isempty(o.c0), c0 = o.c0; end
+if ~(isnumeric(alpha) && isscalar(alpha) && alpha > 0 && alpha < 1), error('dfdet:args','dfdet_local_power: the level opts.alpha must lie in (0, 1).'); end
+if ~(isnumeric(c0) && isscalar(c0) && isreal(c0) && isfinite(c0)), error('dfdet:args','dfdet_local_power: opts.c0 must be a finite real scalar.'); end
 P = zeros(size(c));
 switch st
     case 'tratio'

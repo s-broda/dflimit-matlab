@@ -8,6 +8,6 @@ function f = dfdet_lin_pdf(b,a,D,c,opts)
 %   See also DFDET_LIN_CDF, DFDET_V_PDF.
 if nargin < 4 || isempty(c), c = 0; end
 if nargin < 5 || isempty(opts), opts = struct; end
-if ~(isnumeric(a) && isscalar(a) && isreal(a)), error('dfdet:args','dfdet_lin_pdf: a must be a real scalar (NaN: the distribution of V).'); end
+if ~(isnumeric(a) && isscalar(a) && isreal(a) && ~isinf(a)), error('dfdet:args','dfdet_lin_pdf: a must be a finite real scalar (NaN: the distribution of V).'); end
 f = dfdet_stat('lin','pdf',b,D,c,opts,a);
 end

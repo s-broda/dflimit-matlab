@@ -66,6 +66,7 @@ P = zeros(size(c));
 for k = 1:numel(c)
     if isnan(c(k)), P(k) = NaN; continue, end          % (NaN at NaN, as the C engine)
     if ~(c(k) < 0), P(k) = alpha; continue, end
+    if c(k) == -Inf, P(k) = 1; continue, end           % (the limit; the bisection found no sign change)
     if strcmp(cas,'DK'), a = c(k)/2; else, a = c(k)^2/(2*(c(k) - 1)); end   % the point-optimal weight
     o = opts; o.cbar = c(k);
     [~,phi0] = tr_gilpelaez(0,a,cas,0,o);

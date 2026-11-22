@@ -9,6 +9,8 @@ function x = dfdet_newton(FF,p,x0,step,tol,maxit,clampit)
 if nargin < 5 || isempty(tol), tol = 1e-10; end
 if nargin < 6 || isempty(maxit), maxit = 100; end
 if nargin < 7 || isempty(clampit), clampit = 0; end
+if ~(isnumeric(x0) && isscalar(x0) && isreal(x0) && isfinite(x0)), error('dfdet:args','dfdet: the start value of the search (opts.x0, y0 or b0) must be a finite real scalar.'); end
+if ~(isnumeric(tol) && isscalar(tol) && isreal(tol) && tol > 0 && isfinite(tol)), error('dfdet:args','dfdet: opts.tol must be a positive finite number.'); end
 x = x0;
 for it = 1:clampit
     Ff = FF(x);

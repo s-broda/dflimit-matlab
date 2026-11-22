@@ -17,6 +17,7 @@ if nargin < 4 || isempty(opts), opts = struct; end
 if ~isstruct(bnd) || ~isfield(bnd,'type'), error('dfdet:args','dfdet_region: bnd must be a structure with the field type.'); end
 switch lower(char(bnd.type))
     case 'line'
+        if ~(isnumeric(bnd.a) && isscalar(bnd.a) && isreal(bnd.a) && isfinite(bnd.a)), error('dfdet:args','dfdet_region: the slope a of the line must be a finite real scalar.'); end
         P = dfdet_lin_cdf(bnd.b,bnd.a,D,c,opts);
     case 'parabola'
         o = opts; o.c0 = 0; if isfield(bnd,'c0') && ~isempty(bnd.c0), o.c0 = bnd.c0; end

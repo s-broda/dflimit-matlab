@@ -27,6 +27,7 @@ P = zeros(size(c));
 for k = 1:numel(c)
     ck = double(c(k));
     if ~(ck < 0), if isnan(ck), P(k) = NaN; else, P(k) = alpha; end, continue, end   % (NaN at NaN, as POWER_ENVELOPE)
+    if ck == -Inf, P(k) = 1; continue, end                                            % (the limit)
     if nodet
         a = ck/2; D0 = dfdet_trend(-1);
         b = dfdet_lin_icdf(alpha,a,D0,0,struct('b0',0));

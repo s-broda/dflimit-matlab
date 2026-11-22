@@ -30,7 +30,7 @@ if strcmp(start,'fixed') && g0 == 0, start = 'zero'; end
 if strcmp(start,'stationary') && ~(c < 0), error('dfdet:args','dfdet: %s.',dfdet_msg('stat_c')); end
 gls = getf(opts,'gls',[]);
 if ~isempty(gls)
-    if ~(isnumeric(gls) && isscalar(gls) && isreal(gls) && gls < 0), error('dfdet:args','dfdet: GLS detrending needs opts.gls = cbar < 0.'); end
+    if ~(isnumeric(gls) && isscalar(gls) && isreal(gls) && gls < 0 && isfinite(gls)), error('dfdet:args','dfdet: GLS detrending needs opts.gls = cbar < 0 (a finite number).'); end
     if ~strcmp(start,'zero'), error('dfdet:args','dfdet: %s.',dfdet_msg('gls_start')); end
     if strcmp(D.detrend,'first'), error('dfdet:args','dfdet: %s.',dfdet_msg('first_gls')); end
     gls = double(gls);

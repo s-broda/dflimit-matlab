@@ -39,9 +39,11 @@ switch kind
     case 'ls', P = prep_ls(D);
     case 'gls'
         if strcmp(D.detrend,'first'), error('dfdet:args','%s',dfdet_msg('first_gls')); end
-        if ~(cbar < 0), error('dfdet:args','GLS detrending needs cbar < 0.'); end
+        if ~(cbar < 0 && isfinite(cbar)), error('dfdet:args','GLS detrending needs cbar < 0 (a finite number).'); end
         P = prep_gls(D,double(cbar));
-    case 'pt', P = prep_pt(D,double(cbar));
+    case 'pt'
+        if ~(cbar < 0 && isfinite(cbar)), error('dfdet:args','the point-optimal statistic needs cbar < 0 (a finite number).'); end
+        P = prep_pt(D,double(cbar));
     case 'lm', [P,a1] = prep_lm(D);
     otherwise, error('dfdet:args','dfdet_prep: kind must be ''ls'', ''gls'', ''pt'' or ''lm''.');
 end

@@ -14,6 +14,7 @@ alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alp
 if ~(isnumeric(alpha) && isscalar(alpha) && alpha > 0 && alpha < 1), error('dfdet:args','pt_envelope: the level opts.alpha must lie in (0, 1).'); end
 P = zeros(size(c));
 for k = 1:numel(c)
-    if c(k) < 0, [~,P(k)] = pt_power(c(k),D,c(k),opts); elseif isnan(c(k)), P(k) = NaN; else, P(k) = alpha; end   % (NaN at NaN, as POWER_ENVELOPE)
+    if c(k) == -Inf, P(k) = 1;                                                      % (the limit)
+    elseif c(k) < 0, [~,P(k)] = pt_power(c(k),D,c(k),opts); elseif isnan(c(k)), P(k) = NaN; else, P(k) = alpha; end   % (NaN at NaN, as POWER_ENVELOPE)
 end
 end

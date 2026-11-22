@@ -41,6 +41,20 @@ if ~(ischar(cas) || isstring(cas)) || ~strcmpi(cas,'DK'), error('ltratio:args','
 if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:args','ltratio_region: c must be a finite real scalar.'); end
 if c < -550, error('ltratio:args','ltratio_region: c must be at least -550 (the range in which the programs are checked).'); end
 if ~isstruct(bnd) || ~isfield(bnd,'type'), error('ltratio:args','ltratio_region: bnd must be a structure with the field type.'); end
+% (the line and the parabola at a non-finite b or x: 1, 0, NaN, as the C router gives them; the classical programs gave 0,
+% also at NaN; the slope a and c0 must be finite)
+ty = lower(char(bnd.type));
+if any(strcmp(ty,{'line','parabola'})) && ~any(isfield(bnd,{'v0','brks','g'}))
+    if strcmp(ty,'line'), s = bnd.a; v = bnd.b; else, s = 0; if isfield(bnd,'c0') && ~isempty(bnd.c0), s = bnd.c0; end, v = bnd.x; end
+    if ~(isnumeric(s) && isscalar(s) && isreal(s) && isfinite(s))
+        if strcmp(ty,'line'), error('ltratio:args','ltratio_region: the slope a of the line must be a finite real scalar.'); end
+        error('ltratio:args','ltratio_region: c0 of the parabola must be a finite real scalar.');
+    end
+    if isnumeric(v) && isscalar(v) && ~isfinite(v)
+        if isnan(v), P = NaN; elseif v > 0, P = 1; else, P = 0; end
+        info = struct('engine','classical','err',0,'status',0); return
+    end
+end
 [P,info] = tr_region(bnd,c,opts);
 end
 

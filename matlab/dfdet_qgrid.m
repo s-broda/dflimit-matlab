@@ -19,6 +19,9 @@ function G = dfdet_qgrid(D,cbar,c,N,umax)
 %   See also PT_CDF.
 if nargin < 4 || isempty(N), N = 60000; end
 if nargin < 5 || isempty(umax), umax = 4000; end
+% (c = +-Inf did not return in the C and Julia engines, and umax = Inf gives an infinite step)
+if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('dfdet:args','the point-optimal statistic: c must be a finite real scalar.'); end
+if ~(isnumeric(umax) && isscalar(umax) && umax > 0 && isfinite(umax)), error('dfdet:args','the point-optimal statistic: umax must be a positive finite number.'); end
 key = sprintf('%s|pt%.17g|%.17g|%d|%.17g',dfdet_key(D),cbar,c,N,umax);
 G = dfdet_cache('get','qgrid',key);
 if ~isempty(G), return, end

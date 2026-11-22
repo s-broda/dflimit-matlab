@@ -41,6 +41,8 @@ if ~(ischar(cas) || isstring(cas))
 end
 if ischar(cas) || isstring(cas)
     cb = -13.5; if isfield(oc,'cbar') && ~isempty(oc.cbar), cb = oc.cbar; end
+    % (a non-finite cbar did not return in the classical programs)
+    if ~(isnumeric(cb) && isscalar(cb) && isreal(cb) && isfinite(cb) && cb < 0), error('ltratio:args','ltratio_lincdf: opts.cbar must be a finite real scalar < 0.'); end
     if strcmpi(cas,'DG'), S = struct('D',dfdet_trend(1),'start','zero','g0',0,'gls',cb,'case','DG');
     elseif any(strcmpi(cas,{'DK','DU'})), S = struct('D',dfdet_trend(-1),'start','zero','g0',0,'gls',[],'case','DK');
     else, error('ltratio:args','ltratio_lincdf: the case must be DK or DG.'); end
@@ -58,7 +60,7 @@ function checks(b,a,cas,c)
 if ~(ischar(cas) || isstring(cas)) || ~any(strcmpi(cas,{'DK','DG'})), error('ltratio:args','ltratio_lincdf: the case must be DK or DG.'); end
 if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:args','ltratio_lincdf: c must be a finite real scalar.'); end
 if c < -550, error('ltratio:args','ltratio_lincdf: c must be at least -550 (the range in which the programs are checked; the moments fail from about c = -600, the line integral from about c = -650).'); end
-if ~(isnumeric(a) && isscalar(a) && isreal(a)), error('ltratio:args','ltratio_lincdf: a must be a real scalar (NaN: the distribution of V).'); end
+if ~(isnumeric(a) && isscalar(a) && isreal(a) && ~isinf(a)), error('ltratio:args','ltratio_lincdf: a must be a finite real scalar (NaN: the distribution of V).'); end
 if ~(isnumeric(b) && isreal(b)), error('ltratio:args','ltratio_lincdf: b must be real.'); end
 end
 
