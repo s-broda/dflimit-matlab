@@ -1,5 +1,20 @@
 # News
 
+## Unreleased
+
+**MATLAB.** The general engine of DFLimit.jl (`DFLimit.DFDet`: any deterministic terms, polynomial trends of any
+order, breaks in level and slope at several known dates, smooth functions of t/n, by the inversion on paths around the
+roots of the joint moment generating function) is ported to plain MATLAB: the constructors of the designs
+(`dfdet_trend`, `dfdet_perron`, `dfdet_fdesign`, `dfdet_ltrend`, `dfdet_design_from_matrix`, `dfdet_detrend_first`,
+`dfdet_determ`), the distribution function, density, quantiles and moments of the t-ratio (`dfdet_cdf`, `dfdet_pdf`,
+`dfdet_icdf`, `dfdet_mom`, with a local null value, a zero, fixed or stationary start, GLS detrending and the
+statistic that detrends first), the coefficient statistic, the linear form U - aV, the law of V, ADFmax, the envelope,
+local power and regions (`dfdet_*`), and the companions `pt_*`, `lm_*`, `mza_*`, `msb_*`; the user-level routines of
+the classical programs take `opts.engine` ('auto', the default, by the rule `ltratio_engine` set from the timings of
+the two MATLAB engines; 'classical'; 'general') and a design in place of the case. `dfdet_test` checks the port
+against 1113 values of the Julia engine (within 1.3e-11 in distribution functions and densities, 2.2e-11 in
+quantiles); the values of the classical programs are unchanged where they compute.
+
 ## 0.5.0
 
 Four errors are repaired, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB

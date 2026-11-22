@@ -37,7 +37,7 @@ n/a the cell lies outside the checks of the classical programs (LTRATIO_ARGS).
    28 zero start, c0 > 0, -100 < c <= 1 (DK, c = 0, c0 = 2.0)        classical    1131.5   general     314.4   g/c    0.28  diff  1.1e-12  Julia g/c   0.31  auto general   Julia general
    29 zero start, c0 > 0, -100 < c <= 1 (DU, c = 0, c0 = 2.0)        classical    1012.6   general     532.2   g/c    0.53  diff  6.3e-13  Julia g/c   0.55  auto general   Julia general
    30 zero start, c0 > 0, -100 < c <= 1 (DT, c = 1, c0 = 3.0)        classical    3349.1   general     525.1   g/c    0.16  diff  1.3e-12  Julia g/c   0.49  auto general   Julia general
-   31 zero start, c0 > 0, otherwise (DU, c = -100, c0 = 3.0)         classical    7922.8   general    2445.2   g/c    0.31  diff  1.8e-09  Julia g/c   1.18  auto general   Julia classical
+   31 zero start, c0 > 0, otherwise (DU, c = -100, c0 = 3.0)         classical    7922.8   general    2445.2   g/c    0.31  diff  1.8e-09  Julia g/c   1.18  auto classical Julia classical
    32 zero start, c0 > 0, otherwise (DU, c = 2, c0 = 1.0)            classical     402.6   general     613.8   g/c    1.52  diff  6.8e-13  Julia g/c   3.10  auto classical Julia classical
    33 zero start, c0 > 0, otherwise (DK, c = 2, c0 = 2.0)            classical     678.9   general     851.4   g/c    1.25  diff  3.7e-13  Julia g/c   1.51  auto classical Julia classical
    34 zero start, c0 != 0, c < -100 (DK, c = -300, c0 = -300.0)      classical    4154.0   general    1130.0   g/c    0.27  diff  8.3e-11  Julia g/c   0.39  auto general   Julia general
@@ -49,7 +49,7 @@ n/a the cell lies outside the checks of the classical programs (LTRATIO_ARGS).
    40 stationary start, c0 = c, c <= -5 (SK, c = -5, c0 = -5.0)      classical    1791.4   general     423.9   g/c    0.24  diff  2.4e-12  Julia g/c   0.23  auto general   Julia general
    41 stationary start, c0 = c, c <= -5 (SU, c = -10, c0 = -10.0)    classical    5047.6   general     462.4   g/c    0.09  diff  5.2e-12  Julia g/c   0.08  auto general   Julia general
    42 stationary start, c0 = c, c <= -5 (ST, c = -50, c0 = -50.0)    classical    2687.8   general     634.1   g/c    0.24  diff  3.2e-11  Julia g/c   0.15  auto general   Julia general
-   43 stationary start, c0 = c, c <= -5 (SU, c = -100, c0 = -100.0)  classical    3712.8   general    1224.0   g/c    0.33  diff  1.1e-09  Julia g/c   0.35  auto general   Julia general
+   43 stationary start, c0 = c, c <= -5 (SU, c = -100, c0 = -100.0)  classical    3712.8   general    1224.0   g/c    0.33  diff  1.1e-09  Julia g/c   0.35  auto classical Julia general
    44 stationary start, c0 = c, c <= -5 (SK, c = -300, c0 = -300.0)  classical    7048.3   general    1840.5   g/c    0.26  diff  1.7e-12  Julia g/c   0.37  auto general   Julia general
    45 stationary start, c0 = c, -5 < c <= -3e-3 (SK, c = -1, c0 = -1.0) classical    1038.4   general     434.9   g/c    0.42  diff  4.3e-13  Julia g/c   0.22  auto general   Julia general
    46 stationary start, c0 = c, -5 < c <= -3e-3 (SU, c = -0.5, c0 = -0.5) classical    4560.2   general     799.8   g/c    0.18  diff  7.6e-13  Julia g/c   0.05  auto general   Julia general
@@ -173,3 +173,12 @@ n/a the cell lies outside the checks of the classical programs (LTRATIO_ARGS).
   154 zero start, c0 < 0, -100 <= c <= 0 (DT, c = -50, c0 = -50.0)   classical     378.6   general     658.5   g/c    1.74  diff  1.7e-12  Julia g/c    NaN  auto classical Julia 
   155 fixed start, cases DU, DT (DU, c = 0, g0 = 1.0)                classical     530.3   general     477.4   g/c    0.90  diff  1.8e-14  Julia g/c    NaN  auto classical Julia 
   156 fixed start, cases DU, DT (DT, c = -20, g0 = 2.0)              classical    1222.3   general    1322.1   g/c    1.08  diff  6.4e-13  Julia g/c    NaN  auto classical Julia 
+
+Accuracy, the cells where the two engines differ by more than 1e-10.  Against the line integral of the classical programs
+(accurate to 1e-11 down to c = -480), the general engine is off by 1.3e-12, 4.6e-13, 3.7e-11, 1.4e-9, 1.3e-12, 1.1e-12 in
+case DU at c = -50, -60, -75, -100, -101, -150 (DT, SU, DK alike, at mean -2..2 sd): for c >= -100 its outer contour ends at
+|t - tau| = 1e5, below at 20 c^2 (DFDet.jl the same); the MATLAB rule takes the classical programs for -100 <= c < -60
+(rows 22, 31, 43).  With a fixed start in case DK at c = -20, g0 = 2 (row 71) the classical conditional integral, one
+evaluation, is off by 1.8e-7 and its checked computation by 4.7e-8, the general engine within 3e-14 of the Julia engines
+(which agree with each other to 5e-14): the rule takes the general engine for c < -10 there.  In row 31 (DU, c = -100,
+c0 = 3) the general engine is within 4.5e-10 of its checked computation in Julia, the classical programs within 1.9e-9.

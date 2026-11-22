@@ -15,8 +15,8 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %   to 1e-10, the more accurate one where they do not.  The general engine is
 %   taken for the t-ratio
 %     zero start, c0 = 0: cases DU, DT for c <= 1 (1.4 to 6 times faster),
-%       case DK for c <= -50 (1.6 to 1.9 times; for -30 <= c <= 1 the classical
-%       line integral is 1.3 to 2.2 times faster);
+%       case DK for c <= -50 (1.6 to 1.9 times; for -30 <= c <= 1 the
+%       classical line integral is 1.3 to 2.2 times faster);
 %     stationary start, c0 = 0, c <= -1 (1.5 to 4.4 times);
 %     zero start, c0 < 0: case DU for -10 <= c <= 0, cases DK, DT for
 %       -5 <= c <= 0 (1.2 to 2.8 times; from c = -10 in case DK, -20 in cases DU,
@@ -29,7 +29,11 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %     fixed start, case DK: c < -10 (the classical conditional integral is off
 %       by 1.8e-7 at c = -20, g0 = 2, the general engine within 3e-14 of the
 %       Julia engine) and, with c0 = 0, -1 <= c <= 0 with |g0| <= 1 (1.3 times);
-%   the classical programs elsewhere: case DG, above the unit root (c > 1, and
+%   the classical programs elsewhere, and for every cell with -100 <= c < -60
+%   (there the outer contour of the general engine ends at |t - tau| = 1e5,
+%   which leaves errors of 4e-11 at c = -75 and 1.4e-9 at c = -100 against the
+%   line integral, 1e-12 at c = -50, -60 and, on the longer contour below
+%   c = -100, at c = -101, -150; DFDet.jl the same): case DG, above the unit root (c > 1, and
 %   c >= 4 with c0 < 0, where the general engine is the less accurate), a fixed
 %   start in cases DU, DT (within 15% of each other).  Quantiles: the general
 %   search at c0 = 0 except in case DG and for c > 1 (1.6 to 10 times faster,
@@ -52,8 +56,11 @@ cas = S.case; fixed = strcmp(S.start,'fixed'); stat = strcmp(S.start,'stationary
 if strcmp(f,'dist'), gen = false(size(x)); else, gen = false; end
 if isempty(cas) || exist('ltratio_mex','file') == 3, return, end
 ac = abs(S.g0);
+mid = -100 <= c && c < -60;                            % (the accuracy of the general engine dips there)
 switch f
     case 'dist'
+        if fixed && strcmp(cas,'DK') && c < -10, gen(:) = true; return, end
+        if mid, return, end
         if stat && c0 ~= 0 && c <= -3e-3, gen(:) = true; return, end
         if ~fixed && ~stat && c0 > 0 && c <= 1
             gen(:) = true;
@@ -68,16 +75,16 @@ switch f
         if ~fixed && ~stat && c0 < 0 && c <= 0 && ((strcmp(cas,'DU') && c >= -10) || (any(strcmp(cas,{'DK','DT'})) && c >= -5)), gen(:) = true; return, end
         if ~fixed && ~stat && c0 == 0 && ((any(strcmp(cas,{'DU','DT'})) && c <= 1) || (strcmp(cas,'DK') && c <= -50)), gen(:) = true; return, end
         if stat && c0 == 0 && c <= -1, gen(:) = true; return, end
-        if fixed && strcmp(cas,'DK') && (c < -10 || (c0 == 0 && -1 <= c && c <= 0 && ac <= 1)), gen(:) = true; return, end
+        if fixed && strcmp(cas,'DK') && c0 == 0 && -1 <= c && c <= 0 && ac <= 1, gen(:) = true; return, end
     case 'icdf'
-        gen = c0 == 0 && ~strcmp(cas,'DG') && c <= 1;
+        gen = c0 == 0 && ~strcmp(cas,'DG') && c <= 1 && ~mid;
     case 'mom'
         gen = false;
     case 'lincdf'
         a = x;
         gen = isnan(a) || (strcmp(cas,'DK') && c <= 0 && abs(a) <= 0.1) || (strcmp(cas,'DG') && a ~= 0 && c > 3.5);
     case 'adfmax'
-        gen = (stat && c <= -0.1) || (~stat && c <= -10);
+        gen = ((stat && c <= -0.1) || (~stat && c <= -10)) && ~mid;
     case 'envelope'
         gen = strcmp(cas,'DK') && c > -1 && c < 0;
     case 'region'
