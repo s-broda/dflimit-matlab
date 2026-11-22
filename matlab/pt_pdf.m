@@ -8,7 +8,7 @@ if nargin < 4 || isempty(c), c = 0; end
 if nargin < 5 || isempty(opts), opts = struct; end
 G = dfdet_qgrid(D,double(cbar),double(c),getf(opts,'N',60000),getf(opts,'umax',4000));
 f = zeros(size(q));
-for k = 1:numel(q), f(k) = sum(real(exp(G.lM - 1i*G.u*q(k))).*G.w)/pi; end
+for k = 1:numel(q), [~,f(k)] = dfdet_ptf(G,q(k)); end   % (the range of q and the non-finite points as PT_CDF)
 end
 
 function v = getf(o,f,d)

@@ -13,21 +13,21 @@ function F = pt_cdf(q,D,cbar,c,opts)
 %   cbar J(1)^2 - eta' Xi^{-1} eta + eta_0' Xi_0^{-1} eta_0, a quadratic form
 %   whose characteristic function is a determinant (DFDET_QGRID); one
 %   inversion of Gil-Pelaez on the grid of opts.N = 60000 steps up to
-%   opts.umax = 4000.  The test rejects for small values.
+%   opts.umax = 4000.  The test rejects for small values.  An error is
+%   raised where the grid does not resolve the transform (far above the unit
+%   root, DFDET_QGRID) and at |q| > 0.15/h, h = asinh(umax)/N (1000 with the
+%   default grid), where the steps of u near the origin do not resolve
+%   e^{-iuq} (F came out as 3.0 at q = 1e5 at c = 0); 0, 1 and NaN at -Inf,
+%   Inf and NaN.
 %
 %   Example: pt_cdf(6.789, dfdet_perron('B', 0.5), -17.8)   % 0.0455
 %
-%   See also PT_PDF, PT_QUANTILE, PT_POWER, PT_ENVELOPE.
+%   See also PT_PDF, PT_QUANTILE, PT_POWER, PT_ENVELOPE, DFDET_PTF.
 if nargin < 4 || isempty(c), c = 0; end
 if nargin < 5 || isempty(opts), opts = struct; end
 G = dfdet_qgrid(D,double(cbar),double(c),getf(opts,'N',60000),getf(opts,'umax',4000));
 F = zeros(size(q));
-for k = 1:numel(q), [F(k),~] = ptF(G,q(k)); end
-end
-
-function [F,f] = ptF(G,q)
-z = exp(G.lM - 1i*G.u*q);
-F = 0.5 - sum(imag(z)./G.u.*G.w)/pi; f = sum(real(z).*G.w)/pi;
+for k = 1:numel(q), F(k) = dfdet_ptf(G,q(k)); end
 end
 
 function v = getf(o,f,d)
