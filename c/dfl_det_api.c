@@ -367,6 +367,8 @@ int dfl_det_moments(const dfl_design *D, double c, int pmax, const dfl_det_opts 
     if (det_model_make(P, o->start, o->gamma0, &Mo, err, errlen)) { det_prep_release(P); return 1; }
     const double h = 0.05;
     double tlo = dmin(-60.0, -2 * c - 40), thi = c < -20 ? dmax(8.0, log(80 * fabs(c))) : 8.0;
+    /* (the grid grows with c above the unit root: 2c/h points, 4e5 at c = 1e4; beyond 1e6 an error) */
+    if (!((thi - tlo) / h <= 1e6)) { snprintf(err, errlen, "dist_moments: the grid of the integral in s would have %.3g points at c = %g (more than 1e6): c is beyond the range of the moments", (thi - tlo) / h, c); det_model_free(&Mo); det_prep_release(P); return 1; }
     int ns = (int) floor((thi - tlo) / h + 1e-10) + 1;
     double *sv = malloc(ns * sizeof(double)), *acc = calloc((size_t) ns * pmax, sizeof(double));
     for (int i = 0; i < ns; i++) sv[i] = exp(tlo + i * h);

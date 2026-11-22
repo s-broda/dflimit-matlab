@@ -247,6 +247,15 @@ static void selftest_guard(void)
     check("guard", rc && strstr(err, "the U-shapes of the fixed start") && strstr(err, "the roots run off") ? 0 : 1, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused by the guard");
     check("guard", dt < 0.5 ? 0 : dt, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused within 0.5 s (the deviation: the time)");
     check("guard", dm < 100 ? 0 : dm, 0, 0, "d(r) = 1 + r, g0 = 1 at c = 0 refused with less than 100 MB (the deviation: MB)");
+    /* the caps of the outer hyperbola (a factor hfac of its step far below one) and of the grid of the moments */
+    dfl_design T1; dfl_design_trend(0, &T1, err, sizeof err);
+    dfl_det_defaults(&o); o.hfac = 1e-4;
+    rc = dfl_det_dist(2, &T1, 1, &x, -5.0, &o, &v, err, sizeof err);
+    check("guard", rc && strstr(err, "the outer contour would need") ? 0 : 1, 0, 0, "hfac = 1e-4 refused (the outer contour beyond 1e5 nodes)");
+    dfl_det_defaults(&o); double m[2];
+    rc = dfl_det_moments(&T1, 1e5, 2, &o, m, NULL, err, sizeof err);
+    check("guard", rc && strstr(err, "beyond the range of the moments") ? 0 : 1, 0, 0, "the moments at c = 1e5 refused (the grid beyond 1e6 points)");
+    dfl_design_free(&T1);
     dfl_det_empty_caches();
 }
 static det_prep *prep_of(int id, double cb, char *err)

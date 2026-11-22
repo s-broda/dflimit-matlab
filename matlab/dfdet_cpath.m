@@ -59,10 +59,14 @@ if c < -100, r = max(1e5,20*c*c); else, r = 1e5; end
 end
 
 function [a,b,h,K] = hyperbola(ts,phi,hfac,rmax,tau)
+% (at most 1e5 nodes, PATH_MAXNODES of DFDet.jl: the default rules need at most some 5500, 11000 in the finer variant of
+% the checked computation; a factor hfac of the step that is not positive or far below one is refused)
 y = min(0.5,0.9*(pi/2 - phi));
 b = 0.9*min(tau,ts - tau)/sin(y); a = b/tan(phi);
 h = hfac*2*pi*y/(37 + 37*tan(phi)*y);
-K = ceil(asinh(rmax/hypot(a,b))/h);
+K = asinh(rmax/hypot(a,b))/h;
+if ~(h > 0 && K <= 1e5), error('dfdet:paths','the outer contour would need %.3g nodes (hfac = %g, the angle %.3g degrees), more than 1e5: hfac must be a positive factor of order one.',K,hfac,phi*180/pi); end
+K = ceil(K);
 end
 
 function CP = cpath_(Mo,c,phi,hfac,sub,rmax,tau)

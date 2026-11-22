@@ -31,6 +31,8 @@ if ~(isnumeric(p) && isscalar(p) && p == round(p) && p >= 1), error('dfdet:args'
 Nu = getf(opts,'Nu',64); h = getf(opts,'h',0.05);
 Mo = dfdet_startmodel(D,c,start,g0,gls);
 tlo = min(-60,-2*c - 40); if c < -20, thi = max(8,log(80*abs(c))); else, thi = 8; end
+% (the grid grows with c above the unit root: 2c/h points, 4e5 at c = 1e4; beyond 1e6 an error)
+if ~((thi - tlo)/h <= 1e6), error('dfdet:args','dfdet_mom: the grid of the integral in s would have %.3g points at c = %g (more than 1e6): c is beyond the range of the moments.',(thi - tlo)/h,c); end
 sv = exp(tlo:h:thi); ns = numel(sv);
 smax = dfdet_tstar(Mo,c);
 wk = exp(2i*pi*(0:Nu-1)'/Nu);

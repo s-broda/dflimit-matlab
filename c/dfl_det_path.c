@@ -280,12 +280,22 @@ static int rootpath_sparse(const det_model *Mo, double c, const cdouble *tt, int
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */
-static void hyperbola(double ts, double phi, double hfac, double rmax, double tau, double *a, double *b, double *h, int *K)
+/* the most nodes of an outer hyperbola (PATH_MAXNODES of DFDet.jl): the default rules need at most some 5500 (the 88-degree
+ * hyperbola), 11000 in the finer variant of the checked computation; a factor hfac of the step that is not positive or far
+ * below one is refused (1 and the message in err) */
+#define DET_PATH_MAXNODES 100000
+static int hyperbola(double ts, double phi, double hfac, double rmax, double tau, double *a, double *b, double *h, int *K, char *err, size_t errlen)
 {
     double y = dmin(0.5, 0.9 * (M_PI / 2 - phi));
     *b = 0.9 * dmin(tau, ts - tau) / sin(y); *a = *b / tan(phi);
     *h = hfac * 2 * M_PI * y / (37 + 37 * tan(phi) * y);
-    *K = (int) ceil(asinh(rmax / hypot(*a, *b)) / *h);
+    double Kf = asinh(rmax / hypot(*a, *b)) / *h;
+    if (!(*h > 0 && Kf <= DET_PATH_MAXNODES)) {
+        snprintf(err, errlen, "the outer contour would need %.3g nodes (hfac = %g, the angle %.3g degrees), more than %d: hfac must be a positive factor of order one", Kf, hfac, phi * 180 / M_PI, DET_PATH_MAXNODES);
+        *K = 0; return 1;
+    }
+    *K = (int) ceil(Kf);
+    return 0;
 }
 static const double PHI_FIXED[15] = {45, 50, 55, 60, 65, 70, 75, 78, 80, 82, 84, 85, 86, 87, 88};
 typedef struct { const det_model *Mo; double c, tau, a, b, h, g2; int k0, k1; volatile int bad; det_status st; } fp_ctx;
@@ -310,7 +320,7 @@ static int fixed_phi(const det_model *Mo, double c, double ts, double tau, doubl
     int nth = dfl_nworkers();
     for (int i = 0; i < 15; i++) {
         double phi = PHI_FIXED[i] * M_PI / 180, a, b, h; int K;
-        hyperbola(ts, phi, hfac, rmax, tau, &a, &b, &h, &K);
+        if (hyperbola(ts, phi, hfac, rmax, tau, &a, &b, &h, &K, err, errlen)) return 1;
         int ok = 1, k0 = 0, B = 16 * nth;
         while (ok && k0 <= K) {
             int k1 = imin(K, k0 + B - 1);
@@ -396,7 +406,7 @@ static det_path *cpath(det_model_ref *mr, double c, double phi, double hfac, dou
     double a, b, h, mnp, mxn; int K;
     cdouble *R = NULL, *lP = NULL; det_fixt **FX = NULL; cdouble *tt = NULL; int nt = 0;
     for (;;) {
-        hyperbola(ts, phi, hfac, rmax, tau, &a, &b, &h, &K);
+        if (hyperbola(ts, phi, hfac, rmax, tau, &a, &b, &h, &K, err, errlen)) { free(R); free(lP); free(tt); return NULL; }
         nt = sub * K + 1;
         tt = malloc(nt * sizeof(cdouble));
         for (int k = 0; k < nt; k++) { double u = k * h / sub; tt[k] = CPX(tau + a * (cosh(u) - 1), b * sinh(u)); }
