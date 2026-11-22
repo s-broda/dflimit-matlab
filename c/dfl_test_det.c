@@ -22,7 +22,13 @@ static void f_expr(double r, double *o, void *c) { (void) c; o[0] = exp(r); }
 /* the groups of comparisons: name, count, largest deviation (absolute), failures */
 typedef struct { const char *name; int n, fail; double worst, worst_rel_tol; } group_t;
 static group_t G[64]; static int NG = 0;
-static group_t *grp(const char *name) { for (int i = 0; i < NG; i++) if (!strcmp(G[i].name, name)) return &G[i]; G[NG].name = strdup(name); return &G[NG++]; }
+static char GNAMES[64][48];
+static group_t *grp(const char *name)
+{
+    for (int i = 0; i < NG; i++) if (!strcmp(G[i].name, name)) return &G[i];
+    snprintf(GNAMES[NG], sizeof GNAMES[NG], "%s", name); G[NG].name = GNAMES[NG];
+    return &G[NG++];
+}
 static int VERB = 0;
 static void check(const char *gname, double got, double want, double tol, const char *what)
 {
