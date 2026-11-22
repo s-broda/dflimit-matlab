@@ -151,6 +151,15 @@ for k = 1:numel(R)
     try, R{k}{1}(); catch ME, msg = ME.message; end
     check(sprintf('refused: %s (%.60s)',func2str(R{k}{1}),msg),double(~contains(msg,R{k}{2})),0);
 end
+% the guard on the nodes of the U-shapes before the outer sum (USHAPE_GUARD of DFDET_CONTOUR): the design (1 + r,
+% 1{r < 0.4}), whose positive root runs off on the vertical line, and d(r) = 1 + r with a fixed start are refused before
+% any inner integral (the guard in the U-shapes refused after 11 s; the time is now that of the outer path, about 1 s)
+Dl = dfdet_determ([0 0.4 1],{[1 1; 1 0],[1 0; 1 0]},'1 + r, 1{r < 0.4}'); Dr = dfdet_determ([0 1],{[1; 1]},'1 + r');
+G2 = {{@() dfdet_cdf(-2,Dl,2), 'U-shapes of the zero start'}, {@() dfdet_cdf(-2,Dr,0,struct('start','fixed','g0',1)), 'U-shapes of the fixed start'}};
+for k = 1:numel(G2)
+    msg = 'no error'; t0 = tic; try, G2{k}{1}(); catch ME, msg = ME.message; end; tk = toc(t0);
+    check(sprintf('the guard before the outer sum: %s refused within 3 s (%.2f s)',func2str(G2{k}{1}),tk),double(~contains(msg,G2{k}{2})) + double(tk > 3),0);
+end
 % the edge of the LM statistic's transform: D_V > 0 below t_* and < 0 just beyond (the estimate of the orthogonal projection
 % put it up to 2.3 times too far out)
 for c = [-20 2 5]

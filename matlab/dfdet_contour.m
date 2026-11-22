@@ -142,6 +142,7 @@ function [F,f,done,eF,ef] = csum(CP,ev,U,vr,tol,warn)
 % the outer trapezoidal rule (or the line's Gauss-Legendre rule) over the nodes of CP, in chunks of 32 until a chunk
 % whose terms all stay below tol; with vr (Filon's rule on the line) the parts at the roots v1 = vr(i) separately
 K1 = numel(CP.t); nx = numel(ev); CH = 32;
+ushape_guard(CP,U,tol);                                % (the guard on the nodes of the U-shapes, before the outer sum)
 fil = ~isempty(vr);
 GF = zeros(K1,nx); Gf = GF; AF = GF; Af = GF;
 if fil, JF = complex(zeros(K1,nx)); Jf = JF; eb = exp(-CP.tau*vr.^2); else, JF = []; Jf = []; end
@@ -373,7 +374,131 @@ for j = 1:rp, L = L - log(rts(j) - s)/2; end
 for j = rp+1:numel(rts), L = L - log(s - rts(j))/2; end
 end
 
+function ushape_guard(CP,U,tol)
+% The guard on the nodes of the U-shapes, before any U-shape is built or any inner integral evaluated (USHAPE_GUARD of
+% DFDet.jl, ushape_guard of the C engine): the outer path carries the roots at its nodes, and with them the count that the
+% guard of USHAPES compares with 1e6 at every node t_k: the segments of the narrow U-shapes with the zero and the
+% stationary start, the wide heights at the abscissas of PLACE with a fixed start (placed only where an upper bound of the
+% count exceeds the cap: every abscissa lies in the interval of PLACE, every cap of the segments is at least 20/A).  The
+% first node beyond the cap at which the transform has not fallen below the tolerance of the outer sum, |M_V(t_k) t'_k|
+% max(1, 1/|t_k|) >= tol, refuses the call with the error of USHAPES.  The nodes where the transform is below tol are left
+% to the guard of USHAPES, as the outer sum stops before them unless its terms are not small there (d(r) = 1 + r on the
+% vertical line at c = 0 is beyond the cap from |t| = 3e4 on, where |M_V| is 1e-36, and its sum stops at |t| = 1.6e4).
+% The design (1 + r, 1{r <= 0.4}) on the vertical line is beyond the cap from |t| = 6300 on, where |M_V| is 1e-15: it took
+% seconds and some 0.8 GB (in Julia and C) before USHAPES refused, and is refused here before any inner integral.
+Mo = CP.Mo; rp = Mo.rp; fixed = strcmp(Mo.start,'fixed');
+A = U.A; n = U.n; alpha = U.alpha; c0s = U.c0s; c = CP.c;
+% (the counts of all nodes at once: the gap, the default abscissas, the branch points, the caps, as in USHAPES)
+gp = CP.R(1:rp,:); gm = CP.R(rp+1:end,:); K = size(CP.R,2);
+hi = min(real(gp),[],1); if Mo.rm > 0, lo = max(real(gm),[],1); else, lo = -Inf(1,K); end
+ok = lo < min(hi,0);
+mid = hi > 0 & lo < 0;
+lo2 = max(lo,hi - 2*max(abs(hi),1));
+sp = hi - alpha*(hi - lo2); sm = lo2 + alpha*(min(0,hi) - lo2);
+sp(mid) = alpha*hi(mid); sm(mid) = alpha*lo(mid);
+tr = real(CP.t(:)).';
+if fixed
+    % (an upper bound of the count: sigma+ >= L, the lower end of the interval of PLACE, sigma- <= min(hi, 0))
+    if Mo.rm > 0, L = lo; else, L = hi - 2*max(abs(hi),1); end
+    hmx = max([zeros(1,K); abs(imag(gp)) + real(gp) - L; abs(imag(gm)) + min(hi,0) - real(gm)],[],1);
+    cand = find(ok & 2*hmx*A/20*n > 1e6);
+else
+    for c0 = c0s
+        if ~(c0 > 0), continue, end
+        lb = -tr/c0;
+        sp(~(lb < hi)) = NaN;
+        mv = sp <= lb; sp(mv) = lb(mv) + alpha*(hi(mv) - lb(mv));
+    end
+    hseg = 20/A; hp = hseg*ones(1,K); hm = hp;
+    if c < -100, q = sp > 0; hp(q) = 20./min(A,40./sp(q)); q = sm < 0; hm(q) = 20./min(A,40./abs(sm(q))); end
+    % (the narrow U-shapes: from min Im - d to max Im + d, d the distance of the segment from the nearest root of the group)
+    lp = max(imag(gp),[],1) - min(imag(gp),[],1) + 2*min(real(gp) - sp,[],1);
+    nest = lp./hp*n; hsg = lp;
+    if Mo.rm > 0
+        lm_ = max(imag(gm),[],1) - min(imag(gm),[],1) + 2*min(sm - real(gm),[],1);
+        nest = nest + lm_./hm*n; hsg = max(hsg,lm_);
+    end
+    cand = find(ok & ~isnan(sp) & nest > 1e6);
+end
+lt = log(tol);
+for k = cand
+    rts = CP.R(:,k);
+    % log |M_V(t_k)| = Re log Mt(0) (with a fixed start and g0^2 Re cf(t_k): E1(0) = 0)
+    lmv = real(logmtilde(rts,rp,CP.lP(k),0));
+    if fixed, lmv = lmv + Mo.g0^2*real(CP.fx.cf(k)); end
+    if ~(lmv + log(abs(CP.dt(k))*max(1,1/abs(CP.t(k)))) >= lt), continue, end
+    t = CP.t(k);
+    if fixed
+        % (the count of USHAPES, with its placed abscissas)
+        g1 = rts(1:rp); g2 = rts(rp+1:end);
+        [s1,s2] = ufixed_place(CP,logmt_fun(CP,k),c0s,g1,g2,hi(k),lo(k),sp(k),sm(k),tr(k),alpha,A,U.xq);
+        s1 = ubranch(s1,hi(k),tr(k),c0s,alpha);
+        if isnan(s1), continue, end
+        [h1,h2] = ucaps(c,s1,s2,A);
+        [ns,hx] = ufixed_count(rts,s1,s2,h1,h2,n);
+        if ns > 1e6, error('dfdet:paths',ushape_msg_fixed(),num2str(t),round(ns),hx); end
+        continue
+    end
+    error('dfdet:paths',ushape_msg(),Mo.start,num2str(t),nest(k),hsg(k));
+end
+end
+
+function m = ushape_msg()
+m = 'the U-shapes of the %s start at t = %s would need some %.3g nodes (segments to %.3g long): a root runs off (more than 1e6 nodes).';
+end
+function m = ushape_msg_fixed()
+m = 'the U-shapes of the fixed start at t = %s would need some %d nodes (heights to %.3g): the roots run off (more than 1e6 nodes).';
+end
+
+function sp = ubranch(sp,hi,tr,c0s,alpha)
+% sigma+ moved right of the branch point -Re(t)/c0 of every c0 > 0 (NaN where a branch point is not left of hi)
+for c0 = c0s
+    if ~(c0 > 0), continue, end
+    lb = -tr/c0;
+    if ~(lb < hi), sp = NaN; return, end
+    if sp <= lb, sp = lb + alpha*(hi - lb); end
+end
+end
+
+function [hp,hm] = ucaps(c,sp,sm,A)
+% the caps of the panels of the segments of G+ and G-: 20/A, and below c = -100 20/min(A, 40/|sigma|) (there the segments
+% lie far from the origin, where the kernels are damped: only rates up to 40/|sigma| matter)
+hseg = 20/A;
+if c < -100 && sp > 0, hp = 20/min(A,40/sp); else, hp = hseg; end
+if c < -100 && sm < 0, hm = 20/min(A,40/abs(sm)); else, hm = hseg; end
+end
+
+function [nest,hmx] = ufixed_count(rts,sp,sm,hp,hm,n)
+% the count of the wide U-shapes of the fixed start at the abscissas sp, sm (heights to hmx)
+hmx = 0;
+for z = rts.'
+    if real(z) > 0, sg = sp; else, sg = sm; end
+    hmx = max(hmx,abs(imag(z)) + abs(real(z) - sg));
+end
+nest = 2*hmx/min(hp,hm)*n;
+end
+
+function [sp,sm] = ufixed_place(CP,lm,c0s,gp,gm,hi,lo,sp,sm,tr,alpha,A,xq)
+% the abscissas of the U-shapes of the fixed start: where the largest |Mt| on the U-shape is smallest; above the unit
+% root the objective also counts the growth of the v-kernels of the upper tail (x up to xq > 0) on G+ left of the origin,
+% and with c0 > 0 the placement is searched right of the branch point -Re(t)/c0
+c = CP.c; Mo = CP.Mo;
+if c > 0, xg = xq; else, xg = 0; end
+lbp = -Inf;
+if c > 0, for c0 = c0s, if c0 > 0, lbp = max(lbp,-tr/c0); end, end, end
+if isfinite(lbp), sp0 = max(sp,lbp + alpha*(hi - lbp)); else, sp0 = sp; end
+c0p = 0; if c > 0 && any(c0s > 0), c0p = max(c0s(c0s > 0)); end
+if Mo.rm > 0
+    sp = place(lm,gp,gm,1,max(lo,lbp),hi,A,sp0,xg,tr,c0p);
+    sm = place(lm,gm,gp,-1,lo,min(hi,0),A,sm,0,tr,0);
+else
+    sp = place(lm,gp,gm,1,max(hi - 2*max(abs(hi),1),lbp),hi,A,sp0,xg,tr,c0p);
+end
+end
+
 function [Sp,Wp,Sm,Wm] = ushapes(CP,k,lm,c0s,rsp,rsm,alpha,A,n,ntail,xq,fixed)
+% (the gap, the abscissas, the branch points and the caps are written out here, node by node, as USHAPE_GUARD computes
+% them for all nodes at once: helper functions called at every node cost up to 12% of a call)
 Mo = CP.Mo; t = CP.t(k); tr = real(t); c = CP.c;
 rts = CP.R(:,k); rp = Mo.rp;
 gp = rts(1:rp); gm = rts(rp+1:end);
@@ -386,22 +511,7 @@ else
     sp = hi - alpha*(hi - lo2); sm = lo2 + alpha*(min(0,hi) - lo2);
 end
 exp_p = complex(zeros(0,1)); exp_m = exp_p;
-if fixed
-    % the fixed start: the abscissas where the largest |Mt| on the U-shape is smallest; above the unit root the
-    % objective also counts the growth of the v-kernels of the upper tail (x up to xq > 0) on G+ left of the origin,
-    % and with c0 > 0 the placement is searched right of the branch point -Re(t)/c0
-    if c > 0, xg = xq; else, xg = 0; end
-    lbp = -Inf;
-    if c > 0, for c0 = c0s, if c0 > 0, lbp = max(lbp,-tr/c0); end, end, end
-    if isfinite(lbp), sp0 = max(sp,lbp + alpha*(hi - lbp)); else, sp0 = sp; end
-    c0p = 0; if c > 0 && any(c0s > 0), c0p = max(c0s(c0s > 0)); end
-    if Mo.rm > 0
-        sp = place(lm,gp,gm,1,max(lo,lbp),hi,A,sp0,xg,tr,c0p);
-        sm = place(lm,gm,gp,-1,lo,min(hi,0),A,sm,0,tr,0);
-    else
-        sp = place(lm,gp,gm,1,max(hi - 2*max(abs(hi),1),lbp),hi,A,sp0,xg,tr,c0p);
-    end
-end
+if fixed, [sp,sm] = ufixed_place(CP,lm,c0s,gp,gm,hi,lo,sp,sm,tr,alpha,A,xq); end
 for c0 = c0s
     if c0 == 0, continue, end
     sb = -t/c0;
@@ -418,25 +528,20 @@ hseg = 20/A;
 % (below c = -100 the segments lie far from the origin, where the kernels are damped: only rates up to 40/|sigma| matter)
 if c < -100 && sp > 0, hp = 20/min(A,40/sp); else, hp = hseg; end
 if c < -100 && sm < 0, hm = 20/min(A,40/abs(sm)); else, hm = hseg; end
+% (the guard on the size of the U-shapes, which USHAPE_GUARD checks before the outer sum at the nodes where the transform
+% is not negligible; here at the other nodes, which the sum reaches where its terms are not small.  The wide heights of
+% the fixed start follow a root that runs off)
 if fixed
-    % (a guard on the size of the U-shapes: the wide heights follow a root that runs off)
-    hmx = 0;
-    for z = rts.'
-        if real(z) > 0, sg = sp; else, sg = sm; end
-        hmx = max(hmx,abs(imag(z)) + abs(real(z) - sg));
-    end
-    nest = 2*hmx/min(hp,hm)*n;
-    if nest > 1e6, error('dfdet:paths','the U-shapes of the fixed start at t = %s would need some %d nodes (heights to %.3g): the roots run off.',num2str(t),round(nest),hmx); end
+    [nest,hmx] = ufixed_count(rts,sp,sm,hp,hm,n);
+    if nest > 1e6, error('dfdet:paths',ushape_msg_fixed(),num2str(t),round(nest),hmx); end
     lmf = lm;
 else
     % (the zero and the stationary start: the segments of the narrow U-shapes, at most hp or hm per panel with n nodes, a
-    % lower bound of their nodes, within 1% of the count beyond 1e5.  The design (1 + r, 1{r <= 0.4}) on the vertical line
-    % has the positive root 86030 - 764901i at t = 1 + 2749i and U-shapes of 2e7 nodes further out; such a node stops with
-    % the same kind of error at the same cap of 1e6 nodes as the fixed start, as in the C and Julia engines)
+    % lower bound of their nodes, within 1% of the count beyond 1e5)
     nest = 0; hsg = 0;
     [ylo,yhi] = ulevels(gp,sp,1,false); nest = nest + (yhi - ylo)/hp*n; hsg = max(hsg,yhi - ylo);
     if Mo.rm > 0, [ylo,yhi] = ulevels(gm,sm,-1,false); nest = nest + (yhi - ylo)/hm*n; hsg = max(hsg,yhi - ylo); end
-    if nest > 1e6, error('dfdet:paths','the U-shapes of the %s start at t = %s would need some %.3g nodes (segments to %.3g long): a root runs off (more than 1e6 nodes).',Mo.start,num2str(t),nest,hsg); end
+    if nest > 1e6, error('dfdet:paths',ushape_msg(),Mo.start,num2str(t),nest,hsg); end
     lmf = [];
 end
 [Sp,Wp] = ushape(gp,gm,sp,1,n,ntail,exp_p,rsp,hp,lmf,A);
