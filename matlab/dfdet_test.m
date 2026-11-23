@@ -146,7 +146,7 @@ R = {{@() lm_cdf(-0.1,dfdet_trend(1),11), 'must be at most 10'}, {@() lm_quantil
      {@() ltratio_region(struct('type','line','a',-3.5,'b',-0.26),'DK',-5,struct('g0',1.5)), 'a fixed start takes a design'}, ...
      {@() ltratio_region(struct('type','line','a',-3.5,'b',-0.26),dfdet_trend(-1),-5,struct('g0',1.5,'engine','classical')), 'with a zero start'}, ...
      {@() power_envelope(-5,dfdet_trend(-1),struct('g0',1)), 'zero start'}, {@() power_envelope(-5,'DK',struct('g0',1)), 'a fixed start takes a design'}, ...
-     {@() dfdet_cdf(-2,dfdet_trend(0),-5,struct('hfac',1e-4)), 'the outer contour would need'}, {@() dfdet_mom(2,dfdet_trend(0),1e5), 'beyond the range of the moments'}};
+     {@() dfdet_cdf(-2,dfdet_trend(0),-5,struct('hfac',1e-4)), 'the outer contour would need'}, {@() dfdet_mom(2,dfdet_trend(0),1e5), 'up to c = 16'}};
 for k = 1:numel(R)
     msg = 'no error';
     try, R{k}{1}(); catch ME, msg = ME.message; end
@@ -209,6 +209,30 @@ for cs = {{'DU',dfdet_trend(0),'zero'},{'DT',dfdet_trend(1),'zero'},{'SU',dfdet_
         check(sprintf('the rules far from the unit root: %s at c = %g, the general engine against the line integral',cs{1}{1},c),max(abs(Fg - Fl)),1e-10);
     end
 end
+% above the unit root (November 2026): the segments of the U-shapes shorter than 1e-12 got no panel (case DK at c = 20 gave
+% 0.3128 for the 30% point), the (1,1) entry of the matrix of the transform carried an absolute rounding error of 1e-16 (the
+% moments with c0 ~= 0 off far above the unit root), the circle of the moments with c0 ~= 0 continued the logarithm of the
+% determinant alone (case DT at c = 0, c0 = -2 refused); the range of c is 20 without deterministic terms, 16 with them
+F = dfdet_coef_cdf(19.999999940099205,dfdet_trend(-1),20);
+check('above the unit root: the coefficient statistic of case DK at c = 20, the 30% point',abs(F - 0.3),2e-8);
+for cs = {{'DU',dfdet_trend(0)},{'DT',dfdet_trend(1)}}
+    y = coef_icdf([0.01 0.5 0.99],cs{1}{1},16,struct('engine','classical'));
+    Fc = coef_cdf(y,cs{1}{1},16,struct('engine','classical')); Fg = dfdet_coef_cdf(y,cs{1}{2},16);
+    check(sprintf('above the unit root: the coefficient statistic of case %s at c = 16 against the classical programs',cs{1}{1}),max(abs(Fg - Fc)),2e-8);
+end
+mc = ltratio_mom(4,'DT',0,struct('c0',-2,'engine','classical')); mg = dfdet_mom(4,dfdet_trend(1),0,struct('c0',-2));
+check('the moments of case DT at c = 0, c0 = -2 (the circle refused; relative)',max(abs(mg - mc)./abs(mc)),1e-9);
+mc = ltratio_mom(2,'DK',15,struct('c0',2,'engine','classical')); mg = dfdet_mom(2,dfdet_trend(-1),15,struct('c0',2));
+check('the moments of case DK at c = 15, c0 = 2 (the (1,1) entry; relative)',max(abs(mg - mc)./abs(mc)),1e-9);
+R2 = {{@() dfdet_coef_cdf(17,dfdet_trend(0),17), 'the coefficient statistic (dfdet_coef_cdf) at c = 17'}, ...
+      {@() dfdet_coef_cdf(21,dfdet_trend(-1),21), 'up to c = 20'}, {@() dfdet_cdf(0,dfdet_perron('A',0.5),18,struct('c0',2)), 'the t-ratio (dfdet_cdf) at c = 18'}, ...
+      {@() dfdet_mom(2,dfdet_trend(1),17), 'up to c = 16'}, {@() ltratio_cdf(0,'DU',17,struct('c0',17,'engine','general')), 'up to c = 16'}};
+for k = 1:numel(R2)
+    msg = 'no error';
+    try, R2{k}{1}(); catch ME, msg = ME.message; end
+    check(sprintf('the range of c: %s refused (%.60s)',func2str(R2{k}{1}),msg),double(~contains(msg,R2{k}{2})),0);
+end
+check('the range of c: the rule of the MATLAB programs takes the classical engine for case DK at c = 21 (the law of V)',double(ltratio_engine('lincdf',ltratio_spec('DK'),21,0,NaN)),0);
 % the edge of the LM statistic's transform: D_V > 0 below t_* and < 0 just beyond (the estimate of the orthogonal projection
 % put it up to 2.3 times too far out)
 for c = [-20 2 5]

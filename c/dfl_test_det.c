@@ -263,7 +263,8 @@ static void selftest_guard(void)
     check("guard", rc && strstr(err, "the outer contour would need") ? 0 : 1, 0, 0, "hfac = 1e-4 refused (the outer contour beyond 1e5 nodes)");
     dfl_det_defaults(&o); double m[2];
     rc = dfl_det_moments(&T1, 1e5, 2, &o, m, NULL, err, sizeof err);
-    check("guard", rc && strstr(err, "beyond the range of the moments") ? 0 : 1, 0, 0, "the moments at c = 1e5 refused (the grid beyond 1e6 points)");
+    /* (far above the unit root the range of c refuses first, before the cap of the grid of the moments) */
+    check("guard", rc && strstr(err, "up to c = 16") ? 0 : 1, 0, 0, "the moments at c = 1e5 refused (the range of c, before the grid beyond 1e6 points)");
     dfl_design_free(&T1);
     dfl_det_empty_caches();
 }
@@ -383,6 +384,77 @@ static void selftest_far(void)
         snprintf(what, sizeof what, "far rules: model %d stat %d c %g, the general engine against the line integral", models[m][0], models[m][1], cs[i]);
         check("far", rc ? NAN : d, 0, 1e-10, what);
     }
+    dfl_det_empty_caches();
+}
+/* above the unit root: the coefficient statistic of case DK at c = 20 (the segments of the U-shapes shorter than 1e-12 got
+ * no panel: 0.3128 for the 30% point), of cases DU, DT at c = 16, the moments at c = 15 to 20 (the (1,1) entry of the
+ * matrix of the transform carried an absolute rounding error of 1e-16: off by 0.95 relative at c = 20) and with c0 != 0 at
+ * c = 0 (the circle continues the logarithm of e^{c + theta} det(...): case DT at c = 0, c0 = -2 refused), the guard of
+ * coef_cdf_gp and the range of c (16 with deterministic terms, 20 without), against the classical engine of the router */
+static void selftest_above(void)
+{
+    char err[1024]; int rc;
+    dfl_design DK, DU, DT;
+    if (dfl_design_trend(-1, &DK, err, sizeof err) || dfl_design_trend(0, &DU, err, sizeof err) || dfl_design_trend(1, &DT, err, sizeof err)) { check("above", 1, 0, 0, "designs"); return; }
+    dfl_det_opts o; dfl_det_defaults(&o);
+    double y = 19.999999940099205, v[4], w[4];
+    rc = dfl_det_coef(2, &DK, 1, &y, 20, &o, v, err, sizeof err);
+    check("above", rc ? NAN : v[0], 0.3, 2e-8, "coef_cdf of case DK at c = 20, the 30% point");
+    const dfl_design *DD[2] = {&DU, &DT};
+    for (int m = 0; m < 2; m++) {
+        dfl_spec S = {NULL, m + 2, 0, 0.0, NAN};
+        double p[3] = {0.01, 0.5, 0.99}, q[3], Fc[3], Fg[3], d = 0; char what[160];
+        rc = dfl_engine_coef_icdf(3, p, &S, 16, 0, DFL_ENGINE_CLASSICAL, 1e-13, q, err, sizeof err)
+          || dfl_engine_coef(3, q, &S, 16, 0, DFL_ENGINE_CLASSICAL, Fc, err, sizeof err)
+          || dfl_det_coef(2, DD[m], 3, q, 16, &o, Fg, err, sizeof err);
+        for (int k = 0; k < 3; k++) d = fmax(d, fabs(Fc[k] - Fg[k]));
+        snprintf(what, sizeof what, "coef_cdf of model %d at c = 16 against the classical engine", m + 2);
+        check("above", rc ? NAN : d, 0, 2e-8, what);
+    }
+    struct { int model; double c, c0, rt; } mc[4] = {{1, 20, 0, 1e-11}, {1, 15, 0, 1e-11}, {3, 15, 0, 1e-11}, {3, 0, -2, 1e-9}};
+    for (int i = 0; i < 4; i++) {
+        dfl_spec S = {NULL, mc[i].model, 0, 0.0, NAN};
+        double d = 0; char what[160];
+        rc = dfl_engine_mom(4, &S, mc[i].c, mc[i].c0, DFL_ENGINE_CLASSICAL, v, err, sizeof err)
+          || dfl_engine_mom(4, &S, mc[i].c, mc[i].c0, DFL_ENGINE_GENERAL, w, err, sizeof err);
+        for (int k = 0; k < 4; k++) d = fmax(d, fabs(w[k] - v[k]) / fabs(v[k]));
+        snprintf(what, sizeof what, "moments of model %d at c = %g, c0 = %g, the general engine against the classical (relative)", mc[i].model, mc[i].c, mc[i].c0);
+        if (rc) printf("FAIL above %s: %s\n", what, err);
+        check("above", rc ? NAN : d, 0, mc[i].rt, what);
+    }
+    /* (the default route of the moments, which failed there) */
+    dfl_spec S3 = {NULL, 3, 0, 0.0, NAN};
+    rc = dfl_engine_mom(4, &S3, 0, -2, DFL_ENGINE_AUTO, w, err, sizeof err);
+    check("above", rc, 0, 0, "the moments of case DT at c = 0, c0 = -2 on the default route");
+    /* the guard of coef_cdf_gp, and its value with the N it names */
+    double y10 = 9.999331938731642, y12 = 11.999892584561692;
+    err[0] = 0; rc = dfl_det_coef_cdf_gp(&DK, 1, &y12, 12, &o, 0, 0, v, err, sizeof err);
+    check("above", rc && strstr(err, "needs N >=") ? 0 : 1, 0, 0, "coef_cdf_gp refuses the 30% point of case DK at c = 12");
+    err[0] = 0; rc = dfl_det_coef_cdf_gp(&DK, 1, &y10, 10, &o, 0, 0, v, err, sizeof err);
+    check("above", rc && strstr(err, "needs N >=") ? 0 : 1, 0, 0, "coef_cdf_gp refuses the 30% point of case DK at c = 10 with the default N");
+    dfl_spec SK = {NULL, 1, 0, 0.0, NAN};
+    rc = dfl_det_coef_cdf_gp(&DK, 1, &y10, 10, &o, 120000, 0, v, err, sizeof err) || dfl_engine_coef(1, &y10, &SK, 10, 0, DFL_ENGINE_CLASSICAL, w, err, sizeof err);
+    check("above", rc ? NAN : v[0] - w[0], 0, 2e-8, "coef_cdf_gp of case DK at c = 10 with N = 120000");
+    /* the range of c */
+    double y17 = 17;
+    err[0] = 0; rc = dfl_det_coef(2, &DU, 1, &y17, 17, &o, v, err, sizeof err);
+    check("above", rc && strstr(err, "the coefficient statistic (coef_cdf) at c = 17") && strstr(err, "up to c = 16") ? 0 : 1, 0, 0, "coef_cdf refuses c = 17 with an intercept");
+    double y21 = 21;
+    err[0] = 0; rc = dfl_det_coef(2, &DK, 1, &y21, 21, &o, v, err, sizeof err);
+    check("above", rc && strstr(err, "up to c = 20") ? 0 : 1, 0, 0, "coef_cdf refuses c = 21 without deterministic terms");
+    dfl_det_opts of; dfl_det_defaults(&of); of.start = DFL_START_FIXED; of.gamma0 = 1;
+    double y12f = 12;
+    err[0] = 0; rc = dfl_det_coef(2, &DU, 1, &y12f, 12, &of, v, err, sizeof err);
+    check("above", rc && strstr(err, "up to c = 10") ? 0 : 1, 0, 0, "coef_cdf refuses c = 12 with an intercept and a fixed start");
+    rc = dfl_det_coef(2, &DK, 1, &y21, 20, &of, v, err, sizeof err);
+    check("above", rc || !isfinite(v[0]) ? 1 : 0, 0, 0, "coef_cdf computes at c = 20 without deterministic terms and with a fixed start");
+    err[0] = 0; rc = dfl_det_moments(&DT, 18, 2, &o, v, NULL, err, sizeof err);
+    check("above", rc && strstr(err, "the moments of the t-ratio (dist_moments)") ? 0 : 1, 0, 0, "dist_moments refuses c = 18 with a trend");
+    check("above", dfl_autoengine(DFL_F_MOM, 2, 0, 0, NAN, 17, 0, 0) == DFL_ENGINE_CLASSICAL ? 0 : 1, 0, 0, "the router takes the classical moments of case DU at c = 17");
+    check("above", dfl_autoengine(DFL_F_MOM, 1, 0, 0, NAN, 20, 0, 0) == DFL_ENGINE_GENERAL ? 0 : 1, 0, 0, "the router keeps the general moments of case DK at c = 20");
+    rc = dfl_engine_mom(2, &S3, 18, 0, DFL_ENGINE_AUTO, w, err, sizeof err);
+    check("above", rc, 0, 0, "the moments of case DT at c = 18 on the default route (the classical engine)");
+    dfl_design_free(&DK); dfl_design_free(&DU); dfl_design_free(&DT);
     dfl_det_empty_caches();
 }
 static det_prep *prep_of(int id, double cb, char *err)
@@ -610,6 +682,7 @@ int main(int argc, char **argv)
     selftest_nonfinite();
     selftest_far();
     selftest_line_auto();
+    selftest_above();
     int fails = 0, n = 0;
     printf("%-10s %8s %8s %12s %10s\n", "group", "values", "failed", "largest dev", "dev/tol");
     for (int i = 0; i < NG; i++) { printf("%-10s %8d %8d %12.2e %10.2e\n", G[i].name, G[i].n, G[i].fail, G[i].worst, G[i].worst_rel_tol); fails += G[i].fail; n += G[i].n; }
