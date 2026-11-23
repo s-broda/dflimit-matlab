@@ -323,6 +323,19 @@ int dfl_vgrid(double c, double tail, int *N, double *umax, char *err, size_t err
  * NaN (power_envelope of DFExact.jl) */
 int dfl_power_envelope(int n, const double *c, int model, double alpha, const dfl_gp_opts *o, double *out, char *err, size_t errlen);
 
+/* ---- the devices of Bao and Kan (dfl_kan.c, dfl_det_kan.c; the module DFKan of DFLimit.jl) ----
+ * Yong Bao and Raymond Kan, "Exact Finite-Sample Distribution and Moments of the Least Squares Estimator in First-Order
+ * Autoregressions: O(1) Algorithms": the joint characteristic function of the limit pair (U, V) of the six classical cases
+ * in closed forms free of cancellation on both sides of the unit root, with the branch of the square root fixed at each
+ * point, in Taylor-mode arithmetic (jets); a statistic that rejects on a half-plane by one inversion along a ray, adaptive
+ * quadrature over decades with the tail completed by repeated integration by parts from a jet of order eight; the moments
+ * of the t-ratio from one jet per node; and for the general engine the branch of the square root of its determinant from
+ * the pivots of the precision matrix.  The router's functions take them by default where they are checked (below). */
+#define DFL_KAN_TOL 1e-12      /* the default absolute tolerance of each value of the single inversion (TOL of DFKan) */
+#define DFL_INV_CMAX 20.0      /* the largest c at which the single inversion (and the moments from jets) is the default (INV_CMAX) */
+#define DFL_PT_INV_CMAX 4.0    /* the same for the point-optimal statistic of the general engine (PT_INV_CMAX) */
+#define DFL_GP_INV_CMAX 5.0    /* and for its coefficient statistic by Gil-Pelaez (GP_INV_CMAX) */
+
 /* ---- the user-level entry points (dfl_api.c) ---- */
 /* the validation shared by the entry points (and dfl_moments): the model, c (finite, at least DFL_CMIN), c0, g0, the start */
 int dfl_check_args(int model, double c, double c0, double g0, bool stat, char *err, size_t errlen);
