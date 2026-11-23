@@ -509,6 +509,12 @@ catch ME
 end
 check('DK c=16 c0=2 x=1e7: refused, with the arguments and the region',double(~ok),0);
 try
+    ltratio_cdf(1e7,'DK',16,struct('c0',-2,'verified',true,'engine','classical')); ok = false;
+catch ME
+    ok = ~isempty(strfind(ME.message,'is computed for c <= 14 only'));
+end
+check('DK c=16 c0=-2 x=1e7, verified (the rule''s conditional integral): refused',double(~ok),0);
+try
     ltratio_rangecheck('ltratio_cdf','case DK, c = 1','x',[0.5 1],[0.3 1 + 2e-8]); ok = false;
 catch ME
     ok = strcmp(ME.identifier,'ltratio:range') && ~isempty(strfind(ME.message,'ltratio_cdf: case DK, c = 1, x = 1: the computed distribution function is 1.00000002'));

@@ -111,6 +111,12 @@ int main(void)
         if (rc != 1 || !strstr(err, "is computed for c <= 14 only") || !strstr(err, "c = 16, c0 = 2, x = 1e+07")) { nfail++; printf("FAIL DK c = 16 c0 = 2 x = 1e7: rc %d, \"%s\"\n", rc, err); }
         else printf("ok   DK c = 16 c0 = 2 x = 1e7: refused, \"%s\"\n", err);
     }
+    {   /* the same with verified, where the rule names the conditional integral (c0 < 0) */
+        double x = 1e7, v; char err[1024] = ""; dfl_double_opts dv; dfl_double_defaults(&dv); dv.verified = 1; nchk++;
+        int rc = dfl_dist(2, 1, &x, 1, 16, -2, 0, false, 0, NULL, &dv, &v, NULL, err, sizeof err);
+        if (rc != 1 || !strstr(err, "is computed for c <= 14 only")) { nfail++; printf("FAIL DK c = 16 c0 = -2 x = 1e7 verified: rc %d, \"%s\"\n", rc, err); }
+        else printf("ok   DK c = 16 c0 = -2 x = 1e7 verified: refused\n");
+    }
     {   /* the general engine (cases DK, c = 10, c0 = 9: the line cut to the rate with c0; was 0.6372, 0.99735, 1.0000000112) */
         dfl_design D; char err[1024] = ""; double xs[3] = {1e3, 3e3, 1e4}, v[3], r[3] = {0.636120922790, 0.993550212928, 1.0};
         dfl_det_opts o; dfl_det_defaults(&o); o.c0 = 9;
