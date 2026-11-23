@@ -122,7 +122,12 @@ int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, 
             return DFL_ENGINE_GENERAL;
         }
         if (!fixed && !stat && c0 != 0 && c < -100) return DFL_ENGINE_GENERAL;
-        if (fixed && DK && c <= 1 && ((c * g0) * (c * g0) / 2 <= 400 || (g0 <= 0.5 && c >= -100))) return DFL_ENGINE_GENERAL;
+        /* (the fixed start of case DK, except with c0 < 0 near the unit root (c > -1): there the outer hyperbola of the
+         * general engine does not resolve the upper tail, and its one evaluation was off by 2.7e-6 at the 99.99% point (c =
+         * 0.5, c0 = -5, g0 = 1), 6.7e-6 at c = 0 with g0 = 1.5 and 2.9e-2 beyond (c0 = -10, where at mean + 4 sd it gave 1.23
+         * and the final check of the distribution function refused); the classical line integral, its checked computation
+         * and the conditional integral agree to 1e-12 there; autoengine of merged.jl, November 2026) */
+        if (fixed && DK && c <= 1 && !(c0 < 0 && c > -1) && ((c * g0) * (c * g0) / 2 <= 400 || (g0 <= 0.5 && c >= -100))) return DFL_ENGINE_GENERAL;
         /* (at c0 = 0 with a zero or stationary start the classical line integral, as in the Julia rule: with its fixed node
          * layouts (dfl_batch.c, November 2026) it is 1.1 to 1.7 times faster than the general engine at c = -30 to -100 in
          * cases DU, DT, SK, SU, ST and 8 to 11 times in case DK, equal at c = -300 in cases DU, DT (c/test/engine_table_c.txt);
