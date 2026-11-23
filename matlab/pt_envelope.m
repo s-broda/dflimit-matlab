@@ -4,7 +4,8 @@ function P = pt_envelope(c,D,opts)
 %   P = PT_ENVELOPE(c,D,opts): at each c < 0 (an array) the power at c of the
 %   point-optimal level-alpha test (opts.alpha, 0.05) against cbar = c (PT_POWER);
 %   alpha for c >= 0.  For no deterministic terms, an intercept and a linear
-%   trend it is DFDET_POWER_ENVELOPE (to 1e-8).
+%   trend it is DFDET_POWER_ENVELOPE (to 1e-8).  By default by the single
+%   inversion of Bao and Kan (PT_POWER; opts.method, opts.tol as in PT_CDF).
 %
 %   Example: pt_envelope(-10, dfdet_perron('C', 0.5))   % 0.1789
 %
