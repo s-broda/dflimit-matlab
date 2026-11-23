@@ -259,6 +259,16 @@ int dfl_single(int kind, int n, const double *x, int model, double c, double c0,
 #define DFL_CONTOUR_MSG "method 3 (the contour integral) applies to a fixed start g0 != 0 in cases DU, DT"
 int dfl_contour(int kind, int n, const double *x, int model, double c, double c0, double g0, int verified, double *out, double *err, int *status, int *nodes, char *errmsg, size_t errlen);
 int dfl_contour_lev(int kind, int n, const double *x, int model, double c, double c0, double g0, int verified, double *out, double *err, int *status, int *nodes, int *level, char *errmsg, size_t errlen);
+/* The rule of one evaluation (verified 0) of the contour integral (ctr_rule of DFExact.jl, November 2026): n nodes per
+ * panel and per ray of evaluation A and the factor hfac of its outer step: c > 1: (32, 1); |c g0| > 20: (64, 1), the
+ * rule of before; otherwise (32, 1.5) for c >= -2.5 and for c >= -10 with c0 <= 0, (64, 1.5) elsewhere.  dfl_contour and
+ * dfl_contour_lev take it; dfl_contour_rule with rule DFL_CTR_PRESENT takes the rule of before (64, 1), and n1 > 0, hfac (a
+ * positive number; NaN: by the rule) override the rule (verified = 1 is unchanged and ignores them). */
+#define DFL_CTR_AUTO 0
+#define DFL_CTR_PRESENT 1
+void dfl_ctr_rule(double c, double c0, double g0, int *n, double *hfac);
+int dfl_contour_rule(int kind, int n, const double *x, int model, double c, double c0, double g0, int verified, int rule, int n1, double hfac,
+                     double *out, double *err, int *status, int *nodes, int *level, char *errmsg, size_t errlen);
 double dfl_single_value_c0(int kind, double x, int model, double c, bool stat, const dfl_single_opts *o);      /* one value at c0 = 0, zero or stationary start */
 double dfl_single_value_gen(int kind, double x, int model, double c, double c0, double g0, bool stat, const dfl_single_opts *o);   /* the general kernel (c0 != 0 or a fixed start g0 != 0) */
 /* the same with the bounds of the engine: 0 and the value in *out, or the bound that a path of the line integral would exceed
@@ -281,6 +291,13 @@ int dfl_moments(int model, double c, double c0, double g0, bool stat, int pmax, 
  * one-evaluation default of method 0 */
 typedef struct { int M, Nv, Nl, maxlev; double plen, otol, stepw, errtol, blo, bhi, bmin, mumin, tdec; int verified; } dfl_double_opts;
 void dfl_double_defaults(dfl_double_opts *o);
+/* Nv, Nl: the nodes of the path of each inner inversion and of the integral over l (the noncentral probability); 0 (the
+ * default): in dfl_double by the rule of one evaluation (dfl_cond_rule) with verified = 0 and 96 with verified = 1, in
+ * dfl_adfmax and dfl_region 96.  The rule of one evaluation of the conditional integral of the t-ratio (cond_rule of
+ * DFExact.jl, November 2026; before, 96 everywhere): 48 nodes with a stationary start for c <= -2 and with a zero start in
+ * cases DU, DT for c >= -5 and in case DK for c <= -13.5, 64 with a stationary start for c > -2, 96 elsewhere, with a fixed
+ * start and above c = 2 (measured against 192 nodes and the outer tolerance 1e-14 on a dense grid of x) */
+int dfl_cond_rule(int model, double c, double c0, double g0, bool stat);
 typedef struct { double err; int status, nbad, nunres, nrefine; } dfl_double_info;
 /* the noncentral probability P[kap_1 Z_1^2 + kap_2 Z_2^2 <= a] (nc: with the squared means m1s, m2s) or its derivative in a
  * (pdfm), by the Nl-point l-rule; and the partial fractions of Q(s,t): Q(0,t) and the squared means mu_1, mu_2 times gg^2

@@ -128,6 +128,14 @@ int dfl_autoengine(int f, int model, int stat, double g0, double gls, double c, 
          * and the final check of the distribution function refused); the classical line integral, its checked computation
          * and the conditional integral agree to 1e-12 there; autoengine of merged.jl, November 2026) */
         if (fixed && DK && c <= 1 && !(c0 < 0 && c > -1) && ((c * g0) * (c * g0) / 2 <= 400 || (g0 <= 0.5 && c >= -100))) return DFL_ENGINE_GENERAL;
+        /* (the fixed start of cases DU, DT far from the unit root: with c0 > 0 below c = -20 (and below c = -10 where |c g0| >
+         * 20), and with any c0 below c = -20 where |c g0| > 60, the classical contour integral's one evaluation was off, in
+         * the density by up to 5e-6 of its peak (case DU at c = -30, g0 = 0.5, c0 = 2), 4.2e-3 (c = -75, c0 = 5) and 2.2e-2
+         * (g0 = 1.5, c = -60, c0 = 5), in the distribution function by 3.9e-5 (case DU, g0 = 1.5, c = -60, c0 = -2) and
+         * 6.3e-6 (g0 = 0.9, c = -100), and its checked computation in the density by up to 8.4e-6 of the peak; the general
+         * engine's density there is the derivative of the distribution function on which the two engines agree (to 1e-10 of
+         * the peak), its F within 1e-10 of the classical checked one; autoengine of merged.jl, November 2026) */
+        if (fixed && (DU || DT) && c < -10 && ((c0 > 0 && (c < -20 || fabs(c * g0) > 20)) || (c < -20 && fabs(c * g0) > 60))) return DFL_ENGINE_GENERAL;
         /* (at c0 = 0 with a zero or stationary start the classical line integral, as in the Julia rule: with its fixed node
          * layouts (dfl_batch.c, November 2026) it is 1.1 to 1.7 times faster than the general engine at c = -30 to -100 in
          * cases DU, DT, SK, SU, ST and 8 to 11 times in case DK, equal at c = -300 in cases DU, DT (c/test/engine_table_c.txt);

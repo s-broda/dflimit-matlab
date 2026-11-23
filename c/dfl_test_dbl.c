@@ -61,8 +61,10 @@ int main(int argc, char **argv)
         if (!(dfl_icdf(1, &p, 4, -551, 0, 0, false, 0, 1e-10, NULL, NULL, &v, NULL, NULL, NULL, err, sizeof err) == 1 && strcmp(err, DFL_CMIN_MSG) == 0)) bad++;
         x = -17; if (dfl_dist(2, 1, &x, 2, -550, 0, 0, false, 0, NULL, NULL, &v, &ns, err, sizeof err) != 0) bad++;
         /* the region of a fixed start (task 8): an error outside it in each case, inside the values of test/fixed_ref.txt */
-        double xs3[3] = {-2, -2.86, -3}, g3[3] = {1, 1, 2}, r3[3] = {0.71763193275341519, 0.22106021106163276, 0.2889970388707237};
-        for (int m = 1; m <= 3; m++) { if (dfl_dist(2, 1, &xs3[m - 1], m, -5, 0, g3[m - 1], false, 0, NULL, NULL, &v, &ns, err, sizeof err) != 0 || !(fabs(v - r3[m - 1]) < 1e-11)) bad++; }
+        /* (the contour integral of case DT by the thinner rule of one evaluation since November 2026, dfl_ctr_rule: 1.3e-11
+         * from the stored value, as in the Julia engine, whose test takes 2e-10) */
+        double xs3[3] = {-2, -2.86, -3}, g3[3] = {1, 1, 2}, r3[3] = {0.71763193275341519, 0.22106021106163276, 0.2889970388707237}, t3[3] = {1e-11, 1e-11, 2e-10};
+        for (int m = 1; m <= 3; m++) { if (dfl_dist(2, 1, &xs3[m - 1], m, -5, 0, g3[m - 1], false, 0, NULL, NULL, &v, &ns, err, sizeof err) != 0 || !(fabs(v - r3[m - 1]) < t3[m - 1])) bad++; }
         x = -2;
         if (!(dfl_dist(2, 1, &x, 1, 0, 0, 2.5, false, 0, NULL, NULL, &v, &ns, err, sizeof err) == 1 && strcmp(err, DFL_FIXED_MSG) == 0)) bad++;
         if (!(dfl_dist(1, 1, &x, 2, -10, 0, 2, false, 0, NULL, NULL, &v, &ns, err, sizeof err) == 1 && strcmp(err, DFL_FIXED_MSG) == 0)) bad++;
