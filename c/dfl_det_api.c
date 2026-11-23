@@ -171,6 +171,15 @@ static int line_values(int kind, const dfl_design *D, dfl_prov *pv, double c, in
     free(fb);
     return rc;
 }
+/* the final check of the general engine's distribution functions (dfl_cdf_range_check; cdf_range_check of DFDet.jl): the
+ * design by its regressors, c, c0 and the start */
+static int range_check(const char *fn, const dfl_design *D, double c, const dfl_det_opts *o, const char *xname, int m, const double *xs, const double *v, char *err, size_t errlen)
+{
+    char args[200];
+    snprintf(args, sizeof args, "the general engine, a design of %d regressors on %d pieces%s, c = %g, c0 = %g, %s start%s", D->K, D->np, D->first ? " (detrended first)" : "",
+             c, o->c0, o->start == 2 ? "stationary" : o->start == 1 ? "fixed" : "zero", isnan(o->gls) ? "" : ", GLS-detrended");
+    return dfl_cdf_range_check(fn, args, xname, m, xs, v, err, errlen);
+}
 int dfl_det_dist(int kind, const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o0, double *out, char *err, size_t errlen)
 {
     dfl_det_opts od; const dfl_det_opts *o = opts_or_default(o0, &od);
@@ -187,6 +196,7 @@ int dfl_det_dist(int kind, const dfl_design *D, int n, const double *x, double c
         double *v = malloc(m * sizeof(double));
         rc = pv ? line_values(kind, D, pv, c, m, xf, o, v, err, errlen) : paths_values(kind, CP, m, xf, o, o->verified, v, err, errlen);
         if (!rc) for (int j = 0; j < m; j++) out[ix[j]] = v[j];
+        if (!rc && kind == 2) rc = range_check("dist_cdf", D, c, o, "x", m, xf, v, err, errlen);
         free(v);
     }
     free(xf); free(ix); det_path_release(CP); det_line_release(pv);
@@ -323,6 +333,7 @@ int dfl_det_coef(int kind, const dfl_design *D, int n, const double *y, double c
         coef_ctx t = {m, yf, o->c0, kind == 2 ? 1 : 2, kind == 2 ? 2 : 3};
         rc = run_eval(CP, coef_eval, &t, m, o->verified, o->vtol, v, err, errlen);
         if (!rc) for (int j = 0; j < m; j++) out[ix[j]] = v[j];
+        if (!rc && kind == 2) rc = range_check("coef_cdf", D, c, o, "y", m, yf, v, err, errlen);
         free(v);
     }
     free(yf); free(ix); det_path_release(CP);

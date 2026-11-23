@@ -44,6 +44,7 @@
 %   Stock, cbar = -13.5: zero start, line integral only, no moments).
 %   ltratio_method - the automatic choice of the representation
 %   ltratio_brittle - the warning of the one-evaluation default in a brittle regime
+%   ltratio_rangecheck - the final check of a distribution function (an error outside [0, 1] by more than 1e-8)
 %
 % The line integral representation (the inversion in the argument of U is
 % explicit and one integral along the line Re t = tau remains)

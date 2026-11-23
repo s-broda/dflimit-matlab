@@ -55,12 +55,20 @@ function [F,info] = ltratio_dist(x,cas,c,opts,mode)
 %   refuses the point before evaluating it (DFX_CORE raises dfx:bound:rule or
 %   dfx:bound:path; the bounds of the C and Julia engines).  With 'auto' the
 %   conditional integral serves there, with its checks (at large x above the
-%   unit root its one evaluation where the checked value is flagged; the
-%   warning ltratio:bound where a value near c0 = 0 is flagged; ROUTE_DOUBLE),
+%   unit root, in cases DU, DT its one evaluation where the checked value is
+%   flagged, in case DK the checked value whatever its flag; the warning
+%   ltratio:bound where a value near c0 = 0 is flagged; ROUTE_DOUBLE),
 %   info.nrouted of them; with 'single', and in case DG, which has the line
 %   integral only, the error ltratio:bound names the arguments.  With
 %   opts.verified = true a flagged point whose fallback, the line integral,
 %   refuses it keeps its flagged value, with the warning ltratio:bound.
+%   Case DK far above the unit root (c > 4) takes the conditional integral
+%   with its checks at x > 300 and, with c0 > c, at x < -20 as well (DK_FAR:
+%   the line integral's cost grows like x^4 at large x, and with c0 > c it is
+%   off by up to 1.5e-3 in the lower tail); above c = 14 these points of case
+%   DK raise the error ltratio:args (the conditional integral is off by up to
+%   7.7e-5 at c = 16).  LTRATIO_CDF ends with LTRATIO_RANGECHECK: a value
+%   outside [0, 1] by more than 1e-8 is an error.
 %
 %   The engine (opts.engine).  'classical' the programs above; 'general' the
 %   general engine (DFDET_CDF, DFDET_PDF: the inversion on paths around the
@@ -209,7 +217,9 @@ if any(fin(:))
                 info.status = zeros(size(x)); if isfield(inf2,'status'), info.status(dbl) = inf2.status; end
                 % a point at which the conditional integral reports that its error estimate is not met gets the line
                 % integral's value (the conditional integral is the only route with a fixed start)
-                fb = info.status ~= 0 & g0 == 0; info.nfallback = nnz(fb);
+                % (not case DK far above the unit root, DK_FAR, where the flag is a false alarm and the line integral is off)
+                far = false(size(x)); for kk = find(dbl(:))', far(kk) = dk_far(cas,c,c0,x(kk)); end
+                fb = info.status ~= 0 & g0 == 0 & ~far; info.nfallback = nnz(fb);
                 F(fb & tl) = Fs(fb & tl);                    % tail points: the line integral's value was computed above
                 fbr = fb & ~tl;
                 if any(fbr(:)), F(fbr) = single_values(x(fbr),cas,c,c0,opts,mode,'keep',F(fbr)); end
@@ -295,12 +305,21 @@ o.c0 = c0;
 if cas(1) == 'S', o.start = 'stationary'; else, o.start = 'zero'; end
 F = zeros(size(x)); nrouted = 0; nflag = 0; nkeep = 0;
 for k = 1:numel(x)
+    if strcmp(route,'auto') && dk_far(cas,c,c0,x(k))
+        % case DK far above the unit root at large x: the conditional integral with its checks, as where the line
+        % integral exceeds the bounds of the engine (DK_FAR)
+        dk_far_check(mode,c,c0,x(k));
+        F(k) = route_double(x(k),cas,c,c0,opts,mode,'dfx:bound:rule');
+        nrouted = nrouted + 1;
+        continue
+    end
     try
         F(k) = dfx_core(mode,x(k),model,c,o);
     catch ME
         if ~strncmp(ME.identifier,'dfx:bound:',10), rethrow(ME); end
         if strcmp(route,'keep'), F(k) = Fkeep(k); nkeep = nkeep + 1; continue; end
         if strcmp(route,'error') || model == 4, error('ltratio:bound','%s',bound_msg(mode,cas,c,c0,x(k),ME)); end
+        if strcmp(cas,'DK') && strcmp(ME.identifier,'dfx:bound:rule'), dk_far_check(mode,c,c0,x(k)); end
         [F(k),fl] = route_double(x(k),cas,c,c0,opts,mode,ME.identifier);
         nrouted = nrouted + 1; nflag = nflag + fl;
     end
@@ -323,8 +342,13 @@ function [F,fl] = route_double(x,cas,c,c0,opts,mode,id)
 % (opts.verified = true), whatever its status, fl where it is flagged (against the contour integral of a newer engine,
 % November 2026: within 5e-7 at most of the points of case SK with c = c0 from -1e-4 to -0.1 and x from 0.05 to 1.5,
 % flagged at most of them, but the density at c = c0 = -1e-3, x = 0.05 off by 1.2e-3; case DK within 1e-13); large x
-% above the unit root (dfx:bound:rule) with its checks where its status is 0, otherwise one evaluation (in case DT the
-% checked value is off by up to 3e-2 with the status 2 at c = 7 and c = 10, where one path is right)
+% above the unit root (dfx:bound:rule) in case DK with its checks whatever its status, in cases DU, DT with its checks
+% where its status is 0, otherwise one evaluation (in case DT the checked value is off by up to 3e-2 with the status 2
+% at c = 7 and c = 10, where one path is right; in case DK the status 2 is a false alarm and one evaluation is far off:
+% against an independent computation, the law of V given J(1) from Girsanov's theorem inverted on a line through its
+% saddle point and integrated over J(1), at c = 7, 10 and 13 with c0 in {-2, 0, 2, c - 1, c + 2} from the 24% to the 99.7%
+% point the checked value is within 1.2e-9 at every point, 32 of 36 with the status 2, one evaluation off by up to 8;
+% route_double of DFExact.jl and of the C engine)
 o = rmfield_safe(opts,{'method'}); o.c0 = c0; o.g0 = 0; o.verified = true;
 ws = warning('off','tr_limdist:status');
 [F,inf2] = tr_limdist(x,cas,c,o,mode);
@@ -332,9 +356,37 @@ warning(ws);
 st = 0; if isfield(inf2,'status'), st = inf2.status(1); end
 fl = false;
 if strcmp(id,'dfx:bound:path'), fl = st ~= 0; return; end
-if st == 0, return; end
+if st == 0 || strcmp(cas,'DK'), return; end
 o.verified = false;
 F = tr_limdist(x,cas,c,o,mode);
+end
+
+function tf = dk_far(cas,c,c0,x)
+% Case DK far above the unit root (a zero start, c > 4): at large x (x > 300) and, with c0 > c, in the lower tail (x < -20)
+% the conditional integral with its checks (ROUTE_DOUBLE), as at the points where the line integral exceeds the bounds of
+% the engine.  At large x the cost of the line integral grows like x^4 with c0 ~= 0 (the phase of the saddle factor of its
+% inner integrals grows like x^2, and the outer panels follow it) until its rule exceeds 4096 nodes: in the Julia engine
+% at c = 10, c0 = -2 it took 0.9 s at x = 200, 3.2 s at 400, 10 s at 700, 35 s at 1300 and more than three minutes at
+% 2350, where the conditional integral with its checks takes 0.1 to 0.4 s at every x and agrees with it to 1e-14.  With
+% c0 > c the bulk lies at x < 0, where X(v) has two positive roots and the far one, |x|/c0, lies inside the range of
+% sqrt(V): there the line integral is off by up to 9.8e-6 at c = 5 (c0 = 5.5, x = -30), 5.5e-5 at c = 7 (c0 = 9,
+% x = -300), 1.5e-3 at c = 10 (c0 = 10.5, x = -400) and 2.9e-4 at c = 13, without a warning, and within 5e-7 of an
+% independent computation at x >= -20; the conditional integral with its checks within 3e-10 of it at x from -30 to
+% -400 (dk_far of DFExact.jl and of the C engine)
+tf = strcmp(cas,'DK') && c > 4 && (x > 300 || (c0 > c && x < -20));
+end
+
+function dk_far_check(mode,c,c0,x)
+% case DK at large x above the unit root (DK_FAR, or where the line integral exceeds its bounds) is computed for c <= 14:
+% against an independent computation at c0 in {-2, 2, c - 1, c + 2} and x at the 24% to 99.99994% points the checked
+% conditional integral is within 1.3e-8 at c = 13 and 14 and off by up to 7.7e-5 at c = 16 (from the 99.7% point on),
+% 5.5e-3 at c = 18 and by orders of magnitude at c = 20 (dk_far_check of DFExact.jl and of the C engine)
+if ~(c > 14), return, end
+args = sprintf('case DK, c = %g',c); if c0 ~= 0, args = [args sprintf(', c0 = %g',c0)]; end
+error('ltratio:args',['ltratio_%s: %s, x = %g: case DK far above the unit root at large |x| (for c > 4 at x > 300, ' ...
+      'with c0 > c at x < -20, and where the line integral exceeds the bounds of the engine) is computed for c <= 14 only: ' ...
+      'beyond, the conditional integral that takes these points is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18, and ' ...
+      'the general engine''s line exceeds its bounds'],mode,args,x);
 end
 
 function m = bound_msg(mode,cas,c,c0,x,ME)

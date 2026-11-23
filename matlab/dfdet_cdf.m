@@ -43,4 +43,13 @@ function F = dfdet_cdf(x,D,c,opts)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 F = dfdet_dist(x,D,c,opts,'cdf');
+F = ltratio_rangecheck('dfdet_cdf',det_args(D,c,opts),'x',x,F);   % (the final check of the values)
+end
+
+function a = det_args(D,c,opts)
+% the arguments of the call, for the message of LTRATIO_RANGECHECK
+nm = 'a design'; if isstruct(D) && isfield(D,'name') && ~isempty(D.name), nm = ['the design ' char(D.name)]; end
+a = sprintf('%s, c = %g',nm,c);
+if isfield(opts,'c0') && ~isempty(opts.c0), a = [a sprintf(', c0 = %g',opts.c0)]; end
+if isfield(opts,'start') && ~isempty(opts.start), a = [a ', ' char(opts.start) ' start']; end
 end
