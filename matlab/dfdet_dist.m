@@ -42,7 +42,7 @@ F(fin) = v;
 end
 
 function v = ev(CP,xf,co,which)
-CPr = dfdet_contour('refine',CP,xf);
+CPr = dfdet_contour('refine',CP,xf,[],co.c0);
 [F,f] = dfdet_contour('tratio',CPr,xf,co);
 if which == 1, v = F; else, v = f; end
 end

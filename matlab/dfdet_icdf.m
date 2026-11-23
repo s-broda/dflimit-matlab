@@ -45,7 +45,8 @@ end
 end
 
 function v = ev(CP,x,co)
-CPr = dfdet_contour('refine',CP,x);
+c0 = 0; if isfield(co,'c0'), c0 = co.c0; end
+CPr = dfdet_contour('refine',CP,x,[],c0);
 [F,f] = dfdet_contour('tratio',CPr,x,co);
 v = [F f];
 end

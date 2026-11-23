@@ -119,11 +119,12 @@ end
 function v = spec_eval(CP,specs,which,verified,vtol,co)
 % the values (which = 1) or the derivatives (2) of the events specs on the outer contour CP, the line refined to their
 % slopes and constants
-qm = zeros(1,numel(specs)); am = [];
+qm = zeros(1,numel(specs)); am = []; cz = [];
 for i = 1:numel(specs)
     qm(i) = max([0 abs([specs{i}.q])]); am = [am abs([specs{i}.A])]; %#ok<AGROW>
+    cz = [cz [specs{i}([specs{i}.q] ~= 0).c0]]; %#ok<AGROW> (the c0 of the parabolas with a slope)
 end
-evf = @(CPv,oo) pickv(dfdet_contour_s(dfdet_contour('refine',CPv,qm,am),specs,merge(co,oo)),which);
+evf = @(CPv,oo) pickv(dfdet_contour_s(dfdet_contour('refine',CPv,qm,am,cz),specs,merge(co,oo)),which);
 if verified, v = dfdet_verify(evf,CP,vtol); else, v = evf(CP,struct); end
 end
 
