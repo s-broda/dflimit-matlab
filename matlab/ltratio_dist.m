@@ -174,6 +174,9 @@ if any(fin(:))
             for k = 1:numel(fn), info.(fn{k}) = inf2.(fn{k}); end
         case 'auto'
             verified = logical(getf_(opts,'verified',false));
+            % (case DK far above the unit root above c = 14: refused before anything is computed, whichever representation
+            % the rule names, with verified too; DK_FAR_CHECK)
+            if g0 == 0 && c > 14, for kk = find(fin(:))', if dk_far(cas,c,c0,x(kk)), dk_far_check(mode,c,c0,x(kk)); end, end, end
             [dbl,tails,ctr] = ltratio_method(cas,c,c0,g0,x,verified); ctr = fin & ctr;
             if ~verified
                 % the default: one evaluation by one method at each point (no second evaluation, no refinement driven by
