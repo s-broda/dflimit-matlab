@@ -240,5 +240,72 @@ for eng in (:auto, :general)
     line("radfcdf", "DU", -5.0, (g0 = 1.5, engine = eng), [-3.0, -2.4, -1.5], G.adfmax_cdf(designs["t0"], [-3.0, -2.4, -1.5], -5.0; start = :fixed, gamma0 = 1.5))
     line("radfcdf", "t1", -5.0, (g0 = 1.0, engine = eng), [-3.0, -2.4, -1.5], G.adfmax_cdf(designs["t1"], [-3.0, -2.4, -1.5], -5.0; start = :fixed, gamma0 = 1.0))
 end
+# ---------- the rules of one evaluation (DFLimit.jl fde1632 to 9c71860, November 2026) ----------
+# 'pregion' the rule of the general engine's paths (path_region: 1 present, 2 thin, 3 inner, 4 outer, 5 fine, 6 finestep);
+# 'pcdf', 'ppdf', 'pquant' the values by the default rule in each region and by every rule given (opts rule); 'ctrrule',
+# 'condrule' the rules of the contour and the conditional integral, 'ctrval', 'condval' their one evaluation by the rule
+# (rule auto, N 0) and by the rule of before (rule present, N 96); the router's cells of case DK with a fixed start near
+# the unit root and of cases DU, DT with a fixed start far from it ('rcdf', 'rpdf'), and its quantiles ('ricdf')
+const DX = DFLimit.DFExact
+RULES = (:auto, :present, :thin, :inner, :outer, :fine, :finestep)
+for d in ("t-1", "t0", "t1", "pC0.3,0.7"), st in (:zero, :fixed, :stationary), c in (-100.0, -61.0, -60.0, -5.0, -1.0, -0.5, 0.0, 0.5, 2.0, 2.5, 5.0, 5.5)
+    (st == :stationary && c >= 0) && continue
+    g0 = st == :fixed ? 1.0 : 0.0
+    for c0 in unique((0.0, -5.0, 2.0, c))
+        r = G.path_region(G.startmodel(designs[d], c, st, g0, nothing), c, c0)
+        line("pregion", d, c, (start = st, g0 = g0, c0 = c0), Float64[], [Float64(findfirst(==(r), RULES) - 1)])
+    end
+end
+xr = [-3.5, -2.3, -0.7, 0.4]
+for (d, c, kw, xs) in (("t1", -5.0, (c0 = 2.0,), xr), ("pC0.3,0.7", -13.5, (;), xr), ("t1", -5.0, (c0 = -2.0, start = :stationary), xr),
+                       ("t1", -5.0, (c0 = 2.0, gls = -13.5), xr), ("t-1", -5.0, (c0 = 2.0, start = :fixed, g0 = 1.0), xr),
+                       ("t-1", 0.0, (c0 = -5.0,), [-1.0, 2.0, 8.0, 16.0]), ("t0", -0.5, (c0 = -2.0, start = :stationary), xr),
+                       ("t-1", 0.5, (start = :fixed, g0 = 1.0), [-2.0, 0.0, 2.5, 6.0]), ("t0", 0.5, (c0 = -5.0, start = :fixed, g0 = 1.0), [-2.0, 2.0, 8.0, 16.0]),
+                       ("t-1", 0.5, (c0 = -5.0, start = :fixed, g0 = 1.0), [7.435, 16.304, 25.173, 34.042]), ("t-1", 0.0, (c0 = -1.0, start = :fixed, g0 = 1.5), [-1.0, 1.0, 4.0, 9.0]),
+                       ("t0", 3.0, (start = :fixed, g0 = 1.0), [-1.0, 1.0, 3.0]), ("t-1", -100.0, (c0 = 2.0,), [-15.5, -14.8, -14.0]),
+                       ("t-1", 0.0, (start = :fixed, g0 = 1.0), [9.732, 12.0, 20.0]))
+    line("pcdf", d, c, kw, xs, quiet(() -> G.dist_cdf(designs[d], xs, c; gkw(kw)...)))
+    line("ppdf", d, c, kw, xs, quiet(() -> G.dist_pdf(designs[d], xs, c; gkw(kw)...)))
+end
+for (d, c, kw, xs) in (("t1", -5.0, (c0 = 2.0,), xr), ("t-1", 0.5, (c0 = -5.0, start = :fixed, g0 = 1.0), [7.435, 16.304, 25.173])), r in RULES[2:end]
+    line("pcdf", d, c, merge(kw, (rule = r,)), xs, quiet(() -> G.dist_cdf(designs[d], xs, c; gkw(kw)..., rule = r)))
+    line("ppdf", d, c, merge(kw, (rule = r,)), xs, quiet(() -> G.dist_pdf(designs[d], xs, c; gkw(kw)..., rule = r)))
+end
+for (d, c, kw) in (("t1", -5.0, (c0 = 2.0,)), ("t-1", 0.5, (c0 = -5.0, start = :fixed, g0 = 1.0)))
+    line("pquant", d, c, kw, [0.05, 0.5, 0.99], [quiet(() -> G.dist_quantile(designs[d], p, c; x0 = -2.0, tol = 1e-12, gkw(kw)...)) for p in (0.05, 0.5, 0.99)])
+end
+for c in (2.0, 1.5, 1.0, 0.0, -1.0, -2.5, -2.6, -5.0, -10.0, -10.5, -13.5, -30.0, -60.0), c0 in (-5.0, 0.0, 2.0), g0 in (0.5, 1.0, 3.0)
+    n, h = DX.ctr_rule(c, c0, g0)
+    line("ctrrule", "DU", c, (c0 = c0, g0 = g0), Float64[], [Float64(n), h])
+end
+for (cas, c, c0, g0, xs) in (("DU", -2.0, 0.0, 1.5, [-3.0, -1.6, 0.0]), ("DT", -5.0, 2.0, 1.0, [-4.0, -2.9, -1.5]), ("DU", 2.0, 0.0, 1.0, [-1.0, 1.0, 3.0]),
+                             ("DT", -30.0, 0.0, 1.5, [-6.2, -5.3, -4.4]), ("DU", -13.5, -2.0, 1.0, [-4.0, -3.0, -2.0]), ("DU", -5.0, -2.0, 1.0, [-3.5, -2.2, -0.8])), rl in (:auto, :present), kind in (2, 1)
+    m = cas == "DU" ? 2 : 3
+    line("ctrval", cas, c, (c0 = c0, g0 = g0, rule = rl, kind = kind), xs, quiet(() -> DX.tr_contour(xs, m, c; c0, g0, pdf = kind == 1, warn = false, rule = rl)[1]))
+end
+for cas in ("DK", "DU", "DT", "SK", "SU", "ST"), g0 in (0.0, 1.5), c in (3.0, 2.0, 0.0, -1.0, -2.0, -2.1, -5.0, -5.1, -13.5, -13.6, -50.0)
+    (cas[1] == 'S' && (g0 != 0 || c >= 0)) && continue
+    line("condrule", cas, c, (c0 = -2.0, g0 = g0), Float64[], [Float64(DX.cond_rule(findfirst(==(cas[2]), "KUT"), c, -2.0, g0, cas[1] == 'S').Nv)])
+end
+for (cas, c, c0, g0, xs) in (("DU", -5.0, -2.0, 0.0, [-3.5, -2.2, -0.8]), ("SU", -5.0, -5.0, 0.0, [-3.0, -1.5, 0.0]), ("DK", -20.0, -2.0, 0.0, [-4.0, -2.8, -1.5]),
+                             ("SK", -1.0, -2.0, 0.0, [-2.5, -1.0, 0.5]), ("DT", -2.0, -5.0, 0.0, [-4.0, -2.5, -1.0]), ("ST", -10.0, 1.0, 0.0, [-4.0, -3.0, -2.0]),
+                             ("DU", -13.5, -2.0, 0.0, [-4.5, -3.3, -2.0])), N in (0, 96), kind in (2, 1)
+    m = findfirst(==(cas[2]), "KUT"); k = N == 0 ? (;) : (Nv = N, Nl = N)
+    line("condval", cas, c, (c0 = c0, g0 = g0, N = N, kind = kind), xs,
+         quiet(() -> DX.tr_limdist(xs, m, c; c0, g0, start = cas[1] == 'S' ? :stationary : :zero, pdf = kind == 1, warn = false, k...)[1]))
+end
+for (cas, c, c0, g0, xs) in (("DK", 0.5, -10.0, 1.0, [45.11]), ("DK", 0.5, -5.0, 1.0, [7.435, 16.304, 25.173, 34.042]), ("DU", -60.0, 2.0, 1.5, [-10.0, -9.1684, -8.5]),
+                             ("DU", -30.0, 2.0, 0.5, nothing), ("DT", -60.0, -2.0, 1.0, nothing), ("DU", -60.0, -2.0, 1.5, nothing))
+    if xs === nothing                                   # (the mean and the mean -/+ one standard deviation)
+        mm = DFLimit.ltratio_mom(2, cas, c; c0, g0); sd = sqrt(mm[2] - mm[1]^2); xs = round.(mm[1] .+ sd .* [-1.0, 0.0, 1.0]; digits = 4)
+    end
+    line("rcdf", cas, c, (c0 = c0, g0 = g0), xs, quiet(() -> DFLimit.ltratio_cdf(xs, cas, c; c0, g0)))
+    line("rpdf", cas, c, (c0 = c0, g0 = g0), xs, quiet(() -> DFLimit.ltratio_pdf(xs, cas, c; c0, g0)))
+end
+for (cas, c, kw) in (("DU", -5.0, (c0 = 2.0,)), ("SU", -5.0, (c0 = -5.0,)), ("DK", -5.0, (c0 = -2.0, g0 = 1.0)), ("DT", -5.0, (c0 = -2.0,)), ("DU", -60.0, (c0 = 2.0, g0 = 1.5)))
+    for eng in (:auto, :classical)
+        line("ricdf", cas, c, merge(kw, (engine = eng,)), [0.05, 0.5, 0.95], quiet(() -> DFLimit.ltratio_icdf([0.05, 0.5, 0.95], cas, c; engine = eng, tol = 1e-12, kw...)))
+    end
+end
 close(io)
 println("wrote ", OUT)
