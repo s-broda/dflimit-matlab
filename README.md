@@ -131,6 +131,42 @@ design. With the folder of the MEX file ahead on the path, `ltratio_cdf(x, D, c,
 `ltratio_pdf`, `ltratio_icdf`, `ltratio('cdf', x, D, c, struct('method', 'line'))`) take the C engine's line integral,
 `'paths'` the C engine's paths, and `'auto'` the C rule.
 
+## The devices of Bao and Kan
+
+The half-plane statistics of the six classical cases and the moments of the t-ratio are computed by default with the
+numerical devices of Yong Bao and Raymond Kan, "Exact Finite-Sample Distribution and Moments of the Least Squares
+Estimator in First-Order Autoregressions: O(1) Algorithms", as in the Julia package (its module `DFKan`): in C
+`c/dfl_kan.c` and `c/dfl_det_kan.c`, in MATLAB `kan_core`, `dfdet_kan` and `kan_route`. The joint characteristic function
+of the limit pair comes in closed forms that are free of cancellation on both sides of the unit root, with the branch of
+the square root fixed at each point from factors whose arguments are known, and in Taylor-mode arithmetic (jets), so that
+its derivatives come out of the same assembly. A statistic that rejects on a half-plane is one inversion along a ray, by
+adaptive quadrature over decades (the algorithm of QuadGK.jl) with the tail beyond S = 400/|w| completed by repeated
+integration by parts from a jet of order eight; the moments of the t-ratio are one-dimensional integrals of the j-th
+derivative of the moment generating function, which one jet of order j gives at each node.
+
+| function (MATLAB; C router) | the default | warm time in C against `method = engine` |
+|---|---|---|
+| `coef_cdf`, `coef_icdf`, `coef_pdf`, `coef_mom`; `dfl_engine_coef*` | the cases DK, DU, DT (zero or fixed start), SK, SU, ST, c <= 20 | 0.005 to 0.18 (quantiles 0.02; the density 0.03 against the general engine's) |
+| `ltratio_lincdf`; `dfl_engine_lincdf` | case DK, a != 0, -100 <= c <= 4; the six cases through their designs, -100 <= c <= 2 | 0.07 to 0.24 |
+| `power_envelope`; `dfl_engine_envelope` | case DK (DU), c <= -1e-4 | 0.13 to 0.16 |
+| `ltratio_mom`; `dfl_engine_mom` | the six cases, any c0 and fixed start, c <= 20 | 0.013 to 0.23 |
+| `pt_cdf`, `pt_pdf`, `pt_quantile`, `pt_power`, `pt_envelope`; `dfl_det_pt*` | any design, c <= 4 | 0.08 to 0.15 (quantiles 0.3 to 0.4, envelopes 0.2) |
+| `dfl_det_coef_cdf_gp` (C only: the MATLAB programs have no `coef_cdf_gp`) | zero or stationary start, c <= 5 | 0.05 to 0.1 |
+
+`opts.method` (`dfl_inv_opts.method` in C): `'auto'`, `'inversion'` (`'jets'` for the moments) to force them, `'engine'` for
+the computation of before, which reproduces those values, `'grid'` for the fixed grid of the point-optimal statistic and
+of `coef_cdf_gp`; `opts.tol` (1e-12, for the moments 1e-10 relative), `opts.verified` (recomputes by the engines the values
+whose error estimate exceeds the tolerance), and every value comes with its error estimate (a second output in MATLAB and
+the MEX file, `errest` in C; a warning names the values whose estimate exceeds the tolerance). At a = 0 (the law of U
+alone) and a = NaN the linear form stays with the engines' closed forms. The regions, the tolerances and the warnings
+are those of the Julia package, whose README lists the comparisons behind them and the cases where the engines' one
+evaluation was wrong (the coefficient statistic of case DU with a fixed start far from the unit root, the linear form and
+the moments with a fixed start above the unit root). The same devices fix the branches inside the engines: P(t), M_0(t)
+and the labels of the roots of the classical line and contour integrals (`dfl_tparts`, `dfx_core('tparts')`) and the
+argument of log P(t) in the provider of the general engine's line integral are determined at each point instead of being
+continued along the grids, to 4e-13 the values of before, at the same cost. C and MATLAB agree with DFLimit.jl to 6e-15 in
+the single inversions and the moments (`c/dfl_test_kan`, `matlab/kan_test`).
+
 ## Installation
 
 Clone the repository (or download it as a zip) and add the folder `matlab` to the MATLAB path:
@@ -154,7 +190,7 @@ reference values of the Julia engine in `c/test/`:
 
 ```sh
 cd c
-for t in prim single gen fixed mom dbl app det; do ./dfl_test_$t test/${t}_ref.txt; done
+for t in prim single gen fixed mom dbl app det kan; do ./dfl_test_$t test/${t}_ref.txt; done
 ./dfl_test_vmath
 ./dfl_test_bounds
 ```
@@ -167,7 +203,8 @@ runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on
 
 The MATLAB programs: `ltratio_test` runs 280 checks in about five minutes and returns the number of failures
 (`ltratio_test(true)` is the quick version, `ltratio_test(false, true)` raises an error on a failure); `dfx_test` checks
-the line integral against stored values of the Julia engine (`matlab/validation/python_exact_reference.json`). Start
+the line integral against stored values of the Julia engine (`matlab/validation/python_exact_reference.json`); `kan_test` checks the devices of Bao and Kan against the values of
+DFLimit.jl in `matlab/validation/kan_ref.txt` (a copy of `c/test/kan_ref.txt`). Start
 MATLAB in a folder other than `matlab/`. With the folder of the MEX file ahead of `matlab/` on the path the same
 `ltratio_test` runs on the C engine, in about 30 seconds, which is the check of a built MEX file.
 
@@ -181,7 +218,9 @@ its GitHub repository: once `julia --project=c/test -e 'using Pkg; Pkg.instantia
 `julia --project=c/test -t auto c/test/single_ref.jl c/test/single_ref.txt` from the repository root. The reference
 values of the general engine (`c/test/det_ref.jl`, which writes `c/test/det_ref.txt`) and its tables
 (`c/gen_det_tables.jl`, which writes `c/dfl_det_tables.c`) need a DFLimit.jl with the general engine (branch
-engine-merge or later) in the environment.
+engine-merge or later) in the environment, and those of the devices of Bao and Kan (`c/test/kan_ref.jl`, which writes
+`c/test/kan_ref.txt`, copied to `matlab/validation/kan_ref.txt`) and `c/test/prim_ref.txt` (the branch at the point) a
+DFLimit.jl with the module DFKan (commit c9fecd6 of its main branch or later).
 
 ## The C engine upstream of R and Python
 

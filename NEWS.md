@@ -2,6 +2,56 @@
 
 ## Unreleased
 
+**The devices of Bao and Kan** (C, the MEX file and MATLAB alike, a port of the module DFKan of DFLimit.jl at c9fecd6):
+the numerical devices of Yong Bao and Raymond Kan, "Exact Finite-Sample Distribution and Moments of the Least Squares
+Estimator in First-Order Autoregressions: O(1) Algorithms", for the limits of these programs (`c/dfl_kan.c` with the
+transform written once for numbers and jets in `c/dfl_kan_logcf.inc` and `c/dfl_kan_jet.inc`, `c/dfl_det_kan.c`;
+`matlab/kan_core.m`, `matlab/dfdet_kan.m`, `matlab/kan_route.m`). The joint characteristic function of the limit pair of
+the six classical cases in closed forms free of cancellation on both sides of the unit root, with the branch of the
+square root fixed at each point, in Taylor-mode arithmetic (jets); a statistic that rejects on a half-plane by one
+inversion along a ray, adaptive quadrature over decades (the algorithm of QuadGK.jl, so that the values are those of the
+Julia package to rounding) with the tail beyond S = 400/|w| completed by repeated integration by parts from a jet of order
+eight; the moments from one jet per node. By default, with the rules and constants of `merged.jl`:
+
+- the coefficient statistic (`coef_cdf`, `coef_icdf`, the new `coef_pdf` and `coef_mom`; `dfl_engine_coef`,
+  `dfl_engine_coef_icdf`, the new `dfl_engine_coef_pdf`, `dfl_engine_coef_mom`) in the cases DK, DU, DT (zero or fixed
+  start) and SK, SU, ST up to c = 20;
+- the linear form (`ltratio_lincdf`, `dfl_engine_lincdf`) in case DK for a != 0 and -100 <= c <= 4, and the six classical
+  cases through their designs (fixed and stationary starts included) for -100 <= c <= 2 (`dfl_engine_lincdf_x` takes a
+  design);
+- the power envelope (`power_envelope`, `dfl_engine_envelope`) in case DK for c <= -1e-4, the critical value by regula
+  falsi to 1e-12;
+- the moments of the t-ratio (`ltratio_mom`, `dfl_engine_mom`) from jets in the six cases up to c = 20 (and p = 31), any
+  c0 and fixed start;
+- the general engine's point-optimal statistic (`pt_cdf`, `pt_pdf`, `pt_quantile`, `pt_power`, `pt_envelope`;
+  `dfl_det_pt*`) up to c = 4 and `dfl_det_coef_cdf_gp` (zero or stationary start) up to c = 5, with the branch of the
+  square root of the determinant from the pivots of the precision matrix at each point (`det_detlog_piv`,
+  `dfdet_kan`); the quantile searches keep the transform values along the ray.
+
+The options: `method` (`'auto'`; `'inversion'`, `'jets'` for the moments, which forces them; `'engine'`, the computation of
+before, which reproduces those values; `'grid'` for the point-optimal functions and `coef_cdf_gp`; in C the codes
+`DFL_METHOD_INVERSION`, `DFL_METHOD_ENGINE`, `DFL_METHOD_GRID` of `dfl_inv_opts` and the `*_x` functions), `tol` (1e-12;
+1e-10 relative for the moments), `verified` (recomputes by the engines the values whose estimate exceeds the tolerance)
+and the error estimates (a second output in MATLAB and the MEX file, `errest` in C); a warning (`ltratio:inversion` in
+MATLAB, `dfl_det_warning` in C) names the values whose estimate exceeds the tolerance. Within 6e-15 of DFLimit.jl in C
+and MATLAB (`c/dfl_test_kan`, `matlab/kan_test`, 2812 and 2526 checks against `c/test/kan_ref.txt`, written by
+`c/test/kan_ref.jl`). Against `method = engine` the values move as in the Julia package (the coefficient statistic by up
+to 5.5e-13 in the cases timed, the quantiles of before stopped at a width of 1e-9, the envelope's bisection to 1e-9 by up to
+3.3e-10; with a fixed start above the unit root the engines' moments were off, by 0.39 relative at c = 2, c0 = -2, g0 = 1
+in case DK). Warm time per value in C, single inversion against `method = engine`: the coefficient statistic 0.005 to
+0.18, its quantiles 0.02, its density 0.03 (at the chi-square point y = -c0, where the transform decays like a power, 57
+times slower, about 0.9 s a value, as in the Julia package, with a warning), the linear form 0.07 to 0.24, the envelope
+0.13 to 0.16, the moments 0.013 to 0.23, the point-optimal statistic 0.08 to 0.15 (quantiles 0.3 to 0.4, envelope 0.2),
+`coef_cdf_gp` 0.05 to 0.1.
+
+**The branches at each point.** The classical engines' P(t), M_0(t) and the labels of the roots (`dfl_tparts`,
+`dfx_core('tparts')`) and the argument of log P(t) in the provider of the general engine's line integral
+(`c/dfl_det_line.c`) are fixed at each point, after Bao and Kan, in place of their continuation along the grids (removed:
+`line_continue`). The engines' values move by at most 4.2e-13 (the contour integral of case DT with g0 = 2 at c = -20;
+elsewhere below 1e-13) at the same cost (warm time new/old: median 0.95). `c/test/prim_ref.txt` regenerated: its
+continuation on a coarse grid of 13 points was on the wrong branch at its last point (t = 1 + 201.7i at c = -5, the sign of
+P).
+
 **The upper tail above the unit root, and the final check of a distribution function** (C and MATLAB alike, the
 changes of DFLimit.jl). Above the unit root the t-ratio with c0 != c has its upper tail at x of the order
 (c - c0) e^c/(2c), and the automatic method returned values outside [0, 1] there without a warning (case DK at c = 10,

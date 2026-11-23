@@ -103,9 +103,11 @@
 %   adfmax_dist   - argument checks of adfmax_cdf and adfmax_pdf
 %   tr_adfmax     - the engine: the conditional integral over the region
 %                   |R| <= 1/2 + x sqrt(V)
-%   coef_cdf, coef_icdf
+%   coef_cdf, coef_icdf, coef_pdf, coef_mom
 %                 - the coefficient statistic n(phi^ - phi_0), whose limit
-%                   is (U - c0 V)/V: distribution function and quantiles
+%                   is (U - c0 V)/V: distribution function, quantiles,
+%                   density and moments (by default the single inversion
+%                   and the jets of Bao and Kan, below)
 %   ltratio_region - the probability of a region {U <= g(V)} of the plane,
 %                   case DK, zero start: a line, the parabola of the t-ratio,
 %                   the boundary of the weighted-average-power test of
@@ -148,7 +150,12 @@
 %                   linear trend), local power of the left-tailed tests, regions bounded by lines and parabolas
 %   pt_cdf, pt_pdf, pt_quantile, pt_power, pt_envelope
 %                 - the point-optimal statistic of Elliott, Rothenberg and Stock and the Gaussian power envelope
-%                   for any design (one inversion of Gil-Pelaez)
+%                   for any design (one inversion of its characteristic function: by default up to c = 4 the
+%                   single inversion of Bao and Kan with the branch from the pivots, dfdet_kan; opts.method 'grid'
+%                   the fixed grid of Gil-Pelaez, dfdet_qgrid)
+%   dfdet_kan     - the general engine's transform with the branch of the square root of its determinant from the
+%                   pivots of the precision matrix, and the single inversion of the point-optimal statistic
+%   dfdet_ptmethod - the option method of the point-optimal functions
 %   lm_cdf, lm_quantile, lm_power - the LM statistic (Schmidt and Phillips; with breaks, Lee and Strazicich)
 %   mza_cdf, mza_quantile, msb_cdf, msb_quantile - MZ_alpha and MSB of Ng and Perron with GLS detrending
 %   dfdet_prep    - the prepared design: the functionals ell, the matrices A, B of U + 1/2 and V - int J^2, the
@@ -170,8 +177,24 @@
 %   dfdet_make_paths - the path tables dfdet_paths.mat of cases DK, DU, DT at the unit root (from the tables of
 %                   the Julia package)
 %
+% The devices of Bao and Kan (Yong Bao and Raymond Kan, "Exact Finite-Sample Distribution and Moments of the
+% Least Squares Estimator in First-Order Autoregressions: O(1) Algorithms"): the joint characteristic function of
+% the limit pair of the six classical cases in closed forms free of cancellation on both sides of the unit root,
+% with the branch of the square root fixed at each point, in Taylor-mode arithmetic (jets); a statistic that
+% rejects on a half-plane by one inversion along a ray, adaptive quadrature over decades with the tail completed by
+% repeated integration by parts from a jet of order eight; the moments from one jet per node.  The default of
+% coef_cdf, coef_icdf, coef_pdf, coef_mom (the six cases up to c = 20), ltratio_lincdf (case DK for a ~= 0 and
+% -100 <= c <= 4, the other classical cases through their designs up to c = 2), power_envelope (case DK, c <=
+% -1e-4) and ltratio_mom (the six cases up to c = 20), with opts.method 'inversion' ('jets'), 'engine' (the
+% computation of before), opts.tol, opts.verified and the error estimates as a second output; the same rules as the
+% Julia package and the C router.  The engines' P(t), M0(t) and roots take their branches at each point too
+% (dfx_core('tparts')).
+%   kan_core      - the transform, the jets, the single inversion, the density of a ratio, the moments, the
+%                   closed form at zero, the adaptive Gauss-Kronrod quadrature (the algorithm of QuadGK.jl)
+%   kan_route     - the rules of the single inversion in the user-level routines
+%
 % The two engines.  The user-level routines ltratio_cdf, ltratio_pdf, ltratio_icdf, ltratio_mom, coef_cdf,
-% coef_icdf, adfmax_cdf, adfmax_pdf, adfmax_icdf, ltratio_lincdf, power_envelope and ltratio_region take
+% coef_icdf, coef_pdf, adfmax_cdf, adfmax_pdf, adfmax_icdf, ltratio_lincdf, power_envelope and ltratio_region take
 % opts.engine: 'classical' (the programs above), 'general' (the general engine) or 'auto' (the default: the
 % engine of ltratio_engine, by the timings of the two MATLAB engines), and a design of the general engine in
 % place of the case (a classical design is its case; any other goes to the general engine).  With the folder of
@@ -184,6 +207,9 @@
 %   ltratio_spec, ltratio_route - the design, start and case of a computation; helpers of the router
 %
 % Validation
+%   kan_test      - the devices of Bao and Kan (kan_core, dfdet_kan, the user-level routines with their defaults,
+%                   the point-optimal statistic, the branch at the point of dfx_core) against the values of the
+%                   Julia package (validation/kan_ref.txt, the file c/test/kan_ref.txt of the C engine's test)
 %   dfdet_test    - the general engine and the router against the Julia engine DFLimit.DFDet
 %                   (validation/det_ref.txt, written by validation/det_ref.jl), with a failure count
 %   ltratio_test  - validation suite with a failure count: the two
@@ -223,6 +249,7 @@
 %   ltratio_mom(4,'DT')                              % first four moments of tau_tau
 %   adfmax_icdf(0.05,'DU')                           % 5% critical value of ADFmax with a constant
 %   coef_cdf(-14.0936,'DU',-10)                      % power of the 5% coefficient test at c = -10
+%   coef_mom(1,'DK')                                 % -1.7814: the mean of n(phi^ - 1) at the unit root
 %   dfdet_icdf(0.05,dfdet_perron('C',0.3))           % 5% critical value with a break in level and slope at 0.3
 %   dfdet_cdf(-3.5,dfdet_perron('C',0.3),-10)        % its power at c = -10
 %   ltratio_cdf(-2,'DU',-5,struct('engine','general')) % case DU by the general engine
