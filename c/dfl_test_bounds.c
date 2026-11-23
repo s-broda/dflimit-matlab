@@ -11,7 +11,13 @@
  *      flagged), an error otherwise (also in case DG, which has the line integral only);
  *   3. a fixed start with c0 in {-0.01, -0.001}, x > 0, c >= 0, where a descent piece of the general kernel's segments
  *      climbed and cancelled (F = 6e74 for 0.96 in case DK at c = 0, c0 = -0.01, g0 = 1, x = 1.5), and the same fault
- *      elsewhere (a fixed start with c0 = 1 at c = -20 by the line integral, a zero start at c0 = -1e-4, x = 0). */
+ *      elsewhere (a fixed start with c0 = 1 at c = -20 by the line integral, a zero start at c0 = -1e-4, x = 0);
+ *   4. the upper tail above the unit root (November 23, 2026): case DK with c0 != c beyond the line integral's bound, and for
+ *      c > 4 at x > 300, the conditional integral with its checks (before, its flagged points got one evaluation, off by up
+ *      to 2.4: values outside [0, 1]); above c = 14 such points are refused; the general engine's line cut to the rate of the
+ *      stationary value with c0 (before, off by 1.1e-3 at c = 10, c0 = 9); the final check of a distribution function.
+ *      The references: an independent computation, the law of V given J(1) by Girsanov's theorem inverted and integrated
+ *      over J(1), within 1e-12 of both engines where they agree. */
 #include "dflimit.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,6 +98,37 @@ int main(void)
     val("DT c = -20 c0 = 1 g0 = 1 x = -4.5724 F (the line integral)", 2, 3, -20, 1, 1, false, 1, -4.5723644715124907, 0.48434943999136959, 1e-10, 0, 0);
     val("DK c = 0 c0 = -1e-4 x = 0 F", 2, 1, 0, -1e-4, 0, false, 0, 0, 0.68266529536039322, 1e-10, 0, 0);
     val("DK c = 0 c0 = -1e-4 x = 0 f", 1, 1, 0, -1e-4, 0, false, 0, 0, 0.32556973831816555, 1e-10, 0, 0);
+    /* 4. the upper tail above the unit root (the values of the independent computation; before: 0.8415, -1.3674, 1.1422,
+     * 0.6076, 1.0479, 0.8686) */
+    val("DK c = 10 c0 = 2 x = 1e4 F", 2, 1, 10, 2, 0, false, 0, 1e4, 0.743623945123, 1e-10, 0, 0);
+    val("DK c = 10 c0 = 2 x = 3e4 F", 2, 1, 10, 2, 0, false, 0, 3e4, 0.999338346257, 1e-10, 0, 0);
+    val("DK c = 7 c0 = 2 x = 2e3 F", 2, 1, 7, 2, 0, false, 0, 2e3, 0.999999671714, 1e-10, 0, 0);
+    val("DK c = 10 c0 = 9 x = 1e3 F", 2, 1, 10, 9, 0, false, 0, 1e3, 0.636120922790, 1e-10, 0, 0);
+    val("DK c = 10 c0 = 9 x = 3e3 F", 2, 1, 10, 9, 0, false, 0, 3e3, 0.993550212928, 1e-10, 0, 0);
+    val("DK c = 10 c0 = 2 x = 1e5 F", 2, 1, 10, 2, 0, false, 0, 1e5, 1.0, 1e-12, 0, 0);
+    {   double x = 1e7, v; char err[1024] = ""; nchk++;
+        int rc = dfl_dist(2, 1, &x, 1, 16, 2, 0, false, 0, NULL, NULL, &v, NULL, err, sizeof err);
+        if (rc != 1 || !strstr(err, "is computed for c <= 14 only") || !strstr(err, "c = 16, c0 = 2, x = 1e+07")) { nfail++; printf("FAIL DK c = 16 c0 = 2 x = 1e7: rc %d, \"%s\"\n", rc, err); }
+        else printf("ok   DK c = 16 c0 = 2 x = 1e7: refused, \"%s\"\n", err);
+    }
+    {   /* the general engine (cases DK, c = 10, c0 = 9: the line cut to the rate with c0; was 0.6372, 0.99735, 1.0000000112) */
+        dfl_design D; char err[1024] = ""; double xs[3] = {1e3, 3e3, 1e4}, v[3], r[3] = {0.636120922790, 0.993550212928, 1.0};
+        dfl_det_opts o; dfl_det_defaults(&o); o.c0 = 9;
+        int rc = dfl_design_trend(-1, &D, err, sizeof err) || dfl_det_dist(2, &D, 3, xs, 10, &o, v, err, sizeof err);
+        double e = 0; for (int k = 0; k < 3; k++) e = fmax(e, fabs(v[k] - r[k]));
+        nchk++;
+        if (rc || !(e < 1e-10)) { nfail++; printf("FAIL the general engine, DK c = 10 c0 = 9: rc %d (%s), worst difference %.1e\n", rc, err, e); }
+        else printf("ok   the general engine, DK c = 10 c0 = 9, x = 1e3, 3e3, 1e4: worst difference %.1e\n", e);
+        dfl_design_free(&D);
+    }
+    {   /* the final check of a distribution function */
+        double x[2] = {0.5, 1.0}, F1[2] = {0.3, 1 + 5e-9}, F2[2] = {0.3, 1 + 2e-8}; char err[1024] = "";
+        nchk++;
+        if (dfl_cdf_range_check("ltratio_cdf", "case DK, c = 1", "x", 2, x, F1, err, sizeof err) != 0 ||
+            dfl_cdf_range_check("ltratio_cdf", "case DK, c = 1", "x", 2, x, F2, err, sizeof err) != 1 ||
+            !strstr(err, "ltratio_cdf: case DK, c = 1, x = 1: the computed distribution function is 1.00000002")) { nfail++; printf("FAIL dfl_cdf_range_check: \"%s\"\n", err); }
+        else printf("ok   dfl_cdf_range_check: \"%s\"\n", err);
+    }
     printf("%d checks, %d failed, worst absolute difference %.1e, %.1f s (%d threads)\n", nchk, nfail, worst, dfl_wtime() - t0, dfl_nworkers());
     return nfail != 0;
 }
