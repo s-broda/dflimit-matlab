@@ -131,6 +131,60 @@ design. With the folder of the MEX file ahead on the path, `ltratio_cdf(x, D, c,
 `ltratio_pdf`, `ltratio_icdf`, `ltratio('cdf', x, D, c, struct('method', 'line'))`) take the C engine's line integral,
 `'paths'` the C engine's paths, and `'auto'` the C rule.
 
+## The rules of one evaluation
+
+One evaluation (the default, `verified` false) takes thinner rules than before November 2026 where they hold, in C, in
+the MEX file and in the MATLAB programs alike, with the rules, regions and constants of DFLimit.jl (`PATH_RULES`,
+`path_region`, `ctr_rule`, `cond_rule`; its README, "The rules of one evaluation", has the sweeps that set them).
+
+The general engine's inversion on paths (`dfl_det_dist`, `dfl_det_quantile`, and the paths that the C line integral
+leaves to them; `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf`): the outer hyperbola with 1.5 times the step and the U-shapes
+with 16 nodes per panel and 32 on the tails of their rays for 24 and 40 (32 and 48 for 48 and 64 with a fixed start),
+by regions of the start, the deterministic terms, c and c0 (`dfl_det_path_region`, `dfdet_rules`):
+
+| region | rule |
+|---|---|
+| c > -1, c0 < 0, zero or stationary start | the thin inner rule on the present hyperbola (`inner`) |
+| c > -1, c0 < 0, fixed start, deterministic terms | the thin inner rule on the present hyperbola with half its step (`fine`) |
+| c > -1, c0 < 0, fixed start, no deterministic terms | the present inner rule on the present hyperbola, the step min(1/2, 2.5/(g0 \|c0\|)) times its own where it is flatter than 70 degrees (`finestep`; the present step was off by up to 0.86 in the upper tail at c = 0.5, g0 = 1, c0 = -20) |
+| c > -1, c0 = 0, fixed start, no deterministic terms | `inner` |
+| c > 2 with a fixed start, c > 5; c < -60 with c0 other than 0 and c | the present rule (`present`) |
+| elsewhere | the thin rule (`thin`) |
+
+`dfl_det_opts.rule` (`DFL_RULE_AUTO` and the six rules), `opts.rule` of `dfdet_cdf` and of `ltratio('det', ...)`
+name a rule (`present` the rule of before, which `verified` takes); `hfac`, `n`, `ntail` override it (`hfac` is now
+NaN, by the rule, unless given). The guard on the U-shapes counts the nodes of the present rule.
+
+The classical contour integral (a fixed start in cases DU, DT; `dfl_ctr_rule`, `ltratio_rules('contour')`): 32 nodes
+per panel and ray for 64 and the outer step 1.5 times as long where they hold (32 on the present step above the unit
+root, 64 on the longer step with c0 > 0 below c = -2.5 and everywhere below c = -10, the present rule where |c g0| > 20);
+`dfl_contour_rule` and `tr_contour` take the rule `present`, `n1` and `hfac`. The classical conditional integral
+(`dfl_cond_rule`, `ltratio_rules('conditional')`): 48 nodes for 96 with a stationary start for c <= -2 and with a zero
+start in cases DU, DT for c >= -5 and in case DK for c <= -13.5, 64 with a stationary start for c > -2, 96 elsewhere,
+with a fixed start and above c = 2; `Nv` and `Nl` override it (in C they are 0, the rule, by default).
+
+The rule of the engines: the fixed start of cases DU, DT goes to the general engine with c0 > 0 below c = -20 (below
+c = -10 where |c g0| > 20) and with any c0 below c = -20 where |c g0| > 60, where the contour integral's one evaluation
+was off by up to 2.2e-2 of the peak of the density and 3.9e-5 in F (`dfl_autoengine`, `ltratio_engine`; the warning
+`ltratio:brittle`, `dfl_brittle`, names that regime where the classical engine computes); case DK with a fixed start
+and c0 < 0 near the unit root (c > -1) takes the classical engine in C (the MATLAB rule took it there already). The
+placement of the U-shapes of a fixed start counts the growth of the v-kernels of the upper tail at every c (in case DK
+near the unit root one evaluation was off by up to 1e39 in the far upper tail). The quantile searches start from the
+moments from jets of Bao and Kan where they hold (`dfl_mom_start`, `mom_start` in `ltratio_icdf.m`), and where the rule
+gives a Newton step's point to the general engine its paths return F and f from one pass (`dfl_det_dist_both`,
+`dfdet_dist(..., 'both')`), the values of the two evaluations bit for bit; `DFL_MOM_START`, `DFL_DIST2`,
+`ltratio_switch` and `ltratio('switch', ...)` restore the computation of before.
+
+Where C and Julia take the same rule their values agree to 3.7e-14 (paths), 2.3e-14 (contour integral) and 7.1e-13
+(conditional integral), the quantiles to 5.6e-11 (the search tolerance is 1e-10; `c/test/det_ref.txt`); the MATLAB
+programs to 2e-14, 1.6e-14 and 2.1e-12, the quantiles to 1.9e-11 (`matlab/validation/det_ref.txt`). Warm time per call
+new/old in C (minima of seven calls, ten threads): the general engine's paths 0.47 to 0.71 (1.4 to 1.7 in the cells of
+the finer steps), the contour integral 0.39 to 0.69, the conditional integral 0.55 to 0.84, the router's quantiles 0.26
+to 0.31 with c0 != 0 (0.80 to 0.98 where the classical search computes). In the MATLAB programs: warm calls (minima of
+five after a first, one MATLAB session each): the paths 0.48 to 0.78 (1.6 in the cells of the finer steps), the contour
+integral 0.44 to 0.83, the conditional integral 0.87 to 0.98, the quantiles of `ltratio_icdf` 0.34 to 0.48 where the
+general engine computes some of their points, 1.01 with the classical engine.
+
 ## The devices of Bao and Kan
 
 The half-plane statistics of the six classical cases and the moments of the t-ratio are computed by default with the
@@ -220,7 +274,10 @@ values of the general engine (`c/test/det_ref.jl`, which writes `c/test/det_ref.
 (`c/gen_det_tables.jl`, which writes `c/dfl_det_tables.c`) need a DFLimit.jl with the general engine (branch
 engine-merge or later) in the environment, and those of the devices of Bao and Kan (`c/test/kan_ref.jl`, which writes
 `c/test/kan_ref.txt`, copied to `matlab/validation/kan_ref.txt`) and `c/test/prim_ref.txt` (the branch at the point) a
-DFLimit.jl with the module DFKan (commit c9fecd6 of its main branch or later).
+DFLimit.jl with the module DFKan (commit c9fecd6 of its main branch or later), and the sections of the rules of one
+evaluation in `c/test/det_ref.jl` and `matlab/validation/det_ref.jl` a DFLimit.jl with those rules (commit d95305c or
+later). `c/test/dbl_ref.txt` and `c/test/contour_ref.txt` hold checked values (`verified = true`), against which the
+tests compare the checked computation and, at looser tolerances, one evaluation.
 
 ## The C engine upstream of R and Python
 
