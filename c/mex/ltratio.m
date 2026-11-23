@@ -148,7 +148,11 @@ if strcmpi(what,'det')                                % a function of the genera
     if ~isfield(nexp,fn), error('ltratio:args','unknown function %s of the general engine.',fn); end
     for k = 1:numel(args), args{k} = double(args{k}); end
     args(end+1:nexp.(fn)) = {[]};
-    [v,E] = ltratio_mex('det', fn, D.br, D.C, double(D.loc), double(D.first), args{:}, o);
+    % (a second output: the error estimates of the single inversion for ptcdf, ptpdf, pticdf and coefgp, the power for
+    % ptpower; none for the other functions)
+    E = [];
+    if any(strcmp(fn,{'ptcdf','ptpdf','pticdf','ptpower','coefgp'})), [v,E] = ltratio_mex('det', fn, D.br, D.C, double(D.loc), double(D.first), args{:}, o);
+    else, v = ltratio_mex('det', fn, D.br, D.C, double(D.loc), double(D.first), args{:}, o); end
     if ~isempty(args) && ~any(strcmp(fn,{'mom','ptpower'})), v = reshape(v, size(args{1})); if numel(E) == numel(v), E = reshape(E, size(v)); end, end
     varargout{1} = v; varargout{2} = E; return
 end
