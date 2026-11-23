@@ -35,6 +35,8 @@
  *                     'fun' f K breaks (a function handle); br the break points, C the coefficient matrices side by side
  *   v = ltratio_mex('det', what, br, C, loc, first, ..., opts)          the general engine (dfl_det_*; see det_op below)
  *   v = ltratio_mex('route', what, engine, spec, ...)                    the router over the two engines (dfl_engine_*)
+ *   [v, err] = ltratio_mex('route', what, ...)                          with the error estimates of the single inversion of Bao
+ *                     and Kan (coefcdf, coeficdf, coefpdf, coefmom, mom, lincdf, envelope; NaN where the engines computed)
  *
  * model 1, 2, 3 (no deterministic terms, intercept, intercept and trend); sopt = [tau hu N nodefac pfac edge_hw
  * uniform_hw gen], dopt = [M Nv Nl maxlev plen otol stepw errtol blo bhi bmin mumin tdec] and gopt = [N umax] (NaN or a
@@ -172,8 +174,13 @@ static dfl_det_opts detopts(const mxArray *a)
 /* v = ltratio_mex('det', what, br, C, loc, first, a1, a2, ..., opts): the general engine (dfl_det_*); what and its arguments
  *   'cdf' 'pdf' x c | 'icdf' p c x0 tol | 'coefcdf' 'coefpdf' y c | 'coeficdf' p c y0 tol | 'mom' pmax c |
  *   'lincdf' 'linpdf' b a c (a = NaN: the law of V) | 'linicdf' p a c b0 tol | 'adfcdf' 'adfpdf' x c | 'adficdf' p c x0 tol |
- *   'power' cs level statistic (0 t-ratio, 1 coefficient) | 'envelope' cs level | 'ptcdf' 'ptpdf' q cbar c | 'pticdf' p cbar |
- *   'ptenvelope' cs level | 'lmcdf' x c | 'lmicdf' p c | 'mzacdf' y c gls | 'mzaicdf' p c gls | 'msbcdf' x c gls | 'msbicdf' p c gls
+ *   'power' cs level statistic (0 t-ratio, 1 coefficient) | 'envelope' cs level | 'ptcdf' 'ptpdf' q cbar c method tol N umax |
+ *   'pticdf' p cbar method tol N umax | 'ptpower' cbar c level method tol N umax | 'ptenvelope' cs level method tol N umax |
+ *   'coefgp' y c method tol N umax (coef_cdf_gp) | 'lmcdf' x c | 'lmicdf' p c | 'mzacdf' y c gls | 'mzaicdf' p c gls | 'msbcdf' x c
+ *   gls | 'msbicdf' p c gls
+ * (method of the point-optimal functions and coef_cdf_gp: 0 automatic, the single inversion of Bao and Kan up to c = 4 (5 for
+ * coef_cdf_gp) and the fixed grid beyond or where N or umax is given; 5 the single inversion, 7 the fixed grid; their second
+ * output the error estimates, NaN on the grid)
  * opts = [c0 start g0 gls verified] after the arguments (start 0 zero, 1 fixed, 2 stationary); the warnings of the engine
  * (dfl_det_warning) as the warning ltratio:det */
 static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
@@ -203,11 +210,25 @@ static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         for (int k = 0; k < n && !rc; k++) rc = dfl_det_adfmax_quantile(&D, mxGetPr(xa)[k], SC(1, "c", 0.0), SC(2, "x0", -2.0), SC(3, "tol", 1e-10), &o, mxGetPr(plhs[0]) + k, err, sizeof err);
     } else if (!strcmp(what, "power")) { dfl_det_opts o = OPTS(3); plhs[0] = like(xa); rc = dfl_det_local_power(&D, n, mxGetPr(xa), SC(1, "level", 0.05), (int) SC(2, "statistic", 0.0), &o, mxGetPr(plhs[0]), err, sizeof err); }
     else if (!strcmp(what, "envelope")) { plhs[0] = like(xa); rc = dfl_det_power_envelope(&D, n, mxGetPr(xa), SC(1, "level", 0.05), mxGetPr(plhs[0]), err, sizeof err); }
-    else if (!strcmp(what, "ptcdf") || !strcmp(what, "ptpdf")) { plhs[0] = like(xa); rc = dfl_det_pt(what[2] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "cbar", -7.0), SC(2, "c", 0.0), 0, 0, mxGetPr(plhs[0]), err, sizeof err); }
-    else if (!strcmp(what, "pticdf")) {
-        plhs[0] = like(xa); rc = 0;
-        for (int k = 0; k < n && !rc; k++) rc = dfl_det_pt_quantile(&D, mxGetPr(xa)[k], SC(1, "cbar", -7.0), 0, 0, mxGetPr(plhs[0]) + k, err, sizeof err);
-    } else if (!strcmp(what, "ptenvelope")) { plhs[0] = like(xa); rc = dfl_det_pt_envelope(&D, n, mxGetPr(xa), SC(1, "level", 0.05), 0, 0, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "ptcdf") || !strcmp(what, "ptpdf")) {
+        plhs[0] = like(xa); mxArray *e = like(xa);
+        rc = dfl_det_pt_x(what[2] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "cbar", -7.0), SC(2, "c", 0.0), (int) SC(3, "method", 0.0), (int) SC(5, "N", 0.0), SC(6, "umax", 0.0), SC(4, "tol", NAN), mxGetPr(plhs[0]), mxGetPr(e), err, sizeof err);
+        if (nlhs > 1) plhs[1] = e;   /* (an array not returned is destroyed by MATLAB at the end of the call) */
+    } else if (!strcmp(what, "pticdf")) {
+        plhs[0] = like(xa); mxArray *e = like(xa); rc = 0;
+        for (int k = 0; k < n && !rc; k++) rc = dfl_det_pt_quantile_x(&D, mxGetPr(xa)[k], SC(1, "cbar", -7.0), (int) SC(2, "method", 0.0), (int) SC(4, "N", 0.0), SC(5, "umax", 0.0), SC(3, "tol", NAN), mxGetPr(plhs[0]) + k, mxGetPr(e) + k, err, sizeof err);
+        if (nlhs > 1) plhs[1] = e;   /* (an array not returned is destroyed by MATLAB at the end of the call) */
+    } else if (!strcmp(what, "ptpower")) {
+        /* [b, power] = ltratio_mex('det', 'ptpower', br, C, loc, first, cbar, c, level, method, tol, N, umax) */
+        double b, P; rc = dfl_det_pt_power_x(&D, mxGetScalar(a[0]), SC(1, "c", 0.0), SC(2, "level", 0.05), (int) SC(3, "method", 0.0), (int) SC(5, "N", 0.0), SC(6, "umax", 0.0), SC(4, "tol", NAN), &b, &P, err, sizeof err);
+        plhs[0] = mxCreateDoubleScalar(b); if (nlhs > 1) plhs[1] = mxCreateDoubleScalar(P);
+    } else if (!strcmp(what, "ptenvelope")) { plhs[0] = like(xa); rc = dfl_det_pt_envelope_x(&D, n, mxGetPr(xa), SC(1, "level", 0.05), (int) SC(2, "method", 0.0), (int) SC(4, "N", 0.0), SC(5, "umax", 0.0), SC(3, "tol", NAN), mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "coefgp")) {
+        /* [P, err] = ltratio_mex('det', 'coefgp', br, C, loc, first, y, c, method, tol, N, umax, opts): coef_cdf_gp */
+        dfl_det_opts o = OPTS(6); plhs[0] = like(xa); mxArray *e = like(xa);
+        rc = dfl_det_coef_cdf_gp_x(&D, n, mxGetPr(xa), SC(1, "c", 0.0), &o, (int) SC(2, "method", 0.0), (int) SC(4, "N", 0.0), SC(5, "umax", 0.0), SC(3, "tol", NAN), mxGetPr(plhs[0]), mxGetPr(e), err, sizeof err);
+        if (nlhs > 1) plhs[1] = e;   /* (an array not returned is destroyed by MATLAB at the end of the call) */
+    }
     else if (!strcmp(what, "lmcdf")) { plhs[0] = like(xa); rc = dfl_det_lm_cdf(&D, n, mxGetPr(xa), SC(1, "c", 0.0), mxGetPr(plhs[0]), err, sizeof err); }
     else if (!strcmp(what, "lmicdf")) {
         plhs[0] = like(xa); rc = 0;
@@ -229,10 +250,15 @@ static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 /* v = ltratio_mex('route', what, engine, spec, a1, ...): one interface over the two engines (dfl_engine_*); engine 0 auto,
  * 1 classical, 2 general; spec = [model start g0] of a classical case, or {br, C, loc, first, start, g0, gls} as the
  * numeric arguments br, C, loc, first, start, g0, gls (spec given as the scalar 0 then these seven); what:
- *   'cdf' 'pdf' x c c0 method | 'icdf' p c c0 tol method | 'mom' pmax c c0 | 'coefcdf' y c c0 | 'coeficdf' p c c0 tol |
- *   'adfcdf' 'adfpdf' x c | 'lincdf' b c a cbar (the model of spec: 1 case DK, 4 case DG detrended at cbar, NaN for
- *   -13.5) | 'envelope' cs alpha (the model of spec, 1 or 4) | 'region' type c p1 p2 (P{U <= g(V)}: type 1 the line
- *   p2 + p1 v, 2 the parabola p1 sqrt(v) + p2 v, 3 the weighted-average-power boundary with k = p1, omega = p2)
+ *   'cdf' 'pdf' x c c0 method | 'icdf' p c c0 tol method | 'mom' pmax c c0 imethod tol verified | 'coefcdf' y c c0 imethod tol
+ *   verified | 'coeficdf' p c c0 tol imethod verified | 'coefpdf' y c c0 imethod tol verified | 'coefmom' pmax c c0 imethod tol |
+ *   'adfcdf' 'adfpdf' x c | 'lincdf' b c a cbar imethod tol verified (a case: the model of spec, 1 case DK, 4 case DG detrended
+ *   at cbar, NaN for -13.5, zero start; or a design, with its start, g0 and gls) | 'envelope' cs alpha imethod tol verified (the
+ *   model of spec, 1 or 4) | 'region' type c p1 p2 (P{U <= g(V)}: type 1 the line p2 + p1 v, 2 the parabola p1 sqrt(v) + p2 v,
+ *   3 the weighted-average-power boundary with k = p1, omega = p2)
+ * imethod (dfl_inv_opts): 0 automatic (the single inversion of Bao and Kan, the moments from jets, in their cases and
+ * regions), 5 forces them, 6 the engines' computation of before, and for coefcdf, coeficdf 1, 2, 3, 4 the representations of the
+ * t-ratio; tol their tolerance (NaN: the default); verified 1 recomputes by the engines the values whose estimate exceeds it
  * The warnings: dfl_warning as ltratio:bound, dfl_det_warning as ltratio:det, and for a classical case with engine auto
  * the warning ltratio:brittle of a regime in which the classical engine's one evaluation is brittle, where the router
  * takes the classical engine at a point (dfl_brittle, once per message; as the classical entry points give it).  method
@@ -248,7 +274,6 @@ static int brittle_add(const char **bm, int nb, char store[][320], const char *m
 static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     char what[16], err[512]; int rc = 1;
-    (void) nlhs;
     need(nrhs, 5, "ltratio_mex('route', what, engine, spec, ...)");
     mxGetString(prhs[1], what, sizeof what);
     int engine = intarg(prhs[2], "engine");
@@ -268,6 +293,7 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     int cls = S.D == NULL && engine == DFL_ENGINE_AUTO && S.model >= 1 && S.model <= 4, stat = S.start == 2;
     double g0 = stat ? 0.0 : S.g0, gls = S.model == 4 ? DFL_CBAR_GLS : NAN;
     const char *bm[8]; char bstore[8][320]; int nb = 0;
+    mxArray *eo = NULL;     /* (the error estimates, the second output) */
     if (!strcmp(what, "cdf") || !strcmp(what, "pdf")) {
         int kind = what[0] == 'c' ? 2 : 1; const double *x = mxGetPr(xa);
         plhs[0] = like(xa); rc = dfl_engine_dist(kind, n, x, &S, c, c0, engine, (int) SC(3, "method", 0.0), 0, mxGetPr(plhs[0]), err, sizeof err);
@@ -284,25 +310,40 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         plhs[0] = like(xa); rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, (int) SC(4, "method", 0.0), SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err);
         if (!rc && cls && dfl_autoengine(DFL_F_ICDF, S.model, stat, g0, gls, c, c0, 0.0) == DFL_ENGINE_CLASSICAL) nb = brittle_add(bm, nb, bstore, dfl_brittle(2, S.model, c, c0, g0, stat, 0));
     }
-    else if (!strcmp(what, "mom")) { int p = intarg(a[0], "pmax"); plhs[0] = mxCreateDoubleMatrix(1, p, mxREAL); rc = dfl_engine_mom(p, &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err); }
-    else if (!strcmp(what, "coefcdf") || !strcmp(what, "coeficdf")) {
-        int q = what[4] == 'i';
-        plhs[0] = like(xa);
-        rc = q ? dfl_engine_coef_icdf(n, mxGetPr(xa), &S, c, c0, engine, SC(3, "tol", 1e-9), mxGetPr(plhs[0]), err, sizeof err)
-               : dfl_engine_coef(n, mxGetPr(xa), &S, c, c0, engine, mxGetPr(plhs[0]), err, sizeof err);
-        if (!rc && cls) for (int k = 0; k < n; k++) {
-            /* (the t-ratio at 0 with the null value c0 + y: its engine and its brittle regime at each y, or at each quantile) */
+    else if (!strcmp(what, "mom")) {
+        int p = intarg(a[0], "pmax"); if (p < 1) mexErrMsgIdAndTxt("ltratio:args", "p must be a positive integer");
+        dfl_inv_opts io = {(int) SC(3, "method", 0.0), SC(4, "tol", NAN), SC(5, "verified", 0.0) != 0};
+        plhs[0] = mxCreateDoubleMatrix(1, p, mxREAL); eo = mxCreateDoubleMatrix(1, p, mxREAL);
+        rc = dfl_engine_mom_x(p, &S, c, c0, engine, &io, mxGetPr(plhs[0]), mxGetPr(eo), err, sizeof err);
+    } else if (!strcmp(what, "coefmom")) {
+        int p = intarg(a[0], "pmax"); if (p < 1) mexErrMsgIdAndTxt("ltratio:args", "p must be a positive integer");
+        dfl_inv_opts io = {(int) SC(3, "method", 0.0), SC(4, "tol", NAN), 0};
+        plhs[0] = mxCreateDoubleMatrix(1, p, mxREAL); eo = mxCreateDoubleMatrix(1, p, mxREAL);
+        rc = dfl_engine_coef_mom(p, &S, c, c0, engine, &io, mxGetPr(plhs[0]), mxGetPr(eo), err, sizeof err);
+    } else if (!strcmp(what, "coefcdf") || !strcmp(what, "coeficdf") || !strcmp(what, "coefpdf")) {
+        int q = what[4] == 'i', pdf = what[4] == 'p', km = q ? 4 : 3;
+        dfl_inv_opts io = {(int) SC(km, "method", 0.0), q ? NAN : SC(4, "tol", NAN), SC(5, "verified", 0.0) != 0};
+        plhs[0] = like(xa); eo = like(xa);
+        rc = q ? dfl_engine_coef_icdf_x(n, mxGetPr(xa), &S, c, c0, engine, SC(3, "tol", 1e-9), &io, mxGetPr(plhs[0]), mxGetPr(eo), err, sizeof err)
+             : pdf ? dfl_engine_coef_pdf(n, mxGetPr(xa), &S, c, c0, engine, &io, mxGetPr(plhs[0]), mxGetPr(eo), err, sizeof err)
+             : dfl_engine_coef_x(n, mxGetPr(xa), &S, c, c0, engine, &io, mxGetPr(plhs[0]), mxGetPr(eo), err, sizeof err);
+        /* (where the engines computed: the t-ratio at 0 with the null value c0 + y, its engine and its brittle regime at each y,
+         * or at each quantile; not for the density, the general engine's, nor where the single inversion computed) */
+        if (!rc && cls && !pdf && !dfl_inv_takes(&S, c, c0, engine, io.method)) for (int k = 0; k < n; k++) {
             double y = q ? mxGetPr(plhs[0])[k] : mxGetPr(xa)[k], c0y = c0 + y;
             if (isfinite(y) && dfl_autoengine(DFL_F_DIST, S.model, stat, g0, gls, c, c0y, 0.0) == DFL_ENGINE_CLASSICAL) nb = brittle_add(bm, nb, bstore, dfl_brittle(2, S.model, c, c0y, g0, stat, 0));
         }
     }
     else if (!strcmp(what, "adfcdf") || !strcmp(what, "adfpdf")) { plhs[0] = like(xa); rc = dfl_engine_adfmax(what[3] == 'c' ? 2 : 1, n, mxGetPr(xa), &S, c, engine, mxGetPr(plhs[0]), err, sizeof err); }
     else if (!strcmp(what, "lincdf")) {
-        if (S.D) mexErrMsgIdAndTxt("ltratio:args", "the linear form of the router takes a case (spec [model start g0], model 1 or 4)");
-        plhs[0] = like(xa); rc = dfl_engine_lincdf(n, mxGetPr(xa), SC(2, "a", 0.0), S.model, c, SC(3, "cbar", NAN), engine, mxGetPr(plhs[0]), err, sizeof err);
+        dfl_inv_opts io = {(int) SC(4, "method", 0.0), SC(5, "tol", NAN), SC(6, "verified", 0.0) != 0};
+        plhs[0] = like(xa); eo = like(xa);
+        rc = dfl_engine_lincdf_x(n, mxGetPr(xa), SC(2, "a", 0.0), &S, c, SC(3, "cbar", NAN), engine, &io, mxGetPr(plhs[0]), mxGetPr(eo), err, sizeof err);
     } else if (!strcmp(what, "envelope")) {
         if (S.D) mexErrMsgIdAndTxt("ltratio:args", "the envelope of the router takes a case (spec [model start g0], model 1 or 4)");
-        plhs[0] = like(xa); rc = dfl_engine_envelope(n, mxGetPr(xa), S.model, SC(1, "alpha", 0.05), engine, mxGetPr(plhs[0]), err, sizeof err);
+        dfl_inv_opts io = {(int) SC(2, "method", 0.0), SC(3, "tol", NAN), SC(4, "verified", 0.0) != 0};
+        plhs[0] = like(xa); eo = like(xa);
+        rc = dfl_engine_envelope_x(n, mxGetPr(xa), S.model, SC(1, "alpha", 0.05), engine, &io, mxGetPr(plhs[0]), mxGetPr(eo), err, sizeof err);
     } else if (!strcmp(what, "region")) {
         int type = intarg(a[0], "type"); double par[2] = {SC(2, "p1", NAN), SC(3, "p2", NAN)};
         plhs[0] = mxCreateDoubleMatrix(1, 1, mxREAL); rc = dfl_engine_region(type, par, &S, c, engine, mxGetPr(plhs[0]), err, sizeof err);
@@ -310,6 +351,7 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     else mexErrMsgIdAndTxt("ltratio:args", "unknown function %s of the router", what);
 #undef SC
     if (rc) mexErrMsgIdAndTxt(rc > 10 ? "ltratio:bound" : "ltratio:engine", "%s", err);
+    if (eo && nlhs > 1) plhs[1] = eo;      /* (an array not returned is destroyed by MATLAB at the end of the call) */
     for (int j = 0; j < nb; j++) mexWarnMsgIdAndTxt("ltratio:brittle", "%s", bm[j]);
     if (dfl_warning()) mexWarnMsgIdAndTxt("ltratio:bound", "%s", dfl_warning());
     if (dfl_det_warning()) mexWarnMsgIdAndTxt("ltratio:det", "%s", dfl_det_warning());
