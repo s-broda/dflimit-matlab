@@ -5,7 +5,8 @@ function [F,info] = tr_limdist(x,cas,c,opts,mode)
 %   same arguments: mode 'cdf' (default) or 'pdf'; cases 'DK', 'DU', 'DT' (fixed start opts.g0, default 0) and 'SK',
 %   'SU', 'ST' (stationary start, c <= -1e-4); opts.c0 the local null value (default 0, as in the MATLAB engine: the
 %   Dickey-Fuller test of phi = 1; LTRATIO_CDF passes its own c0); the options M, Nv, Nl, maxlev, plen, otol, stepw,
-%   errtol, blo, bhi, bmin, mumin, tdec of the double integral.  info: time, status, err, nbad, nunres, nrefine
+%   errtol, blo, bhi, bmin, mumin, tdec of the double integral (Nv, Nl: by default the rule of one evaluation of the C
+%   engine, dfl_cond_rule, that of the MATLAB engine, and 96 with opts.verified; given, they override it).  info: time, status, err, nbad, nunres, nrefine
 %   (per point; a nonzero status raises a warning), and finite when x has non-finite entries (0 at -Inf, 1 at Inf for
 %   the cdf, NaN at NaN).
 %

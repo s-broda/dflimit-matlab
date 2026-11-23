@@ -14,6 +14,10 @@ function varargout = ltratio(what,varargin)
 %   [v,err] = LTRATIO(...)              the error estimates of the single inversion of Bao and Kan (coefcdf, coefpdf,
 %                                      coeficdf, coefmom, mom, lincdf, envelope; NaN where the engines computed)
 %   n = LTRATIO('threads'[,n])         the number of threads (sets it with n)
+%   v = LTRATIO('switch',name[,v])     the switches of the quantile searches: 'mom_start' (the start from the moments
+%                                      from jets of Bao and Kan) and 'dist2' (F and f from one pass of the general
+%                                      engine's paths where the rule gives a Newton step's point to it); 1 (on, the
+%                                      default) or 0 (the computation of before), set with v
 %   D = LTRATIO('design',kind,...)     a design of the general engine (any deterministic terms): kind 'trend' p,
 %                                      'perron' model lam ('A', 'B', 'C', breaks lam), 'ltrend' p, 'matrix' X [TB],
 %                                      'first' D (the statistic that detrends first), 'fun' f K [breaks]
@@ -30,7 +34,10 @@ function varargout = ltratio(what,varargin)
 %                                      the router; the point-optimal functions and coefgp take method (0 automatic: the
 %                                      single inversion of Bao and Kan up to c = 4, 5 for coefgp; 5 the inversion, 7 the
 %                                      fixed grid), tol, N, umax after their arguments, and return the error estimates
-%                                      as a second output)
+%                                      as a second output; opts.rule the rule of one evaluation of the t-ratio's
+%                                      paths, 'auto' (the default), 'present' (the rule before November 2026), 'thin',
+%                                      'inner', 'outer', 'fine', 'finestep', and opts.hfac, opts.n, opts.ntail, which
+%                                      override it)
 %
 %   The arguments are those of LTRATIO_CDF, LTRATIO_PDF, LTRATIO_ICDF and LTRATIO_MOM of the MATLAB programs: cas is
 %   'DK', 'DU', 'DT', 'SK', 'SU', 'ST' or 'DG' (the GLS-detrended trend case: zero start, the line integral only, no
@@ -63,6 +70,7 @@ function varargout = ltratio(what,varargin)
 %      ltratio('lincdf', -0.2639, -3.5, 'DK', 0)            % 0.05: the size of the point-optimal test at cbar = -7
 %      ltratio('envelope', [-5 -10], 'DG')                  % the power envelope of the trend case
 if strcmpi(what,'threads'), varargout{1} = ltratio_mex('threads', varargin{:}); return, end
+if strcmpi(what,'switch'), varargout{1} = ltratio_mex('switch', varargin{:}); return, end
 if strcmpi(what,'lincdf')                             % the linear form U - aV, zero start (LTRATIO_LINCDF)
     if nargin < 4, error('ltratio:args','usage: ltratio(''lincdf'', b, a, cas, c, opts)'); end
     b = varargin{1}; a = varargin{2}; cas = varargin{3}; if ~isstruct(cas), cas = upper(char(cas)); end
@@ -140,7 +148,7 @@ end
 if strcmpi(what,'det')                                % a function of the general engine with a design
     if nargin < 3, error('ltratio:args','usage: ltratio(''det'', fn, D, args..., opts)'); end
     fn = lower(char(varargin{1})); D = varargin{2}; args = varargin(3:end);
-    o = NaN(1,5);
+    o = NaN(1,10);
     if ~isempty(args) && isstruct(args{end}), o = detvec(args{end}); args = args(1:end-1); end
     nexp = struct('cdf',2,'pdf',2,'icdf',4,'coefcdf',2,'coefpdf',2,'coeficdf',4,'mom',2,'lincdf',3,'linpdf',3,'linicdf',5, ...
         'adfcdf',2,'adfpdf',2,'adficdf',4,'power',3,'envelope',2,'ptcdf',7,'ptpdf',7,'pticdf',6,'ptpower',7,'ptenvelope',6,'coefgp',6, ...
@@ -240,8 +248,8 @@ switch lower(what)
 end
 end
 function v = getf(o,f,d), if isfield(o,f) && ~isempty(o.(f)), v = double(o.(f)); else, v = d; end, end
-function o = detvec(opts)                             % [c0 start g0 gls verified method] of the general engine (NaN: the default)
-o = NaN(1,6);
+function o = detvec(opts)                             % [c0 start g0 gls verified method rule hfac n ntail] of the general engine (NaN: the default)
+o = NaN(1,10);
 if isfield(opts,'c0') && ~isempty(opts.c0), o(1) = opts.c0; end
 if isfield(opts,'g0') && ~isempty(opts.g0), o(3) = opts.g0; if opts.g0 ~= 0, o(2) = 1; end, end
 if isfield(opts,'start') && ~isempty(opts.start)
@@ -254,6 +262,12 @@ end
 if isfield(opts,'gls') && ~isempty(opts.gls), o(4) = opts.gls; end
 if isfield(opts,'verified') && ~isempty(opts.verified), o(5) = double(logical(opts.verified)); end
 if isfield(opts,'method') && ~isempty(opts.method), o(6) = gmethod(opts.method); end
+if isfield(opts,'rule') && ~isempty(opts.rule)                % (the rule of one evaluation of the t-ratio's paths)
+    k = find(strcmpi(char(opts.rule),{'auto','present','thin','inner','outer','fine','finestep'}));
+    if isempty(k), error('ltratio:args','opts.rule must be ''auto'', ''present'', ''thin'', ''inner'', ''outer'', ''fine'' or ''finestep'' (the rules of one evaluation of the inversion on paths).'); end
+    o(7) = k - 1;
+end
+for f = {'hfac','n','ntail'}, if isfield(opts,f{1}) && ~isempty(opts.(f{1})), o(7 + find(strcmp(f{1},{'hfac','n','ntail'}))) = double(opts.(f{1})); end, end
 end
 function m = gmethod(s)                               % opts.method of the general engine: 0 'auto', 1 'line', 2 'paths'
 k = find(strcmpi(char(s),{'auto','line','paths'}));

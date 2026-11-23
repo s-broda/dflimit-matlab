@@ -8,7 +8,10 @@ function [F,info] = tr_contour(x,cas,c,opts,mode)
 %   inversion formula on paths around the singularities of the moment generating function, with the integral over v
 %   in closed form, for each t of an outer hyperbola two U-shaped paths in s around the roots
 %   of D(., t), a double integral with an explicit integrand, computed twice on different paths with different rules (the
-%   error estimate is their difference).  info: time; err, the error estimate per point; status, 0
+%   error estimate is their difference).  One evaluation (opts.verified false, the default) takes the rule of one
+%   evaluation of the C engine (dfl_ctr_rule, that of the MATLAB engine): 32 nodes per panel and ray for 64 and the outer
+%   step 1.5 times as long where they hold; opts.rule = 'present' the rule of before, opts.n1 (the nodes) and opts.hfac
+%   (the factor of the outer step) override it.  info: time; err, the error estimate per point; status, 0
 %   where the estimate is at most 1e-10 and the value is finite, otherwise 2 (the warning tr_contour:status); nodes, the
 %   number of outer nodes (of the two evaluations together); level, the level of the value (1 to 4).  Non-finite x: F = 0 at -Inf, 1 (cdf)
 %   or 0 (pdf) at +Inf, NaN at NaN.
@@ -37,7 +40,12 @@ switch mode
 end
 t0 = tic;
 verified = isfield(opts,'verified') && ~isempty(opts.verified) && logical(opts.verified);
-[F,err,status,nodes,level] = ltratio_mex('contour', kind, double(x(:)), model, double(c), double(c0), double(g0), double(verified));
+rl = 0;                                                 % (the rule of one evaluation: 0 auto, 1 the rule of before)
+if isfield(opts,'rule') && ~isempty(opts.rule)
+    rl = find(strcmpi(char(opts.rule),{'auto','present'})) - 1;
+    if isempty(rl), error('tr_contour:args','tr_contour: opts.rule must be ''auto'' or ''present'' (the rule of one evaluation of the contour integral).'); end
+end
+[F,err,status,nodes,level] = ltratio_mex('contour', kind, double(x(:)), model, double(c), double(c0), double(g0), double(verified), rl, getf(opts,'n1',NaN), getf(opts,'hfac',NaN));
 sz = size(x); F = reshape(F,sz);
 info = struct('time',toc(t0),'err',reshape(err,sz),'status',reshape(status,sz),'nodes',reshape(nodes,sz),'level',reshape(level,sz));
 if verified && any(status(:))

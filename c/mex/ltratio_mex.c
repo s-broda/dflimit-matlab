@@ -8,10 +8,12 @@
  *                     engine), which LTRATIO_DIST routes to the conditional integral
  *   [F, err, status, nbad, nunres, nrefine] = ltratio_mex('double', kind, x, model, c, c0, g0, stat, dopt)    dopt(14):
  *                     verified (0: one evaluation, the default; 1: the agreement of two paths and the refinements)
- *   [F, err, status, nodes, level] = ltratio_mex('contour', kind, x, model, c, c0, g0, verified)    the contour integral, a
- *                     fixed start g0 ~= 0 in models 2, 3 only (dfl_contour): verified 0 (default) one evaluation (err NaN,
- *                     status 0); verified 1 error estimate, status (0, or 2 where the estimate exceeds 1e-10), outer nodes
- *                     and the level of the inner rules (1..4) per point
+ *   [F, err, status, nodes, level] = ltratio_mex('contour', kind, x, model, c, c0, g0, verified, rule, n1, hfac)    the
+ *                     contour integral, a fixed start g0 ~= 0 in models 2, 3 only (dfl_contour_rule): verified 0 (default)
+ *                     one evaluation (err NaN, status 0) by the rule of one evaluation (rule 0, the default, dfl_ctr_rule;
+ *                     1 the rule of before; n1 > 0 nodes per panel and ray and hfac the factor of the outer step override it,
+ *                     NaN the rule); verified 1 error estimate, status (0, or 2 where the estimate exceeds 1e-10), outer
+ *                     nodes and the level of the inner rules (1..4) per point
  *   [F, nstatus] = ltratio_mex('dist', kind, x, model, c, c0, g0, stat, method, verified)    method 0 automatic, 1 single,
  *                     2 double, 3 contour (a fixed start in models 2, 3; also the automatic choice there); verified 0
  *                     (default) one evaluation by one method, 1 the estimates, fallbacks and tail recomputation (dfl_dist);
@@ -30,6 +32,13 @@
  *   P = ltratio_mex('envelope', c, model, alpha, gopt)                   the power envelope of Elliott, Rothenberg and Stock
  *                     (1996), model 1 (case DK, also DU) or 4 (case DG), level alpha (default 0.05)
  *   n = ltratio_mex('threads'[, n])                                      the number of threads (sets it with n)
+ *   v = ltratio_mex('switch', name[, v])                                 the switches of the quantile searches, 'mom_start'
+ *                     (the start from the moments from jets, DFL_MOM_START) and 'dist2' (F and f from one pass of the general
+ *                     engine's paths, DFL_DIST2): the value (1 on, the default; 0 the computation of before), set with v
+ *   [r, n] = ltratio_mex('rule', what, ...)                              the rules of one evaluation: 'paths' fixed rank1 c c0
+ *                     (dfl_det_path_region: 1 present, 2 thin, 3 inner, 4 outer, 5 fine, 6 finestep), 'contour' c c0 g0
+ *                     (dfl_ctr_rule: r the nodes, n the factor of the outer step), 'conditional' model c c0 g0 stat
+ *                     (dfl_cond_rule: the nodes)
  *   [br, C, loc, first] = ltratio_mex('design', kind, ...)               a design of the general engine (dfl_design): kind
  *                     'trend' p, 'perron' model lam (1 A, 2 B, 3 C), 'ltrend' p, 'matrix' X TB, 'first' br C loc first,
  *                     'fun' f K breaks (a function handle); br the break points, C the coefficient matrices side by side
@@ -166,9 +175,11 @@ static void det_design_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *pr
  * 1 the line integral with the explicit kernel, 2 the inversion on paths: dfl_det_dist, dfl_det_quantile) */
 static dfl_det_opts detopts(const mxArray *a)
 {
-    dfl_det_opts o; dfl_det_defaults(&o); double v[6]; optvec(a, v, 6);
+    dfl_det_opts o; dfl_det_defaults(&o); double v[10]; optvec(a, v, 10);
     if (!isnan(v[0])) o.c0 = v[0]; if (!isnan(v[1])) o.start = (int) v[1]; if (!isnan(v[2])) o.gamma0 = v[2]; o.gls = v[3]; if (!isnan(v[4])) o.verified = v[4] != 0;
     if (!isnan(v[5])) o.method = (int) v[5];
+    /* (the rule of one evaluation of the t-ratio's paths, DFL_RULE_*, the factor of the outer step and the inner nodes) */
+    if (!isnan(v[6])) o.rule = (int) v[6]; o.hfac = v[7]; if (!isnan(v[8])) o.n = (int) v[8]; if (!isnan(v[9])) o.ntail = (int) v[9];
     return o;
 }
 /* v = ltratio_mex('det', what, br, C, loc, first, a1, a2, ..., opts): the general engine (dfl_det_*); what and its arguments
@@ -181,8 +192,9 @@ static dfl_det_opts detopts(const mxArray *a)
  * (method of the point-optimal functions and coef_cdf_gp: 0 automatic, the single inversion of Bao and Kan up to c = 4 (5 for
  * coef_cdf_gp) and the fixed grid beyond or where N or umax is given; 5 the single inversion, 7 the fixed grid; their second
  * output the error estimates, NaN on the grid)
- * opts = [c0 start g0 gls verified] after the arguments (start 0 zero, 1 fixed, 2 stationary); the warnings of the engine
- * (dfl_det_warning) as the warning ltratio:det */
+ * opts = [c0 start g0 gls verified method rule hfac n ntail] after the arguments (start 0 zero, 1 fixed, 2 stationary; rule
+ * 0 auto, 1 present, 2 thin, 3 inner, 4 outer, 5 fine, 6 finestep, the rule of one evaluation of the t-ratio's paths; NaN the
+ * default); the warnings of the engine (dfl_det_warning) as the warning ltratio:det */
 static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     char what[16], err[512]; int rc = 1;
@@ -360,8 +372,26 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     char op[16], err[512] = "";
-    if (nrhs < 1 || !mxIsChar(prhs[0])) mexErrMsgIdAndTxt("ltratio:args", "the first argument is the operation: single, double, contour, dist, icdf, mom, tstar, adfmax, region, lincdf, envelope, threads, design, det or route");
+    if (nrhs < 1 || !mxIsChar(prhs[0])) mexErrMsgIdAndTxt("ltratio:args", "the first argument is the operation: single, double, contour, dist, icdf, mom, tstar, adfmax, region, lincdf, envelope, threads, switch, rule, design, det or route");
     mxGetString(prhs[0], op, sizeof op);
+    if (strcmp(op, "switch") == 0) {
+        need(nrhs, 2, "ltratio_mex('switch', name[, value])");
+        char nm[16]; if (!mxIsChar(prhs[1])) mexErrMsgIdAndTxt("ltratio:args", "the name of the switch must be a string"); mxGetString(prhs[1], nm, sizeof nm);
+        int *sw = !strcmp(nm, "mom_start") ? &DFL_MOM_START : !strcmp(nm, "dist2") ? &DFL_DIST2 : NULL;
+        if (!sw) mexErrMsgIdAndTxt("ltratio:args", "the switches are 'mom_start' and 'dist2'");
+        plhs[0] = mxCreateDoubleScalar(*sw);
+        if (nrhs > 2) *sw = scalar(prhs[2], "value") != 0;
+        return;
+    }
+    if (strcmp(op, "rule") == 0) {
+        need(nrhs, 2, "ltratio_mex('rule', what, ...)");
+        char wh[16]; if (!mxIsChar(prhs[1])) mexErrMsgIdAndTxt("ltratio:args", "what must be a string"); mxGetString(prhs[1], wh, sizeof wh);
+        if (!strcmp(wh, "paths")) { need(nrhs, 6, "ltratio_mex('rule', 'paths', fixed, rank1, c, c0)"); plhs[0] = mxCreateDoubleScalar(dfl_det_path_region(scalar(prhs[2], "fixed") != 0, scalar(prhs[3], "rank1") != 0, scalar(prhs[4], "c"), scalar(prhs[5], "c0"))); }
+        else if (!strcmp(wh, "contour")) { need(nrhs, 5, "ltratio_mex('rule', 'contour', c, c0, g0)"); int nn; double hh; dfl_ctr_rule(scalar(prhs[2], "c"), scalar(prhs[3], "c0"), scalar(prhs[4], "g0"), &nn, &hh); plhs[0] = mxCreateDoubleScalar(nn); if (nlhs > 1) plhs[1] = mxCreateDoubleScalar(hh); }
+        else if (!strcmp(wh, "conditional")) { need(nrhs, 7, "ltratio_mex('rule', 'conditional', model, c, c0, g0, stat)"); plhs[0] = mxCreateDoubleScalar(dfl_cond_rule(intarg(prhs[2], "model"), scalar(prhs[3], "c"), scalar(prhs[4], "c0"), scalar(prhs[5], "g0"), scalar(prhs[6], "stat") != 0)); }
+        else mexErrMsgIdAndTxt("ltratio:args", "the rules are 'paths', 'contour' and 'conditional'");
+        return;
+    }
     if (strcmp(op, "threads") == 0) {
         if (nrhs > 1) dfl_set_nworkers(intarg(prhs[1], "n"));
         plhs[0] = mxCreateDoubleScalar(dfl_nworkers()); return;
@@ -413,11 +443,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         free(info); return;
     }
     if (strcmp(op, "contour") == 0) {
-        need(nrhs, 7, "ltratio_mex('contour', kind, x, model, c, c0, g0, verified)");
+        need(nrhs, 7, "ltratio_mex('contour', kind, x, model, c, c0, g0, verified, rule, n1, hfac)");
         int n; const mxArray *xa = vecarg(prhs[2], "x", &n); plhs[0] = like(xa);
+        double rl = nrhs > 8 ? scalar(prhs[8], "rule") : NAN, n1 = nrhs > 9 ? scalar(prhs[9], "n1") : NAN, hf = nrhs > 10 ? scalar(prhs[10], "hfac") : NAN;
         double *e = malloc((n + 1) * sizeof(double)); int *st = malloc((n + 1) * sizeof(int)), *nd = malloc((n + 1) * sizeof(int)), *lv = malloc((n + 1) * sizeof(int));
-        int rc = dfl_contour_lev(intarg(prhs[1], "kind"), n, mxGetPr(xa), intarg(prhs[3], "model"), scalar(prhs[4], "c"), scalar(prhs[5], "c0"), scalar(prhs[6], "g0"),
-                                 nrhs > 7 && scalar(prhs[7], "verified") != 0, mxGetPr(plhs[0]), e, st, nd, lv, err, sizeof err);
+        int rc = dfl_contour_rule(intarg(prhs[1], "kind"), n, mxGetPr(xa), intarg(prhs[3], "model"), scalar(prhs[4], "c"), scalar(prhs[5], "c0"), scalar(prhs[6], "g0"),
+                                  nrhs > 7 && scalar(prhs[7], "verified") != 0, isnan(rl) ? DFL_CTR_AUTO : (int) rl, isnan(n1) ? 0 : (int) n1, hf,
+                                  mxGetPr(plhs[0]), e, st, nd, lv, err, sizeof err);
         if (rc) { free(e); free(st); free(nd); free(lv); mexErrMsgIdAndTxt("ltratio:engine", "%s", err); }
         for (int j = 1; j < 5 && j < nlhs; j++) {
             plhs[j] = like(xa); double *p = mxGetPr(plhs[j]);

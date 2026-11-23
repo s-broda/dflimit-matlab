@@ -83,11 +83,21 @@ in a regime in which one evaluation is known to be brittle the warning `ltratio:
 (`ltratio_mex('brittle', ...)`, `dfl_brittle`). `opts.verified = true` gives the checked computation at 1 to 4.5 times
 the cost of the default (about 1.8 with the contour integral; more in the tails below 1e-3, which it recomputes): error estimates and a status, the agreement of two evaluations on different paths, the fallbacks to another
 representation and the recomputation of the values below 1e-3 by the conditional integral, with the rule before
-November 2026. A computed density below zero is returned as zero.  The MEX file itself takes numeric arguments only (see the header of
-`ltratio_mex.c`): `'single'`, `'double'`, `'contour'`, `'dist'`, `'icdf'`, `'mom'`, `'tstar'`, `'adfmax'`, `'region'`, `'lincdf'`, `'envelope'`, `'threads'`, `'brittle'`
+November 2026. A computed density below zero is returned as zero.  One evaluation takes the thinner rules of the C engine
+where they hold (November 2026, as DFLimit.jl; the README of the repository, "The rules of one evaluation"): the contour
+integral 32 nodes per panel and ray for 64 and the outer step 1.5 times as long (`dfl_ctr_rule`; `opts.rule = 'present'`
+of `tr_contour` the rule of before, `opts.n1`, `opts.hfac` override it), the conditional integral 48 or 64 nodes for 96
+in its regions (`dfl_cond_rule`; `opts.Nv`, `opts.Nl` of `tr_limdist` override it), and the general engine's paths the
+rules of `dfl_det_path_region` (`ltratio('det', ...)` with `opts.rule`: `'auto'`, the default, `'present'`, `'thin'`,
+`'inner'`, `'outer'`, `'fine'`, `'finestep'`; `opts.hfac`, `opts.n`, `opts.ntail` override it).  The quantile searches
+start from the moments from jets (after Bao and Kan) and take F and f from one pass of the general engine's paths where the
+rule gives a Newton step's point to it; `ltratio('switch', 'mom_start', 0)` and `ltratio('switch', 'dist2', 0)` restore
+the computation of before.  The MEX file itself takes numeric arguments only (see the header of
+`ltratio_mex.c`): `'single'`, `'double'`, `'contour'`, `'dist'`, `'icdf'`, `'mom'`, `'tstar'`, `'adfmax'`, `'region'`, `'lincdf'`, `'envelope'`, `'threads'`, `'switch'`, `'rule'`, `'brittle'`
 (`'dist'` and `'icdf'` take the method 0 automatic, 1 single, 2 double, 3 contour, and an optional last argument verified; `[F, err, status, nodes, level] =
-ltratio_mex('contour', kind, x, model, c, c0, g0)` returns the error estimate, the status, the number of outer nodes and
-the level of the inner rules at each point).
+ltratio_mex('contour', kind, x, model, c, c0, g0, verified, rule, n1, hfac)` returns the error estimate, the status, the number of outer nodes and
+the level of the inner rules at each point; `ltratio_mex('rule', ...)` gives the rules of one evaluation of the three
+integrals).
 
 Seconds per value of the distribution function by the default (one evaluation), MATLAB R2026b on an M4 laptop (ten
 cores), `timeit` medians of warm calls, November 2026 (the script `timing_fixed.m` produces the rows of the second table):
