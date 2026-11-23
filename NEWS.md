@@ -15,8 +15,8 @@ unchanged). Case DK far above the unit root (c > 4) takes the conditional integr
 (`dk_far`; the line integral's cost grows like x^4 there) and with c0 > c at x < -20, where the line integral was off by
 up to 1.5e-3 (a negative value at c = 7, c0 = 9, x = -627); above c = 14 these points are refused with an error that
 names the statistic, c, c0, x and the region computed (`DFL_DKFAR_CMAX`; `ltratio:args` in MATLAB), because the
-conditional integral is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18. With `verified` their flagged values no
-longer fall back to the line integral. The general engine cut its vertical line to the oscillation as if c0 were 0
+conditional integral is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18 (before anything is computed, with
+`verified` too). With `verified` their flagged values no longer fall back to the line integral. The general engine cut its vertical line to the oscillation as if c0 were 0
 (`line_refine` in `c/dfl_det_path.c` and `matlab/dfdet_contour.m`): it was off by 1.1e-3 at c = 10, c0 = 9, x = 1000 and
 gave 1.0000000112 at x = 1e4; the line is now cut to the larger of the rates with and without c0 (`det_line_refined`
 takes the values c0; `dfdet_contour('refine', CP, xs, amax, c0s)`). Every distribution function of both engines ends with
