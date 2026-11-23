@@ -71,6 +71,14 @@ deterministic terms (10 with them and a fixed start) and c = 20 without them (`D
 transform is of the order 2c e^{-2c} and the others are no longer resolved in double precision, and every function of the
 general engine stops with an error that names the statistic, while `dfl_autoengine` takes the classical engine.
 
+Above the unit root the t-ratio with c0 != c has its upper tail at x of the order (c - c0) e^c/(2c). In case DK the
+classical engine takes the conditional integral with its checks there (beyond the line integral's bound, from x ~ 700,
+whatever its flag; for c > 4 also at x > 300 and, with c0 > c, at x < -20, `dk_far` in `c/dfl_api.c` and
+`matlab/ltratio_dist.m`), within 1.3e-8 of an independent computation up to c = 14, and refuses these points above
+c = 14 with an error (before November 23, 2026 it returned one evaluation of the conditional integral there, values
+outside [0, 1] among them). Every distribution function of both engines ends with a check of its values: outside
+[0, 1] by more than 1e-8 an error that names the call (`dfl_cdf_range_check`, `ltratio_rangecheck`).
+
 ## The general engine in MATLAB
 
 The folder `matlab/` also holds a port of the general engine of DFLimit.jl (`DFLimit.DFDet`, the engine of the
@@ -153,10 +161,10 @@ for t in prim single gen fixed mom dbl app det; do ./dfl_test_$t test/${t}_ref.t
 Every program ends with a line that counts the checks and the failures (`dfl_test_fixed` also reads
 `test/contour_ref.txt`, the reference values of the contour integral; `dfl_test_bounds` has its reference values in
 the source: the points of the repairs of 0.5.0, where the line integral exceeds the bounds of the engine or, with a
-fixed start, climbed). The workflow "C engine" (`.github/workflows/c.yml`)
+fixed start, climbed, and those of the upper tail above the unit root of November 23, 2026). The workflow "C engine" (`.github/workflows/c.yml`)
 runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on a tag `v*` and by hand.
 
-The MATLAB programs: `ltratio_test` runs 268 checks in about five minutes and returns the number of failures
+The MATLAB programs: `ltratio_test` runs 277 checks in about five minutes and returns the number of failures
 (`ltratio_test(true)` is the quick version, `ltratio_test(false, true)` raises an error on a failure); `dfx_test` checks
 the line integral against stored values of the Julia engine (`matlab/validation/python_exact_reference.json`). Start
 MATLAB in a folder other than `matlab/`. With the folder of the MEX file ahead of `matlab/` on the path the same
