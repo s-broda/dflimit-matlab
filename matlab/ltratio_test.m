@@ -359,11 +359,15 @@ for k = 1:size(C,1)
 end
 check('coefficient statistic DU c=0: the 5% point vs Julia',abs(coef_icdf(0.05,'DU',0) + 14.093590831267115),1e-7);
 check('region U + 3.5V <= -0.2639, c=0: ltratio_region vs Julia',abs(ltratio_region(struct('type','line','a',-3.5,'b',-0.2639),'DK',0) - 0.049996781931320872),1e-10);
-check('region U + 3.5V <= -0.2639, c=0: ltratio_lincdf (Gil-Pelaez) vs Julia',abs(ltratio_lincdf(-0.2639,-3.5,'DK',0) - 0.049996781931325174),1e-10);
+check('region U + 3.5V <= -0.2639, c=0: ltratio_lincdf (Gil-Pelaez) vs Julia',abs(ltratio_lincdf(-0.2639,-3.5,'DK',0,struct('method','engine')) - 0.049996781931325174),1e-10);
+check('region U + 3.5V <= -0.2639, c=0: ltratio_lincdf (the single inversion of Bao and Kan) vs Julia',abs(ltratio_lincdf(-0.2639,-3.5,'DK',0) - 0.049996781931325174),1e-10);
 check('region of the WAP test, k=3.6658, omega=10, c=-10, vs Julia',abs(ltratio_region(struct('type','wap','k',3.6658,'omega',10),'DK',-10) - 0.75806440265373276),1e-10);
 check('region of the parabola x = -1.94087, c=-7: the t-ratio (line integral)', ...
       abs(ltratio_region(struct('type','parabola','x',-1.94087),'DK',-7) - ltratio_cdf(-1.94087,'DK',-7,S)),1e-11);
-check('power envelope DK c=-7 vs Julia',abs(power_envelope(-7,'DK') - 0.49940198260314117),1e-10);
+% (the bisection of the classical critical value to 1e-9 against the Julia engine's; the default, the single inversion of Bao
+% and Kan with the critical value to 1e-12, against the Julia package's default, which moved by 2.1e-10 with it)
+check('power envelope DK c=-7 (the engines) vs Julia',abs(power_envelope(-7,'DK',struct('method','engine')) - 0.49940198260314117),1e-10);
+check('power envelope DK c=-7 (the single inversion) vs Julia',abs(power_envelope(-7,'DK') - 0.49940198281556841),1e-12);
 if ~quick, check('power envelope DG c=-13.5 vs Julia',abs(power_envelope(-13.5,'DG') - 0.51441347319065545),1e-10); end
 % the linear form where the inversion of Gil-Pelaez is not trusted (small |a|, c > 0): the conditional integrals (the
 % region in case DK, the conditional integral given R = U + 1/2 in case DG); at a = 0 the closed form P(U <= b) =

@@ -76,7 +76,11 @@ if exist('ltratio_croute', 'file') == 2 && ltratio_croute('on')
     [nf, nc] = chk(nf, nc, ltratio_cdf(xs, 'DT', -5), ltratio('cdf', xs, 'DT', -5), 1e-9, 'ltratio_cdf on the C router');
     [nf, nc] = chk(nf, nc, ltratio_cdf([-3.5 -2.5], dfdet_perron('C', 0.3), -5), ltratio('det', 'cdf', PC, [-3.5 -2.5], -5), 1e-12, 'ltratio_cdf with a design on the C router');
     [nf, nc] = chk(nf, nc, adfmax_cdf(x3, 'DU', -5, struct('g0', 1.5)), ltratio('det', 'adfcdf', D0, x3, -5, struct('g0', 1.5)), 1e-12, 'adfmax_cdf with a fixed start on the C router');
-    [nf, nc] = chk(nf, nc, ltratio_lincdf(-0.2639, -3.5, dfdet_trend(-1), -5, struct('g0', 1.5)), ltratio('det', 'lincdf', ltratio('design', 'trend', -1), -0.2639, -3.5, -5, struct('g0', 1.5)), 1e-12, 'ltratio_lincdf of a design with a fixed start on the C router');
+    % (the default for a design of a classical case with a fixed start is the single inversion of Bao and Kan, within 1e-11
+    % of the general engine; opts.method = 'engine' gives the general engine's value)
+    Pg = ltratio('det', 'lincdf', ltratio('design', 'trend', -1), -0.2639, -3.5, -5, struct('g0', 1.5));
+    [nf, nc] = chk(nf, nc, ltratio_lincdf(-0.2639, -3.5, dfdet_trend(-1), -5, struct('g0', 1.5, 'method', 'engine')), Pg, 1e-12, 'ltratio_lincdf of a design with a fixed start on the C router (method engine)');
+    [nf, nc] = chk(nf, nc, ltratio_lincdf(-0.2639, -3.5, dfdet_trend(-1), -5, struct('g0', 1.5)), Pg, 1e-10, 'ltratio_lincdf of a design with a fixed start on the C router');
     [nf, nc] = chk(nf, nc, power_envelope([-5 -10], 'DG'), ltratio('envelope', [-5 -10], 'DG'), 1e-8, 'power_envelope on the C router');
     [nf, nc] = chk(nf, nc, ltratio_cdf(xt, dfdet_trend(2), -5, struct('method', 'line')), Fl, 0, 'ltratio_cdf with a design and method line on the C router');
     [nf, nc] = chk(nf, nc, ltratio_icdf(0.05, dfdet_trend(2), -5, struct('method', 'paths')), ltratio('icdf', 0.05, T2, -5, struct('method', 'paths')), 0, 'ltratio_icdf with a design and method paths on the C router');

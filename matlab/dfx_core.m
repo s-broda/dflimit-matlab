@@ -25,8 +25,8 @@ function varargout = dfx_core(action, varargin)
 %     dfx_core('count')           [kernel evaluations, inner calls] since the last call (testing)
 %     dfx_core('tune', [NGROW NLEV NCON])   node counts of the segment pieces (testing)
 %     [P, s1, s2, M0] = dfx_core('tparts', model, c, t, stat)   P(t), the roots s1(t), s2(t) of D(., t)
-%                                 (s1 the one with Re < 0 at the real point t(1)) and M0(t), continued along
-%                                 the grid t; dfx_core('gstat', model, z), the entire function g of the
+%                                 (s1 the one with Re < 0 on the line) and M0(t) at the points t, the branches
+%                                 fixed at each point (after Bao and Kan); dfx_core('gstat', model, z), the entire function g of the
 %                                 initial-value terms; dfx_core('tau', model, c, stat), the default line
 %                                 (the pieces of the engine used by TR_CONTOUR)
 %   opts: start (zero or stationary), c0 (0; the local null value: the t-ratio for
@@ -260,89 +260,130 @@ k = [0; cumsum(round(diff(ph(:)) / (2 * pi)))];
 ph = ph(:) - 2 * pi * k;
 end
 
+% ---------- P(t), the roots and M0 at each point: the branch after Bao and Kan ----------
+% The branch of P(t) = (-a_2(t))^(-1/2), of M_0(t) = (-s_1 s_2)^(-1/2) and the labels of the roots s_1(t), s_2(t) of D(., t)
+% were fixed by continuity along a grid from the real point until November 2026 (an unwrapping of the phases).  They are
+% determined at each point, after Yong Bao and Raymond Kan ("Exact Finite-Sample Distribution and Moments of the Least
+% Squares Estimator in First-Order Autoregressions: O(1) Algorithms"), who write each argument under a root as a product
+% of factors whose arguments are known (tparts_point of DFExact.jl, dfl_tparts of the C engine).  For Im t > 0 (the
+% conjugate for Im t < 0), with mu = (c^2 - 2t)^(1/2) the principal root: the reciprocal roots are the eigenvalues of
+% K Sigma_t, y*Ky / y*Sigma_t^(-1)y, a real number over a number with a positive real part for Re t < t_* (the lemma on
+% accretive matrices of Bao and Kan) and a negative imaginary part for Im t > 0, so that s_1 (negative type) lies in the
+% open left half-plane on the line and in the open upper half-plane, s_2 in the right and the lower one: the labels are
+% read off the signs; M_0 = (-s_1)^(-1/2) s_2^(-1/2) with principal roots on the line; D(0, t) = a_0 = (-a_2)(-s_1) s_2
+% has the continuous argument of a canonical product over the positive zeros of the moment generating function of V:
+% without deterministic terms e^c cosh(mu) G, G = 1 - c tanh(mu)/mu, with the argument Im mu + Arg(1 + e^(-2 mu)) of
+% cosh(mu) and G in a half-plane; a regressor projected out, or a start integrated out, changes V by a quadratic form of
+% rank one of one sign, and the principal argument of the ratio of the two determinants, in (0, pi) for a projection
+% and in (-pi, 0) for the stationary start, is the continuous one (two projections: (0, 2 pi); GLS detrending, one update
+% of each sign: the principal argument).  Then arg(-a_2) = arg D(0, t) - Arg(-s_1) - Arg(s_2), all at the point.
+function a = argpos(a, two)
+% an argument known to lie in (0, pi) (one projection) or (0, 2 pi) (two) from its principal value
+if two, m = a < -1e-6; else, m = a < -pi / 2; end
+a(m) = a(m) + 2 * pi;
+end
+function a = argneg(a), m = a > pi / 2; a(m) = a(m) - 2 * pi; end
+function [aK, mu, e2, G] = argK(c, t)
+% the continuous argument (zero at real t below t_*) of cosh(mu) - c sinh(mu)/mu = cosh(mu) G at Im t > 0
+z = c * c - 2 * t; mu = sqrt(z); e2 = exp(-2 * mu);
+if c > 0, del = -2 * t ./ (mu + c); else, del = mu - c; end
+G = (del + (mu + c) .* e2) ./ (mu .* (1 + e2));
+sm = abs(mu) < 1e-3; G(sm) = 1 - c * (1 - z(sm) / 3 + 2 * z(sm) .* z(sm) / 15);
+aK = imag(mu) + angle(1 + e2) + angle(G);
+end
+function [s1, s2] = labelroots(ra, rb)
+% the two roots labelled by their signs: s_1 in the left half-plane and s_2 in the right one; where both real parts have the
+% same sign (beyond t_*), s_1 the root in the upper half-plane
+d = (real(ra) < 0) ~= (real(rb) < 0);
+first = (d & real(ra) < real(rb)) | (~d & imag(ra) > imag(rb));
+s1 = rb; s2 = ra; s1(first) = ra(first); s2(first) = rb(first);
+end
+
 function [P, s1, s2, M0] = tparts(model, c, t, stat)
-% P(t), s1(t), s2(t) and M0(t) = (-s1 s2)^(-1/2) on the grid t (t(1) the real point), with the
-% branches and the labelling of the roots fixed by continuity along the grid
-t = t(:); nt = numel(t);
-s2 = complex(zeros(nt, 1)); M0 = s2; s1 = s2;
+% P(t), s1(t), s2(t) and M0(t) = (-s1 s2)^(-1/2) at the points t, in any order: each point by itself, the branches of the
+% square roots and the labels of the roots fixed at the point (after Bao and Kan, above) with no reference to its
+% neighbours.  For c > 2 with a zero start the roots and P(t) come from the Girsanov forms (IIPAR), which are free of the
+% cancellation of D.  (Against the continuation along the grid that this replaced, within 5.7e-14 relative on the
+% engine's grids, November 2026, as in the Julia and the C engine.)
+t = complex(t(:)); nt = numel(t);
+neg = imag(t) < 0; t(neg) = conj(t(neg));
+re = imag(t) == 0;
+s2 = complex(zeros(nt, 1)); M0 = s2;
 if model == 1 && ~stat
     z = c * c - 2 * t;
-    [C, ~, S] = pieces(z);
-    ph = unwrapc(angle(S));
+    mu = sqrt(z); e2 = exp(-2 * mu); om = 1 - e2;
     if c > 0
-        % s1 = mu coth mu - c without the cancellation of C - c S at large c (the DF-Test
-        % paper's form): mu - c = -2t/(mu + c), mu coth mu - mu = 2 mu e^(-2mu)/(1 - e^(-2mu))
-        mu = sqrt(z); e2 = exp(-2 * mu);
-        ep = 2 * mu .* e2 ./ (1 - e2);
+        % s1 = mu coth mu - c without the cancellation of C - c S at large c: mu - c = -2t/(mu + c), mu coth mu - mu =
+        % 2 mu e^(-2mu)/(1 - e^(-2mu))
+        ep = 2 * mu .* e2 ./ om;
         sm = abs(mu) < 1e-4; ep(sm) = 1 - mu(sm) + mu(sm).^2 / 3;
         s1 = -2 * t ./ (mu + c) + ep;
     else
-        s1 = (C - c * S) ./ S;
+        s1 = mu .* (1 + e2) ./ om - c;
     end
-    P = exp(-c / 2) * abs(S).^(-1/2) .* exp(-1i * ph / 2);
-    return
-end
-if model == 4 && ~stat
+    % sinh(mu)/mu = e^mu (1 - e^(-2 mu))/(2 mu): its modulus and its continuous argument Im mu + Arg(1 - e^(-2 mu)) - Arg mu
+    lS = real(mu) + log(abs(om)) - log(2 * abs(mu));
+    ph = imag(mu) + angle(om) - angle(mu); ph(re) = 0;
+    P = exp(-c / 2 - lS / 2) .* exp(-1i * ph / 2);
+    sz = abs(z) < 1e-3;                                % (the series of pieces; S near 1, its principal argument)
+    if any(sz)
+        [C, ~, S] = pieces(z(sz));
+        if c <= 0, s1(sz) = (C - c * S) ./ S; end
+        P(sz) = exp(-c / 2) * abs(S).^(-1/2) .* exp(-1i * angle(S) / 2);
+    end
+elseif model == 4 && ~stat
     % the GLS-detrended trend case: M(s,t) = e^(-s/2) P(t) (s1 - s)^(-1/2) as in case DK, with M_Vg(t) = e^(-c/2)
-    % (cosh th det(I - Q Sig))^(-1/2) and s1 from GLS_PARTS; the branches of D and s1 continued along the grid
-    [lch, D, s1] = gls_parts(t, c);
-    lD = log(D); lD = real(lD) + 1i * unwrapc(imag(lD));
-    ls = log(s1); ls = real(ls) + 1i * unwrapc(imag(ls));
-    P = exp(-c / 2 - (lch + lD) / 2 + ls / 2);
-    return
-end
-if ~stat && c > 2
-    % D(s,t)/e^c cancels catastrophically at large c (terms of size e^(2c) against a value
-    % near 1): the roots and the prefactor from the Girsanov forms of the DF-Test paper
-    % (IIPAR_DFX): A0 s^2 - A1 s + A2 = 0 has the roots s_k = 1/(2 kap_k), M(0,t) = M_B =
-    % e^(-c/2) (cosh th det(I - Q Sig))^(-1/2), and P = M_B (-s1 s2)^(1/2)
+    % (cosh th det(I - Q Sig))^(-1/2) and s1 from GLS_PARTS; the argument of D from that of 1 - c tanh(th)/th and the
+    % principal argument of the ratio (one update of each sign)
+    [lch, D, s1, GK] = gls_parts(t, c);
+    ph = angle(GK) + angle(D ./ GK); ph(re) = 0;
+    P = exp(-c / 2 - (lch + log(abs(D)) + 1i * ph) / 2 + (log(abs(s1)) + 1i * angle(s1)) / 2);
+elseif ~stat && c > 2
+    % cases DU, DT at large c: D(s,t)/e^c cancels catastrophically (terms of size e^(2c) against a value near 1): the
+    % roots and the prefactor from the Girsanov forms (IIPAR): A0 s^2 - A1 s + A2 = 0 has the roots s_k = 1/(2 kap_k),
+    % M(0,t) = e^(-c/2) (cosh th det(I - Q Sig))^(-1/2), and P = M(0,t) (-s1 s2)^(1/2)
     cas = 'DU'; if model == 3, cas = 'DT'; end
     Q = iipar(t, c, cas);
-    A0 = Q.A0; A1 = Q.A1; A2 = Q.A2;
-    disc = sqrt(A1 .* A1 - 4 * A0 .* A2);
-    sw = sign(real(conj(A1) .* disc)); sw(sw == 0) = 1;
-    rb = (A1 + sw .* disc) ./ (2 * A0); rs = A2 ./ (A0 .* rb);
-    sa = rb; sb = rs;
-    if real(sa(1)) < real(sb(1)), s1(1) = sa(1); s2(1) = sb(1); else, s1(1) = sb(1); s2(1) = sa(1); end
-    for j = 2:nt
-        if abs(sa(j) - s1(j-1)) + abs(sb(j) - s2(j-1)) <= abs(sb(j) - s1(j-1)) + abs(sa(j) - s2(j-1))
-            s1(j) = sa(j); s2(j) = sb(j);
-        else
-            s1(j) = sb(j); s2(j) = sa(j);
+    disc = sqrt(Q.A1 .* Q.A1 - 4 * Q.A0 .* Q.A2);
+    sw = sign(real(conj(Q.A1) .* disc)); sw(sw == 0) = 1;
+    rb = (Q.A1 + sw .* disc) ./ (2 * Q.A0); rs = Q.A2 ./ (Q.A0 .* rb);
+    [s1, s2] = labelroots(rb, rs);
+    ph = angle(Q.N11) + argpos(angle(Q.D ./ Q.N11), model == 3); ph(re) = 0;
+    lm = log(abs(s1 .* s2)) + 1i * (angle(-s1) + angle(s2));
+    M0 = exp(-lm / 2);
+    P = exp(-c / 2 - (Q.lch + log(abs(Q.D)) + 1i * ph) / 2 + lm / 2);
+else
+    % the quadratic D(s, t) = a2 lam^2 + a1 lam + a0, lam = -s, from its values at s = 0, -1, 1
+    if model == 1
+        d0 = Dfun(1, c, complex(0), t, true); d0z = d0;
+    else
+        d0z = Dfun(model, c, complex(0), t, false);
+        d0 = d0z; if stat, d0 = d0z + Dstat_add(model, c, complex(0), t); end
+    end
+    dp = Dfun(model, c, complex(-1), t, stat);
+    dm = Dfun(model, c, complex(1), t, stat);
+    a2 = (dp + dm) / 2 - d0; a1 = (dp - dm) / 2; a0 = d0;
+    disc = sqrt(a1 .* a1 - 4 * a2 .* a0);
+    % the root of larger magnitude from the formula, the other from the product a0/a2 (the formula loses the small root
+    % to cancellation when the roots differ by orders of magnitude, as at large c)
+    sw = sign(real(conj(a1) .* disc)); sw(sw == 0) = 1;
+    rb = (-a1 - sw .* disc) ./ (2 * a2); rs = a0 ./ (a2 .* rb);
+    [s1, s2] = labelroots(-rb, -rs);
+    M0 = 1 ./ (sqrt(-s1) .* sqrt(s2));
+    ph0 = zeros(nt, 1);
+    if any(~re)
+        [aK, mu, e2, G] = argK(c, t(~re));
+        DK = exp(c + mu) .* (1 + e2) / 2 .* G;            % e^c (cosh mu - c sinh(mu)/mu)
+        ph0(~re) = aK;
+        if model ~= 1, ph0(~re) = ph0(~re) + argpos(angle(d0z(~re) ./ DK), model == 3); end
+        if stat
+            if model == 1, ref = DK; else, ref = d0z(~re); end
+            ph0(~re) = ph0(~re) + argneg(angle(d0(~re) ./ ref));
         end
     end
-    lD = log(Q.D); lD = real(lD) + 1i * unwrapc(imag(lD));
-    mm = -s1 .* s2; lm = log(mm); lm = real(lm) + 1i * unwrapc(imag(lm));
-    M0 = exp(-lm / 2);
-    P = exp(-c / 2 - (Q.lch + lD) / 2 + lm / 2);
-    return
+    P = abs(a2).^(-1/2) .* exp(-1i * (ph0 - angle(-s1) - angle(s2)) / 2);
 end
-d0 = Dfun(model, c, complex(0), t, stat);
-dp = Dfun(model, c, complex(-1), t, stat);
-dm = Dfun(model, c, complex(1), t, stat);
-a2 = (dp + dm) / 2 - d0; a1 = (dp - dm) / 2; a0 = d0;      % D = a2 lam^2 + a1 lam + a0, lam = -s
-disc = sqrt(a1 .* a1 - 4 * a2 .* a0);
-% the root of larger magnitude from the formula, the other from the product a0/a2 (the
-% formula loses the small root to cancellation when the roots differ by orders of magnitude,
-% as at large c)
-sw = sign(real(conj(a1) .* disc)); sw(sw == 0) = 1;
-rb = (-a1 - sw .* disc) ./ (2 * a2); rs = a0 ./ (a2 .* rb);
-sa = -rb; sb = -rs; ma2 = -a2;
-s1 = complex(zeros(nt, 1));
-if real(sa(1)) < real(sb(1)), s1(1) = sa(1); s2(1) = sb(1); else, s1(1) = sb(1); s2(1) = sa(1); end
-for j = 2:nt
-    if abs(sa(j) - s1(j-1)) + abs(sb(j) - s2(j-1)) <= abs(sb(j) - s1(j-1)) + abs(sa(j) - s2(j-1))
-        s1(j) = sa(j); s2(j) = sb(j);
-    else
-        s1(j) = sb(j); s2(j) = sa(j);
-    end
-end
-if ~(abs(angle(ma2(1))) < 1e-8), error('dfx: prefactor not positive at the real point'); end
-ph = unwrapc(angle(ma2));
-P = abs(ma2).^(-1/2) .* exp(-1i * ph / 2);
-mm = -s1 .* s2;
-ph = unwrapc(angle(mm));
-M0 = abs(mm).^(-1/2) .* exp(-1i * ph / 2);
+P(neg) = conj(P(neg)); s1(neg) = conj(s1(neg)); s2(neg) = conj(s2(neg)); M0(neg) = conj(M0(neg));
 end
 
 % ---------- the convergence abscissa in t ----------

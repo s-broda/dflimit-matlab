@@ -1,4 +1,4 @@
-function P = power_envelope(c,cas,opts)
+function [P,err] = power_envelope(c,cas,opts)
 %POWER_ENVELOPE  The asymptotic power envelope of Elliott, Rothenberg and Stock (1996).
 %
 %   P = POWER_ENVELOPE(c,cas,opts) is the power at c (an array) of the point-optimal level-alpha test against c
@@ -16,6 +16,15 @@ function P = power_envelope(c,cas,opts)
 %   so that a tolerance in b of 1e-9 does not resolve it).  As power_envelope of
 %   julia/DFExact.jl (the data of the paper's figures of local power and of the weighted-average-power test).
 %
+%   In case DK (and DU) the default (opts.method 'auto' with opts.engine 'auto') for c <= -1e-4 computes both by the
+%   single inversion of the joint characteristic function along the ray of the half-plane, the method of Yong Bao and
+%   Raymond Kan, "Exact Finite-Sample Distribution and Moments of the Least Squares Estimator in First-Order
+%   Autoregressions: O(1) Algorithms" (KAN_CORE), the critical value by regula falsi to 1e-12; opts.tol (1e-12) is the
+%   tolerance of each inversion, [P,err] = POWER_ENVELOPE(...) returns the sum of the two estimates, and the warning
+%   ltratio:inversion names the points at which that exceeds the tolerance.  opts.method = 'inversion' forces it,
+%   opts.method = 'engine' (and case DG, opts.engine 'classical' or 'general', the options N, umax) is the computation
+%   above (err NaN); opts.verified = true recomputes by it the values whose estimate exceeds the tolerance.
+%
 %   Example: power_envelope(-7,'DK')    % 0.4994: at cbar = -7 the envelope has power one half
 %
 %   See also LTRATIO_LINCDF, LTRATIO_CDF, COEF_CDF.
@@ -28,8 +37,12 @@ if ~(ischar(cas) || isstring(cas))
         error('ltratio:args','power_envelope: the envelope is that of the zero start with its own detrending (no opts.start, opts.g0, opts.gls).');
     end
 end
-if ltratio_croute('use',cas,opts,{'alpha'}), P = ltratio_croute('envelope',c,cas,opts); return, end   % (the C router)
+if ltratio_croute('use',cas,opts,{'alpha','tol'},true), [P,err] = ltratio_croute('envelope',c,cas,opts); return, end   % (the C router)
+m = kan_route('method',opts,'power_envelope',false);
 [engine,oc] = ltratio_route('engine',opts);
+err = NaN(size(c));
+if strcmp(m,'inversion') && strcmp(engine,'general'), error('ltratio:args','power_envelope: opts.method = ''inversion'' (the single inversion of Bao and Kan) does not apply with engine = ''general''.'); end
+oi = oc; oc = rmf(rmf(oc,'method'),'tol');
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
 if ~(ischar(cas) || isstring(cas))
     % a design: dfdet_trend(-1) and dfdet_trend(0) the case DK, dfdet_trend(1) the case DG, any other the envelope of the
@@ -41,11 +54,29 @@ if ~(ischar(cas) || isstring(cas))
             if p < 1, cs = 'DK'; else, cs = 'DG'; end
         end
     end
-    if ~isempty(cs), oc.engine = engine; P = power_envelope(c,cs,oc); return, end
+    if ~isempty(cs), oi.engine = engine; [P,err] = power_envelope(c,cs,oi); return, end
     if strcmp(engine,'classical'), error('ltratio:args','power_envelope: engine = ''classical'': the envelope of the classical programs has the cases DK (DU) and DG only.'); end
+    if strcmp(m,'inversion'), error('ltratio:args','power_envelope: opts.method = ''inversion'' applies to case DK (DU); the envelope of another design is PT_ENVELOPE (by default by the single inversion too).'); end
     P = pt_envelope(c,D,struct('alpha',alpha)); return
 end
 cas = upper(char(cas)); if strcmp(cas,'DU'), cas = 'DK'; end
+if strcmp(m,'inversion') && strcmp(cas,'DG'), error('ltratio:args','power_envelope: opts.method = ''inversion'' applies to case DK (DU), not to case DG.'); end
+if strcmp(cas,'DK') && kan_route('take','power_envelope',m,engine,'DK',0,kan_route('plain',oi,{'alpha'}))
+    % the single inversion of Bao and Kan for c <= -1e-4 (all c with opts.method = 'inversion'), the engines at the others
+    if ~(isnumeric(alpha) && isscalar(alpha) && alpha > 0 && alpha < 1), error('ltratio:args','power_envelope: the level opts.alpha must lie in (0, 1).'); end
+    tol = kan_route('tol',opts,1e-12);
+    ok = false(size(c)); for k = 1:numel(c), ok(k) = strcmp(m,'inversion') || kan_core('envelope_ok',c(k)); end
+    P = zeros(size(c));
+    for k = find(ok(:))', [P(k),err(k)] = kan_core('envelope1',c(k),alpha,tol); end
+    if any(~ok(:)), P(~ok) = power_envelope(c(~ok),'DK',struct('alpha',alpha,'method','engine')); end
+    if isfield(opts,'verified') && ~isempty(opts.verified) && logical(opts.verified)
+        bad = ok & ~(err <= tol);
+        if any(bad(:)), P(bad) = power_envelope(c(bad),'DK',struct('alpha',alpha,'method','engine')); end
+    else
+        kan_route('warn','power_envelope',err(ok),tol);
+    end
+    return
+end
 if any(strcmp(cas,{'DK','DG'})) && ~strcmp(engine,'classical') && (strcmp(engine,'general') || isempty(setdiff(fieldnames(oc),{'alpha'})))
     if strcmp(cas,'DK'), S = struct('D',dfdet_trend(-1),'start','zero','g0',0,'gls',[],'case','DK');
     else, S = struct('D',dfdet_trend(1),'start','zero','g0',0,'gls',[],'case','DG'); end
@@ -59,6 +90,7 @@ if any(strcmp(cas,{'DK','DG'})) && ~strcmp(engine,'classical') && (strcmp(engine
     end
 end
 opts = oc; if isfield(opts,'engine'), opts = rmfield(opts,'engine'); end
+if isfield(opts,'verified'), opts = rmfield(opts,'verified'); end
 if ~any(strcmp(cas,{'DK','DG'})), error('ltratio:args','power_envelope: the case must be DK (or DU) or DG.'); end
 alpha = 0.05; if isfield(opts,'alpha') && ~isempty(opts.alpha), alpha = opts.alpha; end
 if ~(isnumeric(alpha) && isscalar(alpha) && alpha > 0 && alpha < 1), error('ltratio:args','power_envelope: the level opts.alpha must lie in (0, 1).'); end
@@ -111,3 +143,4 @@ else
 end
 end
 function v = getf(o,f,d), if isfield(o,f) && ~isempty(o.(f)), v = double(o.(f)); else, v = d; end, end
+function o = rmf(o,f), if isfield(o,f), o = rmfield(o,f); end, end

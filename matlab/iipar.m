@@ -48,6 +48,6 @@ else
   aP=adj3(Pp);
   A1=0; A0=0; for i=1:3, for j=1:3, A1=A1+K(i,j)*aP{j,i}; A0=A0+aK(i,j)*Pp{j,i}; end, end
 end
-P=struct('th',th,'del',del,'lcd',lch+log(dS),'D',D,'A2',A2,'A1',A1,'A0',A0,'dS',dS,'lch',lch);
+P=struct('th',th,'del',del,'lcd',lch+log(dS),'D',D,'A2',A2,'A1',A1,'A0',A0,'dS',dS,'lch',lch,'N11',N11);
 P.logMB=-c/2-lch/2-log(D)/2;
 end
