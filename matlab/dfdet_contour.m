@@ -1107,7 +1107,7 @@ if xm > 0, xb = 2^ceil(log2(xm)); else, xb = 0; end
 av = amax(isfinite(amax) & amax > CP.Mo.a);
 ab = unique(2.^ceil(log2(av(:)')));
 if ~(xb > 0 || ~isempty(ab)), return, end
-c0s = c0s(:)'; c0s = reshape(unique(c0s(isfinite(c0s) & c0s ~= 0)),1,[]);
+c0s = c0s(:)'; c0s = reshape(unique(c0s(isfinite(c0s) & c0s > 0)),1,[]);   % (only c0 > 0 refines further: LINE_REFINE)
 if xb == 0, c0s = []; end
 key = sprintf('%s|%.17g|%s',CP.key,xb,sprintf('%.17g,',ab));
 if ~isempty(c0s), key = [key '|c0' sprintf('%.17g,',c0s)]; end
@@ -1126,7 +1126,9 @@ function CPr = line_refine(CP,xmax,amax,c0s)
 % DK alpha ~ t (1 - c0/c) and the rate is that of c0 = 0 times 1/|1 - c0/c| (at c = 10, c0 = 9 the panels cut to the
 % rate of c0 = 0 left the distribution function off by 1.1e-3 at x = 1000 and 3.8e-3 at x = 3000); the largest |x| <=
 % xmax at which the term is not negligible from log|M_V| + Re phi_s; the cut is to the larger of this rate and that of
-% c0 = 0 (line_refine of DFDet.jl)
+% c0 = 0 (line_refine of DFDet.jl).  Only c0 > 0: with c0 < 0, alpha ~ t (1 + |c0|/c) and the rate is below that of
+% c0 = 0, which the cut covers (for c0 < 0 the stationary values at the roots of a fixed start gave rates far above the
+% oscillation: 1e6 nodes in case DU at c = 10, g0 = 1, c0 = -2, x = 132)
 if nargin < 4, c0s = []; end
 CPr = CP;
 if ~(isnan(CP.h) && (xmax > 0 || max(amax) > CP.Mo.a)), return, end

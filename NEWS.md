@@ -22,8 +22,9 @@ computed, with `verified` too): the conditional integral of case DK is off by up
 one path of case DT gives 1e44 and more at c = 16. With `verified` these points no longer fall back to the line
 integral. The general engine cut its vertical line to the oscillation as if c0 were 0
 (`line_refine` in `c/dfl_det_path.c` and `matlab/dfdet_contour.m`): it was off by 1.1e-3 at c = 10, c0 = 9, x = 1000 and
-gave 1.0000000112 at x = 1e4; the line is now cut to the larger of the rates with and without c0 (`det_line_refined`
-takes the values c0; `dfdet_contour('refine', CP, xs, amax, c0s)`). Every distribution function of both engines ends with
+gave 1.0000000112 at x = 1e4; for c0 > 0 the line is now cut to the larger of the rates with and without c0
+(`det_line_refined` takes the values c0; `dfdet_contour('refine', CP, xs, amax, c0s)`; with c0 < 0 the rate is below
+that of c0 = 0 and the cut is unchanged). Every distribution function of both engines ends with
 a check of its values: below -1e-8 or above 1 + 1e-8 an error that names the call (`dfl_cdf_range_check` in `dfl_dist`,
 `dfl_det_dist` and `dfl_det_coef`; `ltratio_rangecheck` in `ltratio_cdf`, `coef_cdf`, `dfdet_cdf` and `dfdet_coef_cdf`,
 the error `ltratio:range`). Tests: `c/dfl_test_bounds.c` (part 4) and section 13 of `matlab/ltratio_test.m`.
