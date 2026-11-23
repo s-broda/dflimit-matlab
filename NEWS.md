@@ -11,12 +11,16 @@ also with `verified` and the classical engine forced). Beyond x ~ 700 the line i
 `matlab/ltratio_dist.m`), and where that flagged the point its one evaluation was returned, which in case DK is off by up
 to 14. In case DK the flag is a false alarm (the checked value within 1.3e-8 of an independent computation, the law of V
 given J(1) by Girsanov's theorem, up to c = 14): case DK now takes the checked value whatever its flag (cases DU, DT
-unchanged). Case DK far above the unit root (c > 4) takes the conditional integral with its checks at x > 300 too
-(`dk_far`; the line integral's cost grows like x^4 there) and with c0 > c at x < -20, where the line integral was off by
-up to 1.5e-3 (a negative value at c = 7, c0 = 9, x = -627); above c = 14 these points are refused with an error that
-names the statistic, c, c0, x and the region computed (`DFL_DKFAR_CMAX`; `ltratio:args` in MATLAB), because the
-conditional integral is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18 (before anything is computed, with
-`verified` too). With `verified` their flagged values no longer fall back to the line integral. The general engine cut its vertical line to the oscillation as if c0 were 0
+unchanged). Far above the unit root (c > 4) the three cases take the conditional integral at x > 300 too, and case DK with
+c0 > c at x < -20 (`far_tail`, before the rule's representations): the line integral's cost grows like x^4 at large x (in
+cases DU, DT at c = 16, c0 = 0 it exhausted more than 8 GB at the median in the Julia engine; here the size of its outer
+rule overflowed an int), and in case DK with c0 > c it was off by up to 1.5e-3 in the lower tail (a negative value at
+c = 7, c0 = 9, x = -627); the values of cases DU, DT there are within 1e-14 of the general engine up to c = 13 and within
+5e-7 of the large-c law at c = 13 and 14. Above c = 14 these points are refused in the three cases with an error that
+names the statistic, c, c0, x and the region computed (`DFL_FAR_CMAX`; `ltratio:args` in MATLAB; before anything is
+computed, with `verified` too): the conditional integral of case DK is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18,
+one path of case DT gives 1e44 and more at c = 16. With `verified` these points no longer fall back to the line
+integral. The general engine cut its vertical line to the oscillation as if c0 were 0
 (`line_refine` in `c/dfl_det_path.c` and `matlab/dfdet_contour.m`): it was off by 1.1e-3 at c = 10, c0 = 9, x = 1000 and
 gave 1.0000000112 at x = 1e4; the line is now cut to the larger of the rates with and without c0 (`det_line_refined`
 takes the values c0; `dfdet_contour('refine', CP, xs, amax, c0s)`). Every distribution function of both engines ends with

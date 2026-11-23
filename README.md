@@ -71,12 +71,13 @@ deterministic terms (10 with them and a fixed start) and c = 20 without them (`D
 transform is of the order 2c e^{-2c} and the others are no longer resolved in double precision, and every function of the
 general engine stops with an error that names the statistic, while `dfl_autoengine` takes the classical engine.
 
-Above the unit root the t-ratio with c0 != c has its upper tail at x of the order (c - c0) e^c/(2c). In case DK the
-classical engine takes the conditional integral with its checks there (beyond the line integral's bound, from x ~ 700,
-whatever its flag; for c > 4 also at x > 300 and, with c0 > c, at x < -20, `dk_far` in `c/dfl_api.c` and
-`matlab/ltratio_dist.m`), within 1.3e-8 of an independent computation up to c = 14, and refuses these points above
-c = 14 with an error (before November 23, 2026 it returned one evaluation of the conditional integral there, values
-outside [0, 1] among them). Every distribution function of both engines ends with a check of its values: outside
+Above the unit root the t-ratio with c0 != c has its upper tail at x of the order (c - c0) e^c/(2c). There the classical
+engine takes the conditional integral (beyond the line integral's bound, from x ~ 700, in case DK the checked value
+whatever its flag; for c > 4 in the three cases also at x > 300, and in case DK with c0 > c at x < -20, `far_tail` in
+`c/dfl_api.c` and `matlab/ltratio_dist.m`), within 1.3e-8 of an independent computation in case DK and 5e-7 of the large-c
+law in cases DU, DT up to c = 14, and refuses these points above c = 14 with an error (before November 23, 2026 case DK
+returned one evaluation of the conditional integral there, values outside [0, 1] among them, and cases DU, DT the line
+integral, which exhausted the memory at c = 16). Every distribution function of both engines ends with a check of its values: outside
 [0, 1] by more than 1e-8 an error that names the call (`dfl_cdf_range_check`, `ltratio_rangecheck`).
 
 ## The general engine in MATLAB
@@ -164,7 +165,7 @@ the source: the points of the repairs of 0.5.0, where the line integral exceeds 
 fixed start, climbed, and those of the upper tail above the unit root of November 23, 2026). The workflow "C engine" (`.github/workflows/c.yml`)
 runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on a tag `v*` and by hand.
 
-The MATLAB programs: `ltratio_test` runs 278 checks in about five minutes and returns the number of failures
+The MATLAB programs: `ltratio_test` runs 280 checks in about five minutes and returns the number of failures
 (`ltratio_test(true)` is the quick version, `ltratio_test(false, true)` raises an error on a failure); `dfx_test` checks
 the line integral against stored values of the Julia engine (`matlab/validation/python_exact_reference.json`). Start
 MATLAB in a folder other than `matlab/`. With the folder of the MEX file ahead of `matlab/` on the path the same
