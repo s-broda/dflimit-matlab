@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+**The rules of one evaluation** (C, the MEX file and MATLAB alike, a port of DFLimit.jl fde1632 to 9c71860, merged at
+d95305c; the README, "The rules of one evaluation"). One evaluation, the default, takes thinner rules where they hold,
+with the rules, regions and constants of the Julia package:
+
+- the general engine's inversion on paths (`dfl_det_dist`, `dfl_det_quantile`; `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf`)
+  the outer hyperbola with 1.5 times the step and the U-shapes with 16 nodes per panel and 32 on the tails of their rays
+  (24 and 40 before; 32 and 48 for 48 and 64 with a fixed start), and by regions of the start, the deterministic terms, c
+  and c0 the present rule or a finer one (`dfl_det_path_region`, `dfdet_rules`; near the unit root with c0 < 0 and a
+  fixed start without deterministic terms the present step itself was off by up to 0.86 in the upper tail, the new step
+  within 7e-12 of the classical engine). New: `dfl_det_opts.rule` (`DFL_RULE_*`), `n`, `ntail`, and `hfac` NaN (by the
+  rule) unless given; `opts.rule` of `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf` and of `ltratio('det', ...)`. `verified`
+  takes the rule of before. The guard on the U-shapes counts the nodes of the present rule;
+- the classical contour integral (`dfl_ctr_rule`, `dfl_contour_rule`; `ltratio_rules('contour')`, `opts.rule`,
+  `opts.n1`, `opts.hfac` of `tr_contour`): 32 nodes for 64 and the outer step 1.5 times as long where they hold; the
+  conditional integral (`dfl_cond_rule`; `ltratio_rules('conditional')`): 48 or 64 nodes for 96 in its regions, `Nv`,
+  `Nl` override it (in C now 0 by default, the rule; 96 with `verified` and in `dfl_adfmax`, `dfl_region`);
+- the fixed start: its U-shapes count the growth of the v-kernels of the upper tail at every c (in case DK near the unit
+  root one evaluation of the general engine was off by 3e-7 at x = 9.7, 7e-3 at x = 12 and 1e39 at x = 20 at c = 0, g0 =
+  1, where the final check refused); the C router takes the classical engine for case DK with c0 < 0 near the unit root
+  (`ltratio_cdf(45.11, 'DK', 0.5, struct('c0', -10, 'g0', 1))` was refused by the final check, now 0.99981515720), and
+  both rules take the general engine for the fixed start of cases DU, DT far from the unit root (c0 > 0 below c = -20,
+  below -10 where |c g0| > 20; any c0 below c = -20 where |c g0| > 60), where the contour integral's one evaluation was
+  off by up to 2.2e-2 of the peak of the density; `dfl_brittle` and `ltratio_brittle` warn there of the classical one
+  evaluation and say "may be off by more than 1e-5" with c0 > 0 below c = -15;
+- the quantile searches start from the moments from jets of Bao and Kan (`dfl_mom_start`; `mom_start` in
+  `ltratio_icdf.m`) and take F and f from one pass of the general engine's paths where the rule gives a Newton step's
+  point to it (`dfl_det_dist_both`, `dfdet_dist(..., 'both')`), the quantiles bit for bit those of the two evaluations;
+  `DFL_MOM_START`, `DFL_DIST2`, `ltratio_switch`, `ltratio('switch', ...)` and `ltratio_mex('switch', ...)` restore the
+  computation of before.
+
+Against DFLimit.jl d95305c (`c/test/det_ref.txt` and `matlab/validation/det_ref.txt` regenerated, with a section of the
+rules): C within 3.7e-14 (paths), 2.3e-14 (contour), 7.1e-13 (conditional), 5.6e-11 (quantiles; the search tolerance is
+1e-10); the MATLAB programs within 2e-14, 1.6e-14, 2.1e-12 and 1.9e-11. The earlier reference values of the general
+engine move by at most 3.4e-11 under the thinner rules, the fixed-start value of case DT at c = -5 (`dfl_test_dbl`) by
+1.3e-11. Warm time new/old in C (minima of seven calls, ten threads): the paths 0.47 to 0.71 (1.4 to 1.7 in the cells of
+the finer steps), the contour integral 0.39 to 0.69, the conditional integral 0.55 to 0.84, the router's quantiles 0.26
+to 0.31 with c0 != 0 (0.80 to 0.98 where the classical search computes). In the MATLAB programs: warm calls (minima of
+five after a first, one MATLAB session each): the paths 0.48 to 0.78 (1.6 in the cells of the finer steps), the contour
+integral 0.44 to 0.83, the conditional integral 0.87 to 0.98, the quantiles of `ltratio_icdf` 0.34 to 0.48 where the
+general engine computes some of their points, 1.01 with the classical engine.
+
 **The devices of Bao and Kan** (C, the MEX file and MATLAB alike, a port of the module DFKan of DFLimit.jl at c9fecd6):
 the numerical devices of Yong Bao and Raymond Kan, "Exact Finite-Sample Distribution and Moments of the Least Squares
 Estimator in First-Order Autoregressions: O(1) Algorithms", for the limits of these programs (`c/dfl_kan.c` with the

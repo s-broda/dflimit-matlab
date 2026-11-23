@@ -30,13 +30,24 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %       general engine is off by 1e-10 to 1e-7, as in the Julia package);
 %     fixed start, case DK: c < -10 (the classical conditional integral is off
 %       by 1.8e-7 at c = -20, g0 = 2, the general engine within 3e-14 of the
-%       Julia engine) and, with c0 = 0, -1 <= c <= 0 with |g0| <= 1 (1.3 times);
+%       Julia engine) and, with c0 = 0, -1 <= c <= 0 with |g0| <= 1 (1.3 times;
+%       with c0 < 0 near the unit root, c > -1, the classical programs, as in the
+%       Julia and the C rule since November 2026: there the outer hyperbola of the
+%       general engine does not resolve the upper tail);
+%     fixed start, cases DU, DT far from the unit root: with c0 > 0 below c = -20
+%       (below c = -10 where |c g0| > 20) and with any c0 below c = -20 where
+%       |c g0| > 60, as the Julia and the C rule (November 2026): there the
+%       contour integral's one evaluation was off, in the density by up to
+%       2.2e-2 of its peak (case DU, c = -60, g0 = 1.5, c0 = 5) and in the
+%       distribution function by 3.9e-5 (c0 = -2), its checked computation in the
+%       density by up to 8.4e-6, and the general engine's density is the
+%       derivative of the distribution function on which the engines agree;
 %   the classical programs elsewhere (the cells with -100 <= c < -60, where
 %   the general engine was off by up to 1.4e-9 on the 45-degree hyperbola,
 %   took the classical programs until November 2026; its rules far from the
 %   unit root now start at c = -60, within 5e-13 there): case DG, above the unit root (c > 1, and
 %   c >= 4 with c0 < 0, where the general engine is the less accurate), a fixed
-%   start in cases DU, DT (within 15% of each other).  Quantiles: the general
+%   start in cases DU, DT otherwise (within 15% of each other).  Quantiles: the general
 %   search at c0 = 0 except in case DG and for c > 1 (1.6 to 10 times faster,
 %   with a fixed start too).  Moments: the classical programs (1.1 to 360
 %   times faster).  The linear form: the general engine for the law of V
@@ -68,6 +79,7 @@ ac = abs(S.g0);
 switch f
     case 'dist'
         if fixed && strcmp(cas,'DK') && c < -10, gen(:) = true; return, end
+        if fixed && any(strcmp(cas,{'DU','DT'})) && c < -10 && ((c0 > 0 && (c < -20 || abs(c)*ac > 20)) || (c < -20 && abs(c)*ac > 60)), gen(:) = true; return, end
         if stat && c0 ~= 0 && c <= -3e-3, gen(:) = true; return, end
         if ~fixed && ~stat && c0 > 0 && c <= 1
             gen(:) = true;

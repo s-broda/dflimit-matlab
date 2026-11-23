@@ -44,6 +44,8 @@
 %   Stock, cbar = -13.5: zero start, line integral only, no moments).
 %   ltratio_method - the automatic choice of the representation
 %   ltratio_brittle - the warning of the one-evaluation default in a brittle regime
+%   ltratio_rules - the rules of one evaluation of the contour and the conditional integral (November 2026)
+%   ltratio_switch - the switches of the quantile searches (the start from jets, F and f from one pass)
 %   ltratio_rangecheck - the final check of a distribution function (an error outside [0, 1] by more than 1e-8)
 %
 % The line integral representation (the inversion in the argument of U is
@@ -170,6 +172,7 @@
 %   dfdet_contour - the U-shapes around the root groups, the closed-form v-kernels, the outer sum, Filon's
 %                   rule on the line
 %   dfdet_verify  - the checked computation (opts.verified)
+%   dfdet_rules   - the rules of one evaluation of the inversion on paths by regions (opts.rule; November 2026)
 %   dfdet_dist, dfdet_stat, dfdet_args, dfdet_xspec, dfdet_qgrid, dfdet_ptf, dfdet_lmpath, dfdet_newton,
 %   dfdet_cache, dfdet_key, dfdet_peval, dfdet_msg - dispatch, argument checks, parabola terms, the grid of the
 %                   point-optimal statistic and its inversion at a point, the path of the LM statistic's V, the

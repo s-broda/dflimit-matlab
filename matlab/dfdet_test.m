@@ -32,7 +32,16 @@ function nfail = dfdet_test(quick,strict)
 %       opts.engine 'auto', 'classical' and 'general', with case strings and
 %       with designs;
 %    9. the path tables against the computed paths, non-finite x, argument
-%       errors.
+%       errors;
+%   10. the rules of one evaluation (November 2026): the regions of the
+%       general engine's paths (DFDET_RULES), its values by the default rule
+%       in each region and by every rule given, its quantiles, the rules of
+%       the contour and the conditional integral (LTRATIO_RULES) and their one
+%       evaluation by them and by the rule of before, the router's cells of a
+%       fixed start (case DK near the unit root with c0 < 0, cases DU, DT far
+%       from it) and its quantiles; the switches of the quantile searches
+%       (LTRATIO_SWITCH: F and f from one pass bit for bit, the start from
+%       jets), the brittle warnings of the contour integral.
 %   Tolerances: 1e-8 absolute for distribution functions, densities and
 %   probabilities, 1e-6 for quantiles and critical values, 1e-8 relative for
 %   moments, determinants, roots and eigenvalues, 1e-10 relative for t_*.
@@ -256,6 +265,27 @@ check('verified: an exhausted memory (MATLAB:nomem) reaches the caller',double(~
 % programs on the C engine, whose choices of representation differ at some points: the same values to 1e-10)
 check('a classical design is its case (DU, c = -5)',max(abs(ltratio_cdf([-3 -2],dfdet_trend(0),-5) - ltratio_cdf([-3 -2],'DU',-5))),1e-10*ltratio_croute('on'));
 
+fprintf('\n=== 10. the rules of one evaluation: the switches of the quantile searches, the brittle warnings ===\n');
+% F and f from one pass (DFDET_DIST 'both') bit for bit the values of DFDET_CDF and DFDET_PDF; the quantiles of the
+% classical search with and without it bit for bit; the start from jets moves them by less than 1e-9 (the search
+% tolerance is 1e-10); with the MEX file ahead on the path the router and its switches are those of the C engine
+xs = [-3.5 -2.3 -0.7 0.4]; o2 = struct('c0',2);
+[Fb,fb] = dfdet_dist(xs,dfdet_trend(1),-5,o2,'both');
+check('dfdet_dist(''both''): F and f of trend(1) at c = -5, c0 = 2 bit for bit those of dfdet_cdf, dfdet_pdf',double(~(isequal(Fb,dfdet_cdf(xs,dfdet_trend(1),-5,o2)) && isequal(fb,dfdet_pdf(xs,dfdet_trend(1),-5,o2)))),0);
+for cs = {{'DU',-5,struct('c0',2)},{'SU',-5,struct('c0',-5)},{'DK',-5,struct('c0',-2,'g0',1)}}
+    q1 = ltratio_icdf([0.05 0.5],cs{1}{1},cs{1}{2},cs{1}{3});
+    ltratio_switch('dist2',false); q0 = ltratio_icdf([0.05 0.5],cs{1}{1},cs{1}{2},cs{1}{3}); ltratio_switch('dist2',true);
+    check(sprintf('ltratio_icdf, case %s at c = %g: the quantiles with and without F and f from one pass bit for bit',cs{1}{1},cs{1}{2}),double(~isequal(q1,q0)),0);
+end
+for cs = {{'DU',-5,struct('engine','classical')},{'DT',-5,struct('c0',-2,'engine','classical')},{'DK',-5,struct('c0',2)},{'DU',-5,struct('g0',1)}}
+    q1 = ltratio_icdf([0.05 0.5],cs{1}{1},cs{1}{2},cs{1}{3});
+    ltratio_switch('mom_start',false); q0 = ltratio_icdf([0.05 0.5],cs{1}{1},cs{1}{2},cs{1}{3}); ltratio_switch('mom_start',true);
+    check(sprintf('ltratio_icdf, case %s at c = %g: the quantiles from the start of the jets and of before',cs{1}{1},cs{1}{2}),max(abs(q1 - q0)),1e-9);
+end
+lastwarn(''); ws2 = warning('on','ltratio:brittle'); ltratio_cdf(-5,'DT',-30,struct('g0',2.5,'engine','classical')); warning(ws2); [w,id] = lastwarn;
+check('ltratio_brittle: case DT with a fixed start at c = -30, g0 = 2.5 (|c g0| > 60)',double(~(strcmp(id,'ltratio:brittle') && contains(w,'with |c g0| > 60: the contour integral by one evaluation may be off by more than 1e-5'))),0);
+check('ltratio_engine: the fixed start of case DU at c = -60, g0 = 1.5, c0 = 2 takes the general engine, case DT at c = -60, g0 = 1, c0 = -2 the classical',double(~(ltratio_engine('dist',ltratio_spec('DU',struct('g0',1.5)),-60,2,-9) && ~ltratio_engine('dist',ltratio_spec('DT',struct('g0',1)),-60,-2,-6)) && ~ltratio_croute('on')),0);
+
 fprintf('\nlargest deviation by group (number of comparisons):\n');
 fn = keys(G);
 for k = 1:numel(fn), gv = G(fn{k}); fprintf('  %-78s %5d  %.2e\n',fn{k},gv(1),gv(2)); end
@@ -281,6 +311,7 @@ switch func
     case {'coefcdf','coefpdf','coeficdf','lincdf','linpdf','linicdf','vcdf','vpdf','adfcdf','adfpdf','adficdf','env','lp','region'}
         g = '6. the related statistics';
     case {'ptq','ptcdf','ptpdf','ptenv','ptpow','lmq','lmp','lmcdf','lmtstar','mzacdf','mzaq','msbcdf','msbq'}, g = '7. the companions';
+    case {'pregion','pcdf','ppdf','pquant','ctrrule','ctrval','condrule','condval'}, g = '10. the rules of one evaluation';
     otherwise, g = '8. the router';
 end
 end
@@ -294,6 +325,7 @@ eng = getf(o,'engine','');
 ro = struct; if ~isempty(eng), ro.engine = eng; end
 for f = {'c0','g0','start','gls'}, if isfield(o,f{1}), ro.(f{1}) = o.(f{1}); end, end
 if isfield(o,'method'), go.method = o.method; ro.method = o.method; end   % (the general engine's method: 'auto', 'paths'; 'line' refused)
+if isfield(o,'rule'), go.rule = o.rule; end              % (the rule of one evaluation of the general engine's paths)
 switch func
     case 'prep'
         if isempty(gls), P = dfdet_prep(D); else, P = dfdet_prep(D,'gls',gls); end
@@ -358,6 +390,24 @@ switch func
     case 'radfcdf', v = adfmax_cdf(args,D,c,ro);
     case 'renv', v = power_envelope(args,D,ro);
     case 'rregion', v = ltratio_region(bnd_(o),D,c,rmf(rmf(ro,'a'),'b'));
+    % (the rules of one evaluation: where both engines take the same rule the values agree to 2e-14 (the paths), 1.6e-14
+    % (the contour integral) and 2.1e-12 (the conditional integral), the quantiles to 1.9e-11 (November 2026); the
+    % tolerances 1e-11, 3e-11 and 1e-9)
+    case 'pregion'
+        r = dfdet_rules('region',dfdet_startmodel(D,c,st,g0,gls),c,getf(o,'c0',0));
+        v = find(strcmp(r,{'auto','present','thin','inner','outer','fine','finestep'})) - 1; tol = 0;
+    case 'pcdf', v = dfdet_cdf(args,D,c,go); tol = 1e-11;
+    case 'ppdf', v = dfdet_pdf(args,D,c,go); tol = 1e-11;
+    case 'pquant', go.tol = 1e-12; v = dfdet_icdf(args,D,c,go); tol = 1e-9;
+    case 'ctrrule', [n,h] = ltratio_rules('contour',c,o.c0,o.g0); v = [n h]; tol = 0;
+    case 'condrule', v = ltratio_rules('conditional',find('KUT' == dtok(2)),c,o.c0,o.g0,dtok(1) == 'S'); tol = 0;
+    case 'ctrval'
+        md = 'cdf'; if o.kind == 1, md = 'pdf'; end
+        v = tr_contour(args,dtok,c,struct('c0',o.c0,'g0',o.g0,'rule',o.rule),md); tol = 1e-11;
+    case 'condval'
+        md = 'cdf'; if o.kind == 1, md = 'pdf'; end
+        oo = struct('c0',o.c0,'g0',o.g0); if o.N > 0, oo.Nv = o.N; oo.Nl = o.N; end
+        v = tr_limdist(args,dtok,c,oo,md); tol = 3e-11;
     otherwise, error('dfdet_test: unknown function %s.',func);
 end
 end

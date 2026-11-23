@@ -174,12 +174,17 @@ for cfg = {{'DU',0},{'DU',-5},{'SU',-5},{'DT',-10},{'SK',-2.5}}
 end
 % the mean against a Gauss-Legendre integral of the density (DU, c = -5, c0 = 0; 192
 % nodes: with 96 the rule itself is off by 8e-7, the single and the conditional integral
-% agreeing on both)
+% agreeing on both).  The conditional integral with the 96 nodes of before (opts.Nv, Nl) to
+% 1e-9, and by the rule of one evaluation (48 nodes here since November 2026, LTRATIO_RULES,
+% within 1e-8 of the peak of the density by its criterion: 3.9e-9 in the mean) to 1e-8
 m = ltratio_mom(1,'DU',-5,struct('c0',0));
 [xg,wg] = glnodes(192,-12,6);
+f = ltratio_pdf(xg,'DU',-5,struct('c0',0,'method','double','Nv',96,'Nl',96));
+check('DU c=-5 c0=0: mean vs integral of x f(x) over [-12, 6] (96 nodes)',abs(sum(wg.*xg.*f)-m),1e-9);
+check('DU c=-5 c0=0: mass of the density over [-12, 6] (96 nodes)',abs(sum(wg.*f)-1),1e-9);
 f = ltratio_pdf(xg,'DU',-5,struct('c0',0,'method','double'));
-check('DU c=-5 c0=0: mean vs integral of x f(x) over [-12, 6]',abs(sum(wg.*xg.*f)-m),1e-9);
-check('DU c=-5 c0=0: mass of the density over [-12, 6]',abs(sum(wg.*f)-1),1e-9);
+check('DU c=-5 c0=0: mean vs integral of x f(x) over [-12, 6] (the rule of one evaluation)',abs(sum(wg.*xg.*f)-m),1e-8);
+check('DU c=-5 c0=0: mass of the density over [-12, 6] (the rule of one evaluation)',abs(sum(wg.*f)-1),1e-8);
 
 fprintf('\n=== 5. density against the distribution function ===\n');
 h = 1e-3;
@@ -428,11 +433,18 @@ R0 = [
 ];
 cs3 = {'','DU','DT'};
 R = R0; if quick, R = R0([1 3 8 11 17 20 24 30],:); end
+% (one evaluation by the rule of before, opts.rule = 'present', against the stored checked values to 1e-11; by the
+% thinner rule of one evaluation, LTRATIO_RULES('contour'), November 2026, to 2e-10: the value of case DT at c = -5,
+% g0 = 2, x = -3 moved by 1.3e-11, as in the Julia engine, whose test takes 2e-10)
 for k = 1:size(R,1)
-    cas = cs3{R(k,1)}; o = struct('c0',R(k,3),'g0',R(k,4));
+    cas = cs3{R(k,1)}; o = struct('c0',R(k,3),'g0',R(k,4),'rule','present');
     [F,iF] = tr_contour(R(k,5),cas,R(k,2),o,'cdf'); [f,jf] = tr_contour(R(k,5),cas,R(k,2),o,'pdf');
-    check(sprintf('%s c=%g c0=%g g0=%.4g x=%.4g: F, f contour vs Julia (%.1f/%.1f s)',cas,R(k,2),R(k,3),R(k,4),R(k,5),iF.time,jf.time), ...
+    check(sprintf('%s c=%g c0=%g g0=%.4g x=%.4g: F, f contour (rule present) vs Julia (%.1f/%.1f s)',cas,R(k,2),R(k,3),R(k,4),R(k,5),iF.time,jf.time), ...
           max(abs([F - R(k,6), f - R(k,7)])) + (iF.status ~= 0) + (jf.status ~= 0),1e-11);
+    o = rmfield(o,'rule');
+    [F,iF] = tr_contour(R(k,5),cas,R(k,2),o,'cdf'); [f,jf] = tr_contour(R(k,5),cas,R(k,2),o,'pdf');
+    check(sprintf('%s c=%g c0=%g g0=%.4g x=%.4g: F, f contour (the rule of one evaluation) vs Julia (%.1f/%.1f s)',cas,R(k,2),R(k,3),R(k,4),R(k,5),iF.time,jf.time), ...
+          max(abs([F - R(k,6), f - R(k,7)])) + (iF.status ~= 0) + (jf.status ~= 0),2e-10);
 end
 % the automatic choice of the classical programs is the contour integral (values of at least 1e-3; at c = -52.54, outside
 % the region where the conditional integral is checked here, also the density 1.1e-4), and opts.method = 'contour' through

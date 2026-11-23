@@ -11,7 +11,7 @@ function [c,c0,start,g0,gls,o] = dfdet_args(D,c,opts,what)
 %   a stationary start needs c < 0 and excludes g0; GLS detrending and the
 %   statistic that detrends first need the zero start.  o: the options
 %   passed on to the engine (verified, vtol, phi, hfac, n, ntail, alpha,
-%   filon, warn, tol).
+%   filon, warn, tol, rule).
 %
 %   See also DFDET_CDF.
 if ~(isstruct(D) && isfield(D,'br') && isfield(D,'C') && isfield(D,'detrend')), error('dfdet:args','dfdet: the design must be a structure built by dfdet_determ, dfdet_trend, dfdet_perron, ...'); end
@@ -43,7 +43,7 @@ if ~isempty(gls)
 end
 if strcmp(D.detrend,'first') && ~strcmp(start,'zero'), error('dfdet:args','dfdet: %s.',dfdet_msg('first_start')); end
 o = struct;
-for f = {'verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol'}
+for f = {'verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol','rule'}
     if isfield(opts,f{1}) && ~isempty(opts.(f{1})), o.(f{1}) = opts.(f{1}); end
 end
 end

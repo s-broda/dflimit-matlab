@@ -1,13 +1,18 @@
-function F = dfdet_dist(x,D,c,opts,mode)
-%DFDET_DIST  The engine dispatch of DFDET_CDF and DFDET_PDF (mode 'cdf' or 'pdf').
+function [F,f] = dfdet_dist(x,D,c,opts,mode)
+%DFDET_DIST  The engine dispatch of DFDET_CDF and DFDET_PDF (mode 'cdf' or 'pdf'; 'both': [F,f] from one pass).
 %
 %   Validates the arguments (DFDET_ARGS), builds the model of the design with
 %   its start and its outer contour (cached), sets the non-finite points
 %   (F = 0 at -Inf, 1 (cdf) or 0 (pdf) at +Inf, NaN at NaN) and evaluates the
 %   finite ones by one evaluation of the contour integral (DFDET_CONTOUR) on
 %   the path, refined on the vertical line to the oscillation at the largest
-%   |x| (opts.verified = false, the default) or by the checked computation
-%   (DFDET_VERIFY, opts.verified = true, tolerance opts.vtol = 1e-9).  For a
+%   |x| (opts.verified = false, the default; by the rule of one evaluation of
+%   DFDET_RULES, opts.rule, 'auto' by default, with opts.hfac, opts.n,
+%   opts.ntail in its place where given) or by the checked computation
+%   (DFDET_VERIFY, opts.verified = true, tolerance opts.vtol = 1e-9, on the
+%   present rule's contour).  Mode 'both' returns the distribution function
+%   and the density from one pass (dist_both of DFDet.jl: the values of the
+%   modes 'cdf' and 'pdf' bit for bit; the quantile search of LTRATIO_ICDF).  For a
 %   design whose numerator has rank one (no deterministic terms, GLS
 %   detrending) with c0 > 0 the density is infinite at the tangency
 %   x = -sqrt(4 c0 a) of the parabola X(v) (a the shift of Mt), and Inf is
@@ -22,29 +27,35 @@ if ~(isnumeric(x) && isreal(x)), error('dfdet:args','dfdet_%s: x must be real.',
 x = double(x);
 F = zeros(size(x)); fin = isfinite(x);
 F(isnan(x)) = NaN; if strcmp(mode,'cdf'), F(x == Inf) = 1; end
+f = zeros(size(x)); f(isnan(x)) = NaN;
 if ~any(fin(:)), return, end
 Mo = dfdet_startmodel(D,c,start,g0,gls);
-CP = dfdet_cpath(Mo,c,struct('phi',getf(o,'phi',[]),'hfac',getf(o,'hfac',1)));
+verified = logical(getf(o,'verified',false));
+% (the rule of one evaluation and its outer contour, DFDET_RULES; verified: the present rule)
+[hf,n,nt,rl] = dfdet_rules('rule',getf(o,'rule','auto'),verified,Mo,c,c0,o);
+CP = dfdet_rules('path',Mo,c,getf(o,'phi',[]),hf,rl,c0);
 xf = x(fin); xf = xf(:).';
-if strcmp(mode,'cdf'), which = 1; else, which = 2; end
-co = struct('c0',c0);
-for f = {'n','ntail','alpha','filon','warn','tol'}, if isfield(o,f{1}), co.(f{1}) = o.(f{1}); end, end
-if logical(getf(o,'verified',false))
+switch mode, case 'cdf', which = 1; case 'pdf', which = 2; otherwise, which = 3; end
+co = struct('c0',c0,'n',n,'ntail',nt);
+for fl = {'alpha','filon','warn','tol'}, if isfield(o,fl{1}), co.(fl{1}) = o.(fl{1}); end, end
+if verified
     v = dfdet_verify(@(CPv,oo) ev(CPv,xf,merge(co,oo),which),CP,getf(o,'vtol',1e-9));
 else
     v = ev(CP,xf,co,which);
 end
-if which == 2 && c0 > 0 && Mo.r == 1 && Mo.rm == 0
-    xs_ = -sqrt(4*c0*Mo.a);
-    v(abs(xf - xs_) <= 1e-12*max(1,abs(xf))) = Inf;
+if which == 3, w = v(2,:); v = v(1,:); end
+if which >= 2 && c0 > 0 && Mo.r == 1 && Mo.rm == 0
+    xs_ = -sqrt(4*c0*Mo.a); tg = abs(xf - xs_) <= 1e-12*max(1,abs(xf));
+    if which == 2, v(tg) = Inf; else, w(tg) = Inf; end
 end
 F(fin) = v;
+if which == 3, f(fin) = w; end
 end
 
 function v = ev(CP,xf,co,which)
 CPr = dfdet_contour('refine',CP,xf,[],co.c0);
 [F,f] = dfdet_contour('tratio',CPr,xf,co);
-if which == 1, v = F; else, v = f; end
+if which == 1, v = F; elseif which == 2, v = f; else, v = [F(:).'; f(:).']; end
 end
 
 function o = merge(o,p)

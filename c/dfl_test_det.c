@@ -30,8 +30,8 @@ static void f_rlin(double r, double *o, void *c) { (void) c; o[0] = r; }
 
 /* the groups of comparisons: name, count, largest deviation (absolute), failures */
 typedef struct { const char *name; int n, fail; double worst, worst_rel_tol; } group_t;
-static group_t G[64]; static int NG = 0;
-static char GNAMES[64][48];
+static group_t G[128]; static int NG = 0;
+static char GNAMES[128][48];
 static group_t *grp(const char *name)
 {
     for (int i = 0; i < NG; i++) if (!strcmp(G[i].name, name)) return &G[i];
@@ -117,11 +117,20 @@ static int moved(int f, int model, int stat, double g0, double gls, double c, do
     }
 }
 /* the user-level value functions of the 'val' and 'err' lines: rc and the values in got */
+/* the rules of one evaluation of the t-ratio's paths by name (fn#rule on the 'val' lines; DFL_RULE_*) */
+static int rule_code(const char *r)
+{
+    static const char *RN[7] = {"auto", "present", "thin", "inner", "outer", "fine", "finestep"};
+    for (int i = 0; i < 7; i++) if (!strcmp(r, RN[i])) return i;
+    return -1;
+}
 static int val_call(const char *fn0, int id, double cb, int st, double g0, double c, double c0, int ver, double par, int n, const double *x, double *got, char *err)
 {
     dfl_det_opts o; dfl_det_defaults(&o); o.c0 = c0; o.start = st; o.gamma0 = g0; o.gls = cb; o.verified = ver;
-    /* (fn@line, fn@paths, fn@auto: the method of the t-ratio) */
-    char fn[32]; snprintf(fn, sizeof fn, "%s", fn0); char *at = strchr(fn, '@');
+    /* (fn#rule: the rule of one evaluation of the t-ratio's paths; fn@line, fn@paths, fn@auto: the method of the t-ratio) */
+    char fn[32]; snprintf(fn, sizeof fn, "%s", fn0); char *hs = strchr(fn, '#');
+    if (hs) { *hs = 0; o.rule = rule_code(hs + 1); }
+    char *at = strchr(fn, '@');
     if (at) { *at = 0; o.method = !strcmp(at + 1, "line") ? DFL_DET_LINE : !strcmp(at + 1, "paths") ? DFL_DET_PATHS : DFL_DET_AUTO; }
     int rc = 1;
     if (!strcmp(fn, "cdf")) rc = dfl_det_dist(2, &DS[id], n, x, c, &o, got, err, 512);
@@ -158,12 +167,15 @@ static int val_call(const char *fn0, int id, double cb, int st, double g0, doubl
     return rc;
 }
 /* the router's functions of the 'route' and 'rerr' lines */
-static int route_call(const char *fn, int e, const char *sp, int a, int st, double g0, double gl, double c, double c0, double par, int n, const double *x, double *got, char *err)
+static int route_call(const char *fn0, int e, const char *sp, int a, int st, double g0, double gl, double c, double c0, double par, int n, const double *x, double *got, char *err)
 {
     dfl_spec S; S.D = strcmp(sp, "design") ? NULL : &DS[a]; S.model = S.D ? 0 : a; S.start = st; S.g0 = g0; S.gls = gl;   /* (NaN on the lines of a case, except where a line tests the refusal of gls) */
+    /* (cdf@m, pdf@m: the method m of the t-ratio, one evaluation) */
+    char fn[32]; snprintf(fn, sizeof fn, "%s", fn0); char *at = strchr(fn, '@'); int meth = 0;
+    if (at) { *at = 0; meth = atoi(at + 1); }
     int rc = 1;
-    if (!strcmp(fn, "cdf")) rc = dfl_engine_dist(2, n, x, &S, c, c0, e, 0, 0, got, err, 512);
-    else if (!strcmp(fn, "pdf")) rc = dfl_engine_dist(1, n, x, &S, c, c0, e, 0, 0, got, err, 512);
+    if (!strcmp(fn, "cdf")) rc = dfl_engine_dist(2, n, x, &S, c, c0, e, meth, 0, got, err, 512);
+    else if (!strcmp(fn, "pdf")) rc = dfl_engine_dist(1, n, x, &S, c, c0, e, meth, 0, got, err, 512);
     else if (!strcmp(fn, "icdf")) rc = dfl_engine_icdf(n, x, &S, c, c0, e, 0, 1e-10, got, err, 512);
     else if (!strcmp(fn, "mom")) rc = dfl_engine_mom((int) x[0], &S, c, c0, e, got, err, 512);
     else if (!strcmp(fn, "coef")) rc = dfl_engine_coef(n, x, &S, c, c0, e, got, err, 512);
@@ -458,6 +470,47 @@ static void selftest_above(void)
     dfl_design_free(&DK); dfl_design_free(&DU); dfl_design_free(&DT);
     dfl_det_empty_caches();
 }
+/* the quantile searches and the brittle regimes of the rules of one evaluation (November 2026): F and f from one pass of the
+ * general engine's paths (dfl_det_dist_both, DFL_DIST2) bit for bit the values of the router's distribution function and
+ * density, so that the quantiles of the router's classical search are those of the two evaluations bit for bit; the start
+ * from the moments from jets (DFL_MOM_START) moves the quantiles by less than 1e-9 (the search tolerance is 1e-10); the
+ * warnings of the contour integral's one evaluation far from the unit root (dfl_brittle) */
+static void selftest_rules(void)
+{
+    char err[512];
+    const int cm[3] = {2, 2, 1}, cst[3] = {0, 2, 1}; const double cc[3] = {-5, -5, -5}, cc0[3] = {2, -5, 0}, cg0[3] = {0, 0, 1};
+    for (int i = 0; i < 3; i++) {
+        dfl_spec S = {NULL, cm[i], cst[i], cg0[i], NAN};
+        double x = -2.5, F, f, Fb = NAN, fb = NAN, ps[2] = {0.05, 0.5}, q1[2], q0[2];
+        dfl_design D; dfl_design_trend(cm[i] - 2, &D, err, sizeof err);
+        dfl_det_opts o; dfl_det_defaults(&o); o.c0 = cc0[i]; o.start = cst[i]; o.gamma0 = cg0[i];
+        int rc = dfl_engine_dist(2, 1, &x, &S, cc[i], cc0[i], DFL_ENGINE_AUTO, 0, 0, &F, err, sizeof err) | dfl_engine_dist(1, 1, &x, &S, cc[i], cc0[i], DFL_ENGINE_AUTO, 0, 0, &f, err, sizeof err)
+               | dfl_det_dist_both(&D, 1, &x, cc[i], &o, &Fb, &fb, err, sizeof err);
+        char what[200]; snprintf(what, sizeof what, "model %d start %d c %g c0 %g g0 %g: dfl_det_dist_both and the router's F, f bit for bit", cm[i], cst[i], cc[i], cc0[i], cg0[i]);
+        check("dist2", rc || Fb != F || (fb < 0 ? 0.0 : fb) != f, 0, 0, what);
+        rc = dfl_engine_icdf(2, ps, &S, cc[i], cc0[i], DFL_ENGINE_AUTO, 0, 1e-10, q1, err, sizeof err);
+        DFL_DIST2 = 0; rc |= dfl_engine_icdf(2, ps, &S, cc[i], cc0[i], DFL_ENGINE_AUTO, 0, 1e-10, q0, err, sizeof err); DFL_DIST2 = 1;
+        snprintf(what, sizeof what, "model %d start %d c %g c0 %g g0 %g: the quantiles with and without DFL_DIST2 bit for bit", cm[i], cst[i], cc[i], cc0[i], cg0[i]);
+        check("dist2", rc || q1[0] != q0[0] || q1[1] != q0[1], 0, 0, what);
+        dfl_design_free(&D);
+    }
+    const int mm[3] = {2, 3, 1}; const double mc0[3] = {0, -2, 2};
+    for (int i = 0; i < 3; i++) {
+        dfl_spec S = {NULL, mm[i], 0, 0.0, NAN}; double ps[2] = {0.05, 0.5}, q1[2], q0[2];
+        int rc = dfl_engine_icdf(2, ps, &S, -5, mc0[i], DFL_ENGINE_AUTO, 0, 1e-10, q1, err, sizeof err);
+        DFL_MOM_START = 0; rc |= dfl_engine_icdf(2, ps, &S, -5, mc0[i], DFL_ENGINE_AUTO, 0, 1e-10, q0, err, sizeof err); DFL_MOM_START = 1;
+        char what[200]; snprintf(what, sizeof what, "model %d c -5 c0 %g: the quantiles from the start of the jets and of the circles", mm[i], mc0[i]);
+        check("momstart", rc ? INFINITY : fmax(fabs(q1[0] - q0[0]), fabs(q1[1] - q0[1])), 0, 1e-9, what);
+    }
+    /* (the message is in a buffer of the thread: each checked before the next call) */
+    const char *b = dfl_brittle(2, 2, -30, 0, 3.0, false, 0);
+    check("brittle", !(b && strstr(b, "DU, fixed start far from the unit root with |c g0| > 60: the contour integral by one evaluation may be off by more than 1e-5")), 0, 0, "dfl_brittle: case DU, c = -30, g0 = 3 (|c g0| > 60)");
+    b = dfl_brittle(2, 3, -60, -2, 1.0, false, 0);
+    check("brittle", b != NULL, 0, 0, "dfl_brittle: case DT, c = -60, g0 = 1, c0 = -2 (|c g0| = 60) is not brittle");
+    b = dfl_brittle(2, 2, -20, 2, 0.5, false, 0);
+    check("brittle", !(b && strstr(b, "c0 > 0 far from the unit root (c < -15): the contour integral by one evaluation may be off by more than 1e-5")), 0, 0, "dfl_brittle: c0 > 0 below c = -15");
+    dfl_det_empty_caches();
+}
 static det_prep *prep_of(int id, double cb, char *err)
 {
     det_prep *P = NULL;
@@ -660,6 +713,57 @@ int main(int argc, char **argv)
             else if (VERB && ec != ej) printf("moved %s\n", what);
             continue;
         }
+        /* the rules of one evaluation (November 2026): 'pregion id cbar start g0 c c0 rule' (path_region of the general
+         * engine), 'ctrrule c c0 g0 n hfac' (the contour integral), 'condrule model stat g0 c c0 n' (the conditional
+         * integral), 'momstart model stat g0 c c0 has m1 m2 tol' (the start of the quantile searches from jets) */
+        if (!strcmp(tag, "pregion")) {
+            int id = inum(&p); double cb = num(&p); int st = inum(&p); double g0 = num(&p), c = num(&p), c0 = num(&p); int rj = inum(&p);
+            det_prep *P = prep_of(id, cb, err);
+            if (!P) { grp("pregion")->fail++; printf("FAIL pregion %d: %s\n", id, err); continue; }
+            int fixed = st == 1 && g0 != 0, rc_ = dfl_det_path_region(fixed, P->r == 1 && P->rm == 0, c, c0);
+            snprintf(what, sizeof what, "path_region design %d cbar %g start %d g0 %g c %g c0 %g: C %d, Julia %d", id, cb, st, g0, c, c0, rc_, rj);
+            check("pregion", rc_, rj, 0, what);
+            det_prep_free(P);
+            continue;
+        }
+        if (!strcmp(tag, "ctrrule")) {
+            double c = num(&p), c0 = num(&p), g0 = num(&p); int nj = inum(&p); double hj = num(&p), hc; int ncc;
+            dfl_ctr_rule(c, c0, g0, &ncc, &hc);
+            snprintf(what, sizeof what, "ctr_rule c %g c0 %g g0 %g: C (%d, %g), Julia (%d, %g)", c, c0, g0, ncc, hc, nj, hj);
+            check("ctrrule", ncc * 10.0 + hc, nj * 10.0 + hj, 0, what);
+            continue;
+        }
+        if (!strcmp(tag, "condrule")) {
+            int m = inum(&p), st = inum(&p); double g0 = num(&p), c = num(&p), c0 = num(&p); int nj = inum(&p);
+            int ncc = dfl_cond_rule(m, c, c0, g0, st != 0);
+            snprintf(what, sizeof what, "cond_rule model %d stat %d g0 %g c %g c0 %g: C %d, Julia %d", m, st, g0, c, c0, ncc, nj);
+            check("condrule", ncc, nj, 0, what);
+            continue;
+        }
+        if (!strcmp(tag, "momstart")) {
+            int m = inum(&p), st = inum(&p); double g0 = num(&p), c = num(&p), c0 = num(&p); int has = inum(&p); double m1 = num(&p), m2 = num(&p), tol = num(&p), mm[2] = {NAN, NAN};
+            int hc = dfl_mom_start(2, m, st != 0, c, c0, g0, mm);
+            snprintf(what, sizeof what, "mom_start model %d stat %d g0 %g c %g c0 %g (C %s, Julia %s)", m, st, g0, c, c0, hc ? "jets" : "none", has ? "jets" : "none");
+            check("momstart", hc, has, 0, what);
+            if (hc && has) { check("momstart", mm[0], m1, tol * fmax(1, fabs(m1)), what); check("momstart", mm[1], m2, tol * fmax(1, fabs(m2)), what); }
+            continue;
+        }
+        /* 'ctrval kind model c c0 g0 rule n x... nv v... tol' (the contour integral's one evaluation, rule 0 auto or 1 the
+         * present) and 'condval kind model stat c c0 g0 N n x... nv v... tol' (the conditional integral's one evaluation with
+         * N nodes, 0: its rule) */
+        if (!strcmp(tag, "ctrval") || !strcmp(tag, "condval")) {
+            int ctr = !strcmp(tag, "ctrval"), kind = inum(&p), m = inum(&p), st = ctr ? 0 : inum(&p); double c = num(&p), c0 = num(&p), g0 = num(&p); int rl = inum(&p), n = inum(&p);
+            double x[64], want[64], got[64]; for (int i = 0; i < n; i++) x[i] = num(&p);
+            int nw = inum(&p); for (int i = 0; i < nw; i++) want[i] = num(&p);
+            double tol = num(&p); int rc;
+            if (ctr) rc = dfl_contour_rule(kind, n, x, m, c, c0, g0, 0, rl, 0, NAN, got, NULL, NULL, NULL, NULL, err, sizeof err);
+            else { dfl_double_opts dv; dfl_double_defaults(&dv); dv.Nv = rl; dv.Nl = rl; dfl_double_info info[64]; rc = dfl_double(kind, n, x, m, c, c0, g0, st != 0, &dv, got, info, err, sizeof err); }
+            char gname[32]; snprintf(gname, sizeof gname, "%s%s", tag, rl == 0 ? "" : ctr ? "#present" : "#96");
+            snprintf(what, sizeof what, "%s kind %d model %d stat %d c %g c0 %g g0 %g rule %d", tag, kind, m, st, c, c0, g0, rl);
+            if (rc) { grp(gname)->fail++; grp(gname)->n++; printf("FAIL %s: %s\n", what, err); }
+            else for (int i = 0; i < nw; i++) { char w2[400]; snprintf(w2, sizeof w2, "%s at %g", what, x[i]); check(gname, got[i], want[i], tol, w2); }
+            continue;
+        }
         if (!strcmp(tag, "route")) {
             char fn[32], sp[16]; int k2; sscanf(p, "%31s%n", fn, &k2); p += k2;
             int e = inum(&p); sscanf(p, "%15s%n", sp, &k2); p += k2;
@@ -669,7 +773,7 @@ int main(int argc, char **argv)
             int nw = inum(&p); for (int i = 0; i < nw; i++) want[i] = num(&p);
             double tol = num(&p);
             int rc = route_call(fn, e, sp, a, st, g0, gl, c, c0, par, n, x, got, err);
-            char gname[48]; snprintf(gname, sizeof gname, "route-%s", e == 0 ? "auto" : e == 1 ? "classical" : "general");
+            char gname[48]; snprintf(gname, sizeof gname, "route-%s%s", e == 0 ? "auto" : e == 1 ? "classical" : "general", strchr(fn, '@') ? strchr(fn, '@') : "");
             snprintf(what, sizeof what, "%s engine %d %s %d start %d g0 %g gls %g c %g c0 %g", fn, e, sp, a, st, g0, gl, c, c0);
             if (rc) { grp(gname)->fail++; grp(gname)->n++; printf("FAIL %s: %s\n", what, err); }
             else for (int i = 0; i < nw; i++) { char w2[400]; snprintf(w2, sizeof w2, "%s [%d]", what, i); check(gname, got[i], want[i], !strcmp(fn, "mom") ? tol * fmax(1, fabs(want[i])) : tol, w2); }
@@ -684,6 +788,7 @@ int main(int argc, char **argv)
     selftest_far();
     selftest_line_auto();
     selftest_above();
+    selftest_rules();
     int fails = 0, n = 0;
     printf("%-10s %8s %8s %12s %10s\n", "group", "values", "failed", "largest dev", "dev/tol");
     for (int i = 0; i < NG; i++) { printf("%-10s %8d %8d %12.2e %10.2e\n", G[i].name, G[i].n, G[i].fail, G[i].worst, G[i].worst_rel_tol); fails += G[i].fail; n += G[i].n; }
