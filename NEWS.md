@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**The general engine above the unit root** (C and MATLAB alike, the repairs of DFLimit.jl). The coefficient statistic
+far above the unit root was silently wrong: the panels of the paths around the roots merged every point within 1e-12
+max(B - A, 1) of an end with it (`graded_panels` in `c/dfl_det_inner.c` and `matlab/dfdet_contour.m`), and from c = 16
+on the segment around the positive root, which lies within about 2c e^{-2c} of the branch point -t/c0 of the coefficient
+statistic, got no panel at all: off by up to 0.2 without a warning (case DK at c = 20: 0.312770633 in C and 0.312770632
+in MATLAB for the 30% point, `dfdet_coef_cdf` and the router with `engine` general; the default route takes the
+classical engine there). The tolerance is now relative to the length of the interval. The (1,1) entry of the matrix of
+the transform (`buildM` in `c/dfl_det_mgf.c`, `matlab/dfdet_mgf.m`, `dfdet_logmgf.m`, `dfdet_dval.m`) carried an
+absolute rounding error of 1e-16, of the size of the entry far above the unit root wherever the transform is evaluated
+at s != 0: the moments of the general engine were off by 6e-4 relative at c = 15 and 0.95 at c = 20, and the inversion
+of Gil-Pelaez worse; it is now m011 plus the product term. The moments with c0 != 0 continued the logarithm of the
+determinant alone around their circles, whose phase at the real point is -Im theta where -s - c0 r > c^2/2, and refused
+on every circle at c = 0 with c0 < 0 (`dfl_det_moments`, `dfdet_mom`; through the router the moments of case DT at c =
+0, c0 = -2): now the logarithm of e^{c + theta} det(...). The density of the coefficient statistic with a fixed start
+above the unit root was off without a warning (by up to 0.12 at c from 1 to 5, case DU at c = 5, g0 = 0.5, at the 90%
+point; 5.9e-5 in case DU at c = 2, g0 = 1): the objective that places the path G+ around the positive roots (`place` in
+`c/dfl_det_inner.c` and `matlab/dfdet_contour.m`) did not see the branch point -Re(t)/c0 of the v-kernels, where the
+kernel of the density has a double pole; it is now a focus of its grading cost (above the unit root with c0 > 0 only;
+elsewhere unchanged). `dfl_det_coef_cdf_gp` refuses where its grid does not resolve the transform (d/h below 3.3, d the
+distance of the nearest singularity of the transform from the real line, h the step of the grid at the origin; it was
+off by 1.1e-2 at c = 12 and by 15 at c = 20 for the 30% point of case DK), with an error that names the N that serves.
+And every function of the general engine refuses above c = 16 with deterministic terms (10 with them and a fixed start)
+and above c = 20 without them (`DFL_DET_CMAX`, `DFL_DET_CMAX_FIXED`, `DFL_DET_CMAX0`, `dfl_det_cmax`; `dfdet_cmax` in
+MATLAB), where one root of the transform is of the order 2c e^{-2c} and the others are lost in double precision (the
+paths of case DU failed from c = 17, of case DT from c = 18), with an error that names the statistic, c and the bound;
+the rules (`dfl_autoengine`, `ltratio_engine`) take the classical engine there.
+
 **The fixed node layouts of the C line integral.** `c/dfl_batch.c` ports the batched evaluation of the Julia engine
 (`DFExact.jl`): for c <= 0, c0 = 0 and |x| above about 0.034 the inner integrals of the line integral are sums over nodes
 that do not depend on t, on geometric panels (the chi-square kernel of case DK and case DG at tau = 1, the K_0 kernel's

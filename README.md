@@ -65,7 +65,11 @@ roots supplied by the general engine's transform (`c/dfl_det_line.c`), which `df
 and 1.8 to 2.7 times per quantile, the paths otherwise; `DFL_DET_LINE`, `DFL_DET_PATHS`). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
 the automatic choice of the Julia package (`dfl_autoengine`). It agrees with the Julia engine to 1e-9 in distribution
 functions and densities and to 1e-7 in quantiles (`c/dfl_test_det`); in MATLAB the MEX file reaches it through designs
-(`ltratio('design', ...)`, `c/mex/README.md`).
+(`ltratio('design', ...)`, `c/mex/README.md`). Above the unit root the general engine computes up to c = 16 with
+deterministic terms (10 with them and a fixed start) and c = 20 without them (`DFL_DET_CMAX`, `DFL_DET_CMAX_FIXED`,
+`DFL_DET_CMAX0`, `dfl_det_cmax`): beyond, one root of its
+transform is of the order 2c e^{-2c} and the others are no longer resolved in double precision, and every function of the
+general engine stops with an error that names the statistic, while `dfl_autoengine` takes the classical engine.
 
 ## The general engine in MATLAB
 
@@ -104,6 +108,10 @@ engine (`opts.engine = 'auto'` is the default, for a case string as for a design
 engine for a case string the two engines agree to about 1e-9), and with `engine = 'classical'`, a representation named, `verified = true` or further options they
 compute as before, the classical programs on the C engine through the drop-ins and the general engine in MATLAB. `dfdet_test` compares the general engine and the router with reference values of the Julia engine
 (`matlab/validation/det_ref.txt`, written by `matlab/validation/det_ref.jl`).
+
+The general engine in MATLAB has the range of the C engine (`dfdet_cmax`: c up to 16 with deterministic terms, 10
+with them and a fixed start, 20 without them; beyond, the routines refuse with an error that names the statistic, and `ltratio_engine` takes the classical
+programs).
 
 The MATLAB programs have the inversion on paths only: `dfdet_cdf`, `dfdet_pdf` and `dfdet_icdf` take `opts.method`
 `'auto'` or `'paths'` and refuse `'line'`, the line integral with the explicit kernel of the C engine and of the Julia,
