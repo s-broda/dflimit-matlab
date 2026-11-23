@@ -61,6 +61,9 @@ function gen = ltratio_engine(f,S,c,c0,x)
 cas = S.case; fixed = strcmp(S.start,'fixed'); stat = strcmp(S.start,'stationary');
 if strcmp(f,'dist'), gen = false(size(x)); else, gen = false; end
 if isempty(cas) || ltratio_croute('on'), return, end
+% (above the range of the general engine, DFDET_CMAX: 20 without deterministic terms, 16 with them, 10 with them and a
+% fixed start, where it refuses, the classical programs)
+if c > dfdet_cmax(S.D,S.start,S.g0), return, end
 ac = abs(S.g0);
 switch f
     case 'dist'

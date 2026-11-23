@@ -24,7 +24,9 @@ function v = dfdet_stat(stat,mode,x,D,c,opts,a)
 %   See also DFDET_COEF_CDF, DFDET_LIN_CDF, DFDET_V_CDF, DFDET_ADFMAX_CDF.
 if nargin < 5 || isempty(c), c = 0; end
 if nargin < 6 || isempty(opts), opts = struct; end
-[c,c0,start,g0,gls,o] = dfdet_args(D,c,opts);
+names = struct('coef','the coefficient statistic','lin','the linear form U - aV','v','the law of V','adfmax','ADFmax');
+if strcmp(stat,'lin') && nargin >= 7 && isnan(a), nm = names.v; else, nm = names.(stat); end
+[c,c0,start,g0,gls,o] = dfdet_args(D,c,opts,sprintf('%s (dfdet_%s_%s)',nm,stat,mode));
 if ~(isnumeric(x) && isreal(x)), error('dfdet:args','dfdet: the argument must be real.'); end
 x = double(x);
 if strcmp(stat,'lin') && isnan(a), stat = 'v'; end

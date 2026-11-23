@@ -1,9 +1,10 @@
-function [c,c0,start,g0,gls,o] = dfdet_args(D,c,opts)
+function [c,c0,start,g0,gls,o] = dfdet_args(D,c,opts,what)
 %DFDET_ARGS  Validation of the arguments of the user-level routines of the general engine.
 %
-%   [c,c0,start,g0,gls,o] = DFDET_ARGS(D,c,opts) checks the design D (a
+%   [c,c0,start,g0,gls,o] = DFDET_ARGS(D,c,opts,what) checks the design D (a
 %   structure from DFDET_DETERM and its constructors), the local-to-unity
-%   parameter c (a finite real scalar) and the options: c0 (the local null
+%   parameter c (a finite real scalar, at most DFDET_CMAX(D,start,g0): above,
+%   an error that names the statistic what) and the options: c0 (the local null
 %   value, 0), start ('zero', 'fixed' or 'stationary'; by default 'fixed' when
 %   opts.g0 ~= 0, else 'zero'), g0 (the fixed start J(0) = g0, y_0 = g0 sigma
 %   sqrt(n); 0), gls (GLS detrending at cbar = gls < 0, [] for least squares);
@@ -16,6 +17,7 @@ function [c,c0,start,g0,gls,o] = dfdet_args(D,c,opts)
 if ~(isstruct(D) && isfield(D,'br') && isfield(D,'C') && isfield(D,'detrend')), error('dfdet:args','dfdet: the design must be a structure built by dfdet_determ, dfdet_trend, dfdet_perron, ...'); end
 if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('dfdet:args','dfdet: c must be a finite real scalar.'); end
 c = double(c);
+if nargin < 4 || isempty(what), what = 'the general engine'; end
 if ~isstruct(opts), error('dfdet:args','dfdet: opts must be a structure.'); end
 c0 = getf(opts,'c0',0);
 if ~(isnumeric(c0) && isscalar(c0) && isreal(c0) && isfinite(c0)), error('dfdet:args','dfdet: opts.c0 must be a finite real scalar.'); end
@@ -28,6 +30,10 @@ if ~any(strcmp(start,{'zero','fixed','stationary'})), error('dfdet:args','dfdet:
 if strcmp(start,'stationary') && g0 ~= 0, error('dfdet:args','dfdet: opts.g0 (a fixed start) and start = ''stationary'' exclude each other.'); end
 if strcmp(start,'fixed') && g0 == 0, start = 'zero'; end
 if strcmp(start,'stationary') && ~(c < 0), error('dfdet:args','dfdet: %s.',dfdet_msg('stat_c')); end
+cb = dfdet_cmax(D,start,g0);
+if c > cb
+    error('dfdet:args','dfdet: %s at c = %g: the general engine computes up to c = %g for this design and start (20 without deterministic terms; with them 16, and 10 with a fixed start; above, the roots of its transform are no longer resolved in double precision); the classical cases DK, DU, DT are available with opts.engine = ''classical'' or the default opts.engine = ''auto''.',what,c,cb);
+end
 gls = getf(opts,'gls',[]);
 if ~isempty(gls)
     if ~(isnumeric(gls) && isscalar(gls) && isreal(gls) && gls < 0 && isfinite(gls)), error('dfdet:args','dfdet: GLS detrending needs opts.gls = cbar < 0 (a finite number).'); end

@@ -25,7 +25,7 @@ function [m,err] = dfdet_mom(p,D,c,opts)
 %   See also DFDET_CDF, LTRATIO_MOM.
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
-[c,c0,start,g0,gls] = dfdet_args(D,c,opts);
+[c,c0,start,g0,gls] = dfdet_args(D,c,opts,'the moments of the t-ratio (dfdet_mom)');
 if strcmp(D.detrend,'first'), error('dfdet:args','dfdet_mom: %s.',dfdet_msg('first_mom')); end
 if ~(isnumeric(p) && isscalar(p) && p == round(p) && p >= 1), error('dfdet:args','dfdet_mom: p must be a positive integer.'); end
 Nu = getf(opts,'Nu',64); h = getf(opts,'h',0.05);
