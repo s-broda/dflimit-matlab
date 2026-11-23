@@ -42,13 +42,18 @@ in case DK). Warm time per value in C, single inversion against `method = engine
 0.18, its quantiles 0.02, its density 0.03 (at the chi-square point y = -c0, where the transform decays like a power, 57
 times slower, about 0.9 s a value, as in the Julia package, with a warning), the linear form 0.07 to 0.24, the envelope
 0.13 to 0.16, the moments 0.013 to 0.23, the point-optimal statistic 0.08 to 0.15 (quantiles 0.3 to 0.4, envelope 0.2),
-`coef_cdf_gp` 0.05 to 0.1.
+`coef_cdf_gp` 0.05 to 0.1. In the MATLAB programs (warm, minima of three calls, against `opts.method = 'engine'` or
+`'grid'`): the coefficient statistic 0.02 to 0.10, its quantiles 0.013, its density 0.07, the linear form 0.5 to 1.05 (the
+engines' closed forms are as fast in case DK at c = 0), the envelope 0.31, the moments 0.08 to 1.08 (case DK at c = 0, where
+the classical circles are cheap), the point-optimal statistic 0.02 to 0.06 (quantiles 0.21, envelope 0.13; the grid with
+its cache cleared).
 
 **The branches at each point.** The classical engines' P(t), M_0(t) and the labels of the roots (`dfl_tparts`,
 `dfx_core('tparts')`) and the argument of log P(t) in the provider of the general engine's line integral
 (`c/dfl_det_line.c`) are fixed at each point, after Bao and Kan, in place of their continuation along the grids (removed:
 `line_continue`). The engines' values move by at most 4.2e-13 (the contour integral of case DT with g0 = 2 at c = -20;
-elsewhere below 1e-13) at the same cost (warm time new/old: median 0.95). `c/test/prim_ref.txt` regenerated: its
+elsewhere below 1e-13) at the same cost (warm time new/old: median 0.95; in MATLAB the line and contour integrals within
+7.7e-13 at 0.97 to 1.05 of the time). `c/test/prim_ref.txt` regenerated: its
 continuation on a coarse grid of 13 points was on the wrong branch at its last point (t = 1 + 201.7i at c = -5, the sign of
 P).
 
