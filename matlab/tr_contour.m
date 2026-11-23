@@ -46,7 +46,12 @@ function [F,info] = tr_contour(x,cas,c,opts,mode)
 %   level.
 %
 %   opts.verified (false by default): false is one evaluation, A at its first
-%   level (info.err NaN, info.status 0, nodes those of A); true the pair A, B
+%   level (info.err NaN, info.status 0, nodes those of A), by the rule of one
+%   evaluation (LTRATIO_RULES('contour'), November 2026: 32 nodes per panel and
+%   ray for 64 and the outer step 1.5 times as long where they hold, the rule
+%   of before where |c g0| > 20; opts.rule = 'present' the rule of before,
+%   64 nodes on the present step; opts.n1, the nodes, and opts.hfac, the
+%   factor of the outer step, override it); true the pair A, B
 %   and the levels described above, at 1.5 to 3 times the cost, with
 %   info: time; err, the error estimate per point; status, 0 where the estimate
 %   is at most 1e-10 and the value is finite, otherwise 2 (the warning
@@ -79,6 +84,15 @@ switch mode
 end
 c = double(c); c0 = double(c0); g0 = double(g0);
 verified = logical(getf(opts,'verified',false));
+rl = lower(char(getf(opts,'rule','auto')));
+if ~any(strcmp(rl,{'auto','present'})), error('tr_contour:args','tr_contour: opts.rule must be ''auto'' or ''present'' (the rule of one evaluation of the contour integral, LTRATIO_RULES).'); end
+n1 = getf(opts,'n1',[]); hfac = getf(opts,'hfac',[]);
+if ~verified                                        % (the rule of one evaluation; the checked computation is unchanged)
+    if strcmp(rl,'auto'), [nr,hr] = ltratio_rules('contour',c,c0,g0); else, nr = 64; hr = 1; end
+    if isempty(n1), n1 = nr; end
+    if isempty(hfac), hfac = hr; end
+end
+if isempty(hfac), hfac = 1; end
 t0 = tic;
 F = zeros(size(x)); err = F; status = F; nodes = F; level = F;
 for k = 1:numel(x)
@@ -87,7 +101,7 @@ for k = 1:numel(x)
         if isnan(xk), F(k) = NaN; elseif xk > 0 && kind == 2, F(k) = 1; end
         continue
     end
-    [F(k),err(k),status(k),nodes(k),level(k)] = ctr_value(kind,xk,model,c,c0,g0,verified);
+    [F(k),err(k),status(k),nodes(k),level(k)] = ctr_value(kind,xk,model,c,c0,g0,verified,n1,hfac);
 end
 info = struct('time',toc(t0),'err',err,'status',status,'nodes',nodes,'level',level);
 if verified && any(status(:))
@@ -104,18 +118,19 @@ end
 % The functions below follow ctr_* there one by one; where Julia loops over the outer nodes of a chunk (on several
 % threads) or over the nodes of a path, these evaluate them together, with the same arithmetic element by element.
 
-function [v,err,st,nodes,l] = ctr_value(kind,x,model,c,c0,g0,verified)
+function [v,err,st,nodes,l] = ctr_value(kind,x,model,c,c0,g0,verified,n1,hfac)
 % f(x) (kind 1) or F(x) (kind 2): the value, the error estimate, the status, the number of outer nodes, the level.  Two
 % structurally different evaluations, A (the hyperbola at the angle ctr_phi(c), placement weight 0.5, 64 nodes per
 % panel and ray) and B (the angle larger by pi/24, placement weight 1, one level fewer nodes, 48); the error estimate
 % is |A - B| plus 10 eps times the sums of the largest terms of both; while it exceeds 1e-10 the next level is added
 % to both; the value is A at the last level
 NL = 4; ERRTOL = 1e-10;
-A = ctr_eval(kind,x,model,c,c0,g0,1);
-if ~verified                                    % one evaluation: A at the first level, no estimate
+if ~verified                                    % one evaluation: A at the first level (n1 nodes, the step hfac), no estimate
+    A = ctr_eval(kind,x,model,c,c0,g0,1,n1,hfac);
     l = 1; v = ctr_sum(A,1); err = NaN; st = 0; if ~isfinite(v), st = 2; end; nodes = A.done; return
 end
-B = ctr_eval(kind,x,model,c,c0,g0,2);
+A = ctr_eval(kind,x,model,c,c0,g0,1,[],1);
+B = ctr_eval(kind,x,model,c,c0,g0,2,[],1);
 canc = 10*eps*(sum(A.w.*A.gm(1:A.done)) + sum(B.w.*B.gm(1:B.done)));
 l = 1; err = abs(ctr_sum(A,1) - ctr_sum(B,1)) + canc;
 while err > ERRTOL && l < NL
@@ -132,13 +147,15 @@ function v = ctr_sum(E,l)
 v = sum(E.w.*E.G(1:E.done,l));
 end
 
-function E = ctr_eval(kind,x,model,c,c0,g0,variant)
-% one evaluation of the contour integral (variant 1: A, 2: B) at the first level: the outer nodes processed in chunks
-% of 32 until a chunk whose terms all stay below 1e-18.  At each outer node only the pieces that are not negligible
-% there take part (ctr_active); the nodes of a chunk with the same active pieces are evaluated together
+function E = ctr_eval(kind,x,model,c,c0,g0,variant,n1,hfac)
+% one evaluation of the contour integral (variant 1: A, 2: B) at the first level (n1 nodes in place of those of the
+% variant where given; hfac the factor of the outer step): the outer nodes processed in chunks of 32 until a chunk whose
+% terms all stay below 1e-18.  At each outer node only the pieces that are not negligible there take part (ctr_active);
+% the nodes of a chunk with the same active pieces are evaluated together
 if variant == 2, LEVELS = [48 64 96 128]; pen = 1; else, LEVELS = [64 96 128 192]; pen = 0.5; end
+if ~isempty(n1), LEVELS(1) = n1; end
 NL = numel(LEVELS); CH = 32;
-C = ctr_path(model,c,variant);
+C = ctr_path(model,c,variant,hfac);
 [plus,minus] = ctr_pieces(x,c0);
 K1 = numel(C.t);
 G = zeros(K1,NL); gm = zeros(K1,1);
@@ -199,20 +216,21 @@ np = size(plus,1);
 pl = plus(a(1:np),:); mi = minus(a(np+1:end),:);
 end
 
-function C = ctr_path(model,c,variant)
+function C = ctr_path(model,c,variant,hfac)
 % the outer contour of model, c (variant 1: evaluation A, the angle ctr_phi(c); variant 2: evaluation B, the angle
-% ctr_phi(c) + pi/24): the nodes u_k = k h, the per-point data along it (branches continued on 8 points per step) and
-% the derivative t'(u_k); cached per (model, c, variant).  s1 is the root with Re s1 > 0 at tau (s2 of TPARTS)
+% ctr_phi(c) + pi/24), hfac the factor of its step: the nodes u_k = k h, the per-point data along it (branches continued
+% on 8 points per step) and the derivative t'(u_k); cached per (model, c, variant, hfac).  s1 is the root with Re s1 > 0
+% at tau (s2 of TPARTS)
 persistent CACHE
 if isempty(CACHE), CACHE = containers.Map('KeyType','char','ValueType','any'); end
-key = sprintf('%d|%.17g|%d',model,c,variant);
+key = sprintf('%d|%.17g|%d|%.17g',model,c,variant,hfac);
 if isKey(CACHE,key), C = CACHE(key); return, end
 SUB = 8; RMAX = 1e5; DPHI = pi/24;
 tau = dfx_core('tau',model,c,false); ts = dfx_core('tstar',model,c,false);
 if variant == 2, dp = DPHI; else, dp = 0; end
 phi = ctr_phi(c) + dp; y = min(0.5,0.9*(pi/2 - phi));
 b = 0.9*min(tau,ts - tau)/sin(y); a = b/tan(phi);
-h = 2*pi*y/(37 + 37*tan(phi)*y);
+h = hfac*2*pi*y/(37 + 37*tan(phi)*y);
 K = ceil(asinh(RMAX/hypot(a,b))/h);
 ud = (0:SUB*K)'*h/SUB;
 tt = complex(tau + a*(cosh(ud) - 1),b*sinh(ud));

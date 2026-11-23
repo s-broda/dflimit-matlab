@@ -9,7 +9,11 @@ function msg = ltratio_brittle(cas,c,c0,g0,used)
 %   one evaluation stops being good to about 1e-5 absolute, with a margin
 %   (November 2026; brittle_msg of julia/DFExact.jl, dfl_brittle of the C
 %   engine):
-%     contour, c0 > 0, c < -15      up to about 1e-5 (6e-6 at c = -27, c0 = 2.3)
+%     contour, c0 > 0, c < -15      more than 1e-5 (6e-6 at c = -27, c0 = 2.3;
+%                                   in the density 2e-2 at c = -60, c0 = 5)
+%     contour, c < -20, |c g0| > 60 more than 1e-5 (3.9e-5 at c = -60, g0 = 1.5,
+%                                   c0 = -2; the router takes the general engine
+%                                   there, LTRATIO_ENGINE)
 %     contour, c0 < 0, c > 1        the far upper tail fails
 %     contour, case DU, c0 > 3, c > 1.5   fails (outright at c = 2, c0 >= 5)
 %     double, zero start, c0 > 0, c < 0    up to 1.5e-2 at x < 0
@@ -51,8 +55,13 @@ end
 msg = '';
 hint = '; opts.verified = true checks each value';
 stat = cas(1) == 'S';
+% (the contour integral with c0 > 0 below c = -15: 6e-6 at c = -27, c0 = 2.3, (c g0)^2/2 = 146, in the density up to 2e-2
+% at c = -60, g0 = 1.5, c0 = 5 in case DU; and with any c0 below c = -20 where |c g0| > 60: in case DU 3.9e-5 at c = -60,
+% g0 = 1.5, c0 = -2, and 6.3e-6 at c = -100, g0 = 0.9; brittle_msg of DFExact.jl, November 2026)
 if any(strcmp(used,'contour')) && c0 > 0 && c < -15
-    msg = sprintf('%s, fixed start, c0 > 0 far from the unit root (c < -15): the contour integral by one evaluation may be off by up to about 1e-5%s',cas,hint);
+    msg = sprintf('%s, fixed start, c0 > 0 far from the unit root (c < -15): the contour integral by one evaluation may be off by more than 1e-5%s',cas,hint);
+elseif any(strcmp(used,'contour')) && c < -20 && abs(c*g0) > 60
+    msg = sprintf('%s, fixed start far from the unit root with |c g0| > 60: the contour integral by one evaluation may be off by more than 1e-5%s',cas,hint);
 elseif any(strcmp(used,'contour')) && c > 1 && c0 < 0
     msg = sprintf('%s, fixed start, c0 < 0 at c > 1: the contour integral by one evaluation fails in the far upper tail%s',cas,hint);
 elseif any(strcmp(used,'contour')) && strcmp(cas,'DU') && c > 1.5 && c0 > 3

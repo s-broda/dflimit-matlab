@@ -33,9 +33,11 @@ function [F,info] = tr_limdist(x,cas,c,opts,mode)
 %   error estimate from the Legendre coefficients of the integrand exceeds otol
 %   (1e-12), up to maxlev (12) times, and graded toward the step of the
 %   integrand where a(b) crosses the conditional mean of R given B = b when its
-%   width in log b is below stepw (0.1)); Nv (96)
+%   width in log b is below stepw (0.1)); Nv (96; with opts.verified false by
+%   default the rule of one evaluation, LTRATIO_RULES('conditional'), 48 or 64
+%   in its regions)
 %   nodes on the contour; oldDK, oldII (false: the old forms in cases DK and
-%   DU, DT with a zero start); Nl (96) nodes of the
+%   DU, DT with a zero start); Nl (as Nv) nodes of the
 %   integral over l; region (testing: the sign conditions are also checked on
 %   that many intermediate paths, info.nreg of info.ntot points fail).
 %   info: time, the breakpoints, E B, nbad, the number of contour nodes at
@@ -83,8 +85,15 @@ if ~all(isfinite(x(:)))
     return
 end
 cas = upper(cas); pdfm = strcmp(mode,'pdf');
-c0 = getf(opts,'c0',0); M = getf(opts,'M',64); Nv = getf(opts,'Nv',96); Nl = getf(opts,'Nl',96);
 verified = logical(getf(opts,'verified',false));     % false (default): one evaluation (see the help)
+if ~verified && isempty(getf(opts,'bnd',[]))
+    % (the rule of one evaluation of the t-ratio's conditional integral, LTRATIO_RULES('conditional'), where the options
+    % do not name the nodes; the general boundaries of TR_REGION and TR_ADFMAX keep 96)
+    nr = ltratio_rules('conditional',find('KUT' == upper(cas(2))),c,getf(opts,'c0',0),getf(opts,'g0',0),upper(cas(1)) == 'S');
+    if ~isfield(opts,'Nv') || isempty(opts.Nv), opts.Nv = nr; end
+    if ~isfield(opts,'Nl') || isempty(opts.Nl), opts.Nl = nr; end
+end
+c0 = getf(opts,'c0',0); M = getf(opts,'M',64); Nv = getf(opts,'Nv',96); Nl = getf(opts,'Nl',96);
 g0 = getf(opts,'g0',0);
 bnd = getf(opts,'bnd',[]); hasbnd = ~isempty(bnd);   % a general boundary (TR_REGION, TR_ADFMAX)
 if hasbnd, two = getf(bnd,'two',false); bndA = bnd.a; bndDA = getf(bnd,'da',[]); end
