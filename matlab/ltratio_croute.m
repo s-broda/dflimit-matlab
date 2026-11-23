@@ -28,8 +28,13 @@ function varargout = ltratio_croute(op,varargin)
 %   the counts of the representations of LTRATIO_CDF, ndouble, ncontour,
 %   ngeneral, are NaN: the C router does not report them).
 %
-%   tf = LTRATIO_CROUTE('use',cas,opts,extra): whether the call goes to the
-%   C router (on, a design or opts.engine, plain).
+%   tf = LTRATIO_CROUTE('use',cas,opts,extra,inv): whether the call goes to the
+%   C router (on, a design or opts.engine, plain); inv true for the routines
+%   with the devices of Bao and Kan (the coefficient statistic, the moments,
+%   the linear form, the envelope), whose opts.method ('auto', 'inversion' or
+%   'jets', 'engine', and for COEF_CDF, COEF_ICDF the representations of the
+%   t-ratio), opts.tol and opts.verified the C router takes as well (its
+%   dfl_inv_opts), and which return the error estimates as a second output.
 %   tf = LTRATIO_CROUTE('plain',opts,extra): whether opts has only the
 %   fields of such a call (and those in the cell extra).
 %   [F,info] = LTRATIO_CROUTE('dist',x,cas,c,opts,mode), mode 'cdf' or 'pdf';
@@ -58,6 +63,15 @@ switch op
         % the MATLAB engines, a method other than 'auto', verified and opts.engine = 'classical' keep the classical
         % programs, as LTRATIO of the MEX folder, the Julia package and the R and Python packages do)
         cas = varargin{1}; opts = varargin{2}; extra = {}; if numel(varargin) > 2, extra = varargin{3}; end %#ok<NASGU>
+        inv = numel(varargin) > 3 && varargin{4};
+        if inv
+            % (the options of the single inversion: method, tol, verified; the representations named go to the C router
+            % with the coefficient statistic, which passes them to the engines as its method)
+            ok = isstruct(opts) && all(ismember(fieldnames(opts),[{'c0','g0','start','gls','engine','method','verified','tol'} extra]));
+            if ok && isfield(opts,'engine') && ~isempty(opts.engine), ok = (ischar(opts.engine) || isstring(opts.engine)) && any(strcmpi(char(opts.engine),{'auto','classical','general'})); end
+            if ok && isfield(opts,'method') && ~isempty(opts.method), ok = imethod_(opts) >= 0; end
+            varargout = {ok && ltratio_croute('on')}; return
+        end
         varargout = {ltratio_croute('plain',opts,extra) && ltratio_croute('on')};
     case 'usemethod'
         % (ltratio_dist, ltratio_icdf: a design, or engine = 'general', with opts.method 'line' or 'paths', the general
@@ -105,21 +119,28 @@ switch op
         varargout = {q,info};
     case 'mom'
         [p,cas,c,opts] = varargin{:};
-        [spec,e,c0] = spec_(cas,c,opts);
+        [spec,e,c0] = spec_(cas,c,iopts_(opts),'inv');
         if ~(isnumeric(p) && isscalar(p) && p == round(p) && p >= 1), error('ltratio:args','ltratio_mom: p must be a positive integer.'); end
-        m = ltratio_mex('route','mom',e,spec{:},double(p),double(c),double(c0));
-        varargout = {m,struct('err',NaN(size(m)),'engine','C router')};
-    case {'coef','coeficdf'}
+        [m,er] = ltratio_mex('route','mom',e,spec{:},double(p),double(c),double(c0),imethod_(opts),getf_(opts,'tol',NaN),getf_(opts,'verified',0));
+        varargout = {m,struct('err',er,'engine','C router')};
+    case {'coef','coeficdf','coefpdf'}
         [y,cas,c,opts] = varargin{:};
-        [spec,e,c0] = spec_(cas,c,rmf_(opts,'tol'));
-        if strcmp(op,'coef')
-            if ~(isnumeric(y) && isreal(y)), error('ltratio:args','coef_cdf: y must be real.'); end
-            v = ltratio_mex('route','coefcdf',e,spec{:},double(y),double(c),double(c0));
+        [spec,e,c0] = spec_(cas,c,iopts_(opts),'inv');
+        im = imethod_(opts); vf = getf_(opts,'verified',0);
+        if any(strcmp(op,{'coef','coefpdf'}))
+            if ~(isnumeric(y) && isreal(y)), error('ltratio:args','%s: y must be real.',strrep(op,'coef','coef_cdf')); end
+            w = 'coefcdf'; if strcmp(op,'coefpdf'), w = 'coefpdf'; end
+            [v,er] = ltratio_mex('route',w,e,spec{:},double(y),double(c),double(c0),im,getf_(opts,'tol',NaN),vf);
         else
             if ~(isnumeric(y) && isreal(y) && all(y(:) > 0 & y(:) < 1)), error('ltratio:args','coef_icdf: p must lie in (0,1).'); end
-            v = ltratio_mex('route','coeficdf',e,spec{:},double(y),double(c),double(c0),getf_(opts,'tol',1e-9));
+            [v,er] = ltratio_mex('route','coeficdf',e,spec{:},double(y),double(c),double(c0),getf_(opts,'tol',1e-9),im,vf);
         end
-        varargout = {reshape(v,size(y))};
+        varargout = {reshape(v,size(y)),reshape(er,size(y))};
+    case 'coefmom'
+        [p,cas,c,opts] = varargin{:};
+        [spec,e,c0] = spec_(cas,c,iopts_(opts),'inv');
+        [m,er] = ltratio_mex('route','coefmom',e,spec{:},double(p),double(c),double(c0),imethod_(opts),getf_(opts,'tol',NaN));
+        varargout = {m,er};
     case 'adfmax'
         [x,cas,c,opts,mode] = varargin{:};
         [spec,e] = spec_(cas,c,opts,'adfmax');
@@ -133,21 +154,18 @@ switch op
         if ~(isnumeric(a) && isscalar(a) && isreal(a)), error('ltratio:args','ltratio_lincdf: a must be a real scalar (NaN: the distribution of V).'); end
         if ~(isnumeric(b) && isreal(b)), error('ltratio:args','ltratio_lincdf: b must be real.'); end
         e = engine_(opts); cb = getf_(opts,'cbar',NaN);
+        im = imethod_(opts); io = {im, getf_(opts,'tol',NaN), getf_(opts,'verified',0)};
         if ischar(cas) || isstring(cas)
             cs = upper(char(cas)); if strcmp(cs,'DU'), cs = 'DK'; end
             if ~any(strcmp(cs,{'DK','DG'})), error('ltratio:args','ltratio_lincdf: the case must be DK or DG.'); end
+            [P,er] = ltratio_mex('route','lincdf',e,[1 + 3*strcmp(cs,'DG') 0 0],double(b),double(c),double(a),double(cb),io{:});
         else
-            S = ltratio_spec(cas,opts); cs = '';
-            if strcmp(S.start,'zero') && any(strcmp(S.case,{'DK','DG'})), cs = S.case; cb = NaN; end
+            % (a design: the router's linear form, the six classical cases by the single inversion of Bao and Kan, the other
+            % designs by the general engine)
+            S = ltratio_spec(cas,opts); d = design_(S.D); sc = struct('zero',0,'fixed',1,'stationary',2); gls = NaN; if ~isempty(S.gls), gls = S.gls; end
+            [P,er] = ltratio_mex('route','lincdf',e,0,d{:},sc.(S.start),S.g0,gls,double(b),double(c),double(a),NaN,io{:});
         end
-        if ~isempty(cs)
-            P = ltratio_mex('route','lincdf',e,[1 + 3*strcmp(cs,'DG') 0 0],double(b),double(c),double(a),double(cb));
-        else
-            % (a design that the router's linear form, which takes the cases DK and DG, does not have: the general engine in C)
-            d = design_(S.D);
-            P = ltratio_mex('det','lincdf',d{:},double(b),double(a),double(c),detopts_(S,0));
-        end
-        varargout = {reshape(P,size(b))};
+        varargout = {reshape(P,size(b)),reshape(er,size(b))};
     case 'envelope'
         [c,cas,opts] = varargin{:};
         e = engine_(opts); alpha = getf_(opts,'alpha',0.05);
@@ -165,14 +183,15 @@ switch op
                 end
             end
         end
+        er = NaN(size(c));
         if ~isempty(cs)
-            P = ltratio_mex('route','envelope',e,[1 + 3*strcmp(cs,'DG') 0 0],double(c),double(alpha));
+            [P,er] = ltratio_mex('route','envelope',e,[1 + 3*strcmp(cs,'DG') 0 0],double(c),double(alpha),imethod_(opts),getf_(opts,'tol',NaN),getf_(opts,'verified',0));
         else
             % (another design: the envelope of the general construction, the point-optimal statistic against cbar = c, in C)
             d = design_(cas);
             P = ltratio_mex('det','ptenvelope',d{:},double(c),double(alpha));
         end
-        varargout = {reshape(P,size(c))};
+        varargout = {reshape(P,size(c)),reshape(er,size(c))};
     case 'region'
         [bnd,cas,c,opts] = varargin{:};
         if ~(isnumeric(c) && isscalar(c) && isreal(c) && isfinite(c)), error('ltratio:args','ltratio_region: c must be a finite real scalar.'); end
@@ -206,6 +225,7 @@ c0 = getf_(opts,'c0',0); g0 = getf_(opts,'g0',0);
 if ischar(cas) || isstring(cas)
     cs = upper(char(cas));
     if isempty(what), ltratio_args(cs,c,rmf_(oc,'method')); end        % (the errors of the MATLAB routines; ADFmax: adfmax_dist checks; the general engine's methods checked by the router)
+    if strcmp(what,'inv'), ltratio_args(cs,c,rmf_(oc,'method'),false); end   % (the single inversion: the checks of the C and Julia engines)
     if strcmp(cs,'DG'), spec = {[4 0 0]}; return, end
     if ~(numel(cs) == 2 && any(cs(1) == 'DS') && any(cs(2) == 'KUT')), error('ltratio:args','ltratio: the case must be one of DK, DU, DT, SK, SU, ST, DG.'); end
     st = 0; if cs(1) == 'S', st = 2; elseif g0 ~= 0, st = 1; end
@@ -247,6 +267,29 @@ end
 function e = engine_(opts)
 e = 0;
 if isfield(opts,'engine') && ~isempty(opts.engine) && strcmpi(char(opts.engine),'general'), e = 2; end
+if isfield(opts,'engine') && ~isempty(opts.engine) && strcmpi(char(opts.engine),'classical'), e = 1; end
+end
+
+function m = imethod_(opts)
+% opts.method of the routines with the devices of Bao and Kan as the C router's code (dfl_inv_opts): 0 'auto', 5
+% 'inversion' or 'jets', 6 'engine', 1..3 the representations of the t-ratio ('single' or 'line', 'double' or
+% 'conditional', 'contour'); -1 another
+m = 0; if ~isfield(opts,'method') || isempty(opts.method), return, end
+if ~(ischar(opts.method) || isstring(opts.method)), m = -1; return, end
+switch lower(char(opts.method))
+    case 'auto', m = 0;
+    case {'inversion','jets'}, m = 5;
+    case 'engine', m = 6;
+    case {'single','line'}, m = 1;
+    case {'double','conditional'}, m = 2;
+    case 'contour', m = 3;
+    otherwise, m = -1;
+end
+end
+
+function o = iopts_(opts)
+% the options without those of the single inversion (for the checks of the classical programs in spec_)
+o = rmf_(rmf_(rmf_(opts,'tol'),'method'),'verified');
 end
 
 function o = rmf_(o,f)

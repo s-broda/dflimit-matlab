@@ -1,4 +1,4 @@
-function [cas,c,c0,g0,method] = ltratio_args(cas,c,opts)
+function [cas,c,c0,g0,method] = ltratio_args(cas,c,opts,engines)
 %LTRATIO_ARGS  Validation of the arguments of the LTRATIO functions.
 %
 %   [cas,c,c0,g0,method] = LTRATIO_ARGS(cas,c,opts) checks the case ('DK',
@@ -69,7 +69,10 @@ if g0 ~= 0 && any(strcmp(cas,{'DK','DU','DT'}))
         otherwise, ok = c >= -100 && c <= 2 && abs(g0) <= 3 && l <= 7200;
     end
     if ~ok, error('ltratio:args','ltratio: with a fixed start g0 != 0 the programs are checked in case DK for c <= 2, |g0| <= 2 (|g0| <= 1 for c > 0), in case DU for -100 <= c <= 2, |g0| <= 1.5 and (c g0)^2/2 <= 4050, in case DT for -100 <= c <= 2, |g0| <= 3 and (c g0)^2/2 <= 7200.'); end
-    if (~dut || strcmp(method,'double')) && c < -20 && ~(c >= -40 && l <= 100), error('ltratio:args','ltratio: with a fixed start g0 ~= 0 the conditional integral of the MATLAB programs (case DK, and opts.method = ''double'' in cases DU, DT) is checked for c >= -20, and for c >= -40 where (c g0)^2/2 <= 100; in case DK the MEX file (c/mex) and the Julia engine, which have the line integral, cover the other fixed-start bounds without it (all c <= 2), and in cases DU, DT the contour integral (opts.method ''auto'' or ''contour'') covers them down to c = -100.'); end
+    if nargin < 4, engines = true; end
+    % (engines false: the checks of the classical engines of DFLimit.jl and the C engine alone, for the single inversion
+    % of Bao and Kan, which does not take the conditional integral)
+    if engines && (~dut || strcmp(method,'double')) && c < -20 && ~(c >= -40 && l <= 100), error('ltratio:args','ltratio: with a fixed start g0 ~= 0 the conditional integral of the MATLAB programs (case DK, and opts.method = ''double'' in cases DU, DT) is checked for c >= -20, and for c >= -40 where (c g0)^2/2 <= 100; in case DK the MEX file (c/mex) and the Julia engine, which have the line integral, cover the other fixed-start bounds without it (all c <= 2), and in cases DU, DT the contour integral (opts.method ''auto'' or ''contour'') covers them down to c = -100.'); end
 end
 if strcmp(cas,'DG')                                  % the GLS-detrended trend case: zero start, the line integral only
     if g0 ~= 0, error('ltratio:args','ltratio: opts.g0 (a fixed start) applies to cases DK, DU, DT only.'); end
