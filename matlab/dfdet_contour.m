@@ -391,6 +391,10 @@ function ushape_guard(CP,U,tol)
 % seconds and some 0.8 GB (in Julia and C) before USHAPES refused, and is refused here before any inner integral.
 Mo = CP.Mo; rp = Mo.rp; fixed = strcmp(Mo.start,'fixed');
 A = U.A; n = U.n; alpha = U.alpha; c0s = U.c0s; c = CP.c;
+% (the t-ratio: the count of the present rule's U-shapes, so that the guard refuses what it refused before November 2026
+% whatever the rule of one evaluation: with the 16 nodes of the thin rule the count of the design (1 + r, 1{r <= 0.4})
+% stays below the cap where the transform matters, and USHAPES refused it only after seconds; contour_eval of DFDet.jl)
+if strcmp(U.mode,'tratio'), if fixed, n = max(n,48); else, n = max(n,24); end, end
 % (the counts of all nodes at once: the gap, the default abscissas, the branch points, the caps, as in USHAPES)
 gp = CP.R(1:rp,:); gm = CP.R(rp+1:end,:); K = size(CP.R,2);
 hi = min(real(gp),[],1); if Mo.rm > 0, lo = max(real(gm),[],1); else, lo = -Inf(1,K); end
@@ -482,15 +486,19 @@ nest = 2*hmx/min(hp,hm)*n;
 end
 
 function [sp,sm] = ufixed_place(CP,lm,c0s,gp,gm,hi,lo,sp,sm,tr,alpha,A,xq)
-% the abscissas of the U-shapes of the fixed start: where the largest |Mt| on the U-shape is smallest; above the unit
-% root the objective also counts the growth of the v-kernels of the upper tail (x up to xq > 0) on G+ left of the origin,
-% and with c0 > 0 the placement is searched right of the branch point -Re(t)/c0
+% the abscissas of the U-shapes of the fixed start: where the largest |Mt| on the U-shape is smallest.  The objective also
+% counts the growth e^{sigma^2 xq^2/(4 Re(t + c0 s))} of the v-kernels of the upper tail (x up to xq > 0, c0 the largest
+% positive one) on G+ left of the origin, at every c: until November 2026 only above the unit root, and in case DK near
+% it (c = 0, -0.5) G+ went left of the origin in the upper tail as well: one evaluation was off by 3e-7 at x = 9.7 (g0 =
+% 1), 7e-3 at x = 12, 1e39 at x = 20 (ufixed_place of DFDet.jl); counted at every c these points are within 1e-12 of the
+% classical programs and the bulk is unchanged (cases DU, DT, whose G+ stays right of the origin, bit for bit).  Above the
+% unit root with c0 > 0 the placement is searched right of the branch point -Re(t)/c0
 c = CP.c; Mo = CP.Mo;
-if c > 0, xg = xq; else, xg = 0; end
+xg = xq;
 lbp = -Inf;
 if c > 0, for c0 = c0s, if c0 > 0, lbp = max(lbp,-tr/c0); end, end, end
 if isfinite(lbp), sp0 = max(sp,lbp + alpha*(hi - lbp)); else, sp0 = sp; end
-c0p = 0; if c > 0 && any(c0s > 0), c0p = max(c0s(c0s > 0)); end
+c0p = 0; if any(c0s > 0), c0p = max(c0s(c0s > 0)); end
 if Mo.rm > 0
     sp = place(lm,gp,gm,1,max(lo,lbp),hi,A,sp0,xg,tr,c0p);
     sm = place(lm,gm,gp,-1,lo,min(hi,0),A,sm,0,tr,0);
