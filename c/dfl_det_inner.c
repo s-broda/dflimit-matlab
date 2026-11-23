@@ -948,9 +948,12 @@ int det_contour_eval(const det_path *CP, int nx, const double *xs, double c0, in
 {
     det_eval_opts o; if (o0) o = *o0; else det_eval_defaults(CP, &o);
     if (nx == 0) return 0;
-    {   /* the guard on the nodes of the U-shapes, before the outer sum */
+    {   /* the guard on the nodes of the U-shapes, before the outer sum.  (It counts the nodes of the present rule's
+         * U-shapes, so that it refuses what it refused before November 2026 whatever the rule of one evaluation: with the
+         * 16 nodes of the thin rule the count of the design (1 + r, 1{r <= 0.4}) stays below the cap where the transform
+         * matters, and ushapes refused it only after seconds; contour_eval of DFDet.jl) */
         double xq = 0; for (int ix = 0; ix < nx; ix++) xq = dmax(xq, xs[ix]);
-        if (ushape_guard(CP, &c0, 1, CP->Mo->a, o.n, o.alpha, o.tol, dmax(0.0, xq), err, errlen)) return 1;
+        if (ushape_guard(CP, &c0, 1, CP->Mo->a, imax(o.n, CP->Mo->start == 1 ? 48 : 24), o.alpha, o.tol, dmax(0.0, xq), err, errlen)) return 1;
     }
     double *vr = NULL;
     /* Filon's rule on the line for the t-ratio with one root of the parabola per x (filon_roots_x) */
