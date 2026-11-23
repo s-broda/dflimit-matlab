@@ -455,7 +455,9 @@ int dfl_icdf(int n, const double *p, int model, double c, double c0, double g0, 
     double m[2], me[2], mu, sd;
     if (model == 4) { mu = -1.9 + 0.1 * fmin(c, 0.0); sd = 0.8; }   /* (no moments for the GLS-detrended case: a rough start, the search is safeguarded) */
     else {
-        if (dfl_moments(model, c, c0, g0, stat, 2, m, me, err, errlen)) return 1;
+        /* (the start: the moments from jets of Bao and Kan, dfl_mom_start, 0.2 to 1 ms; otherwise this engine's circles, 10 to
+         * 150 ms) */
+        if (!dfl_mom_start(2, model, stat, c, c0, g0, m) && dfl_moments(model, c, c0, g0, stat, 2, m, me, err, errlen)) return 1;
         mu = m[0]; sd = sqrt(fmax(m[1] - m[0] * m[0], 1e-6));
     }
     if (!(tol > 0)) tol = 1e-10;

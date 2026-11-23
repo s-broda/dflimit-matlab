@@ -272,11 +272,15 @@ static double erfinv_(double y)
     for (int it = 0; it < 3; it++) x -= (erf(x) - y) / (2 / sqrt(M_PI) * exp(-x * x));
     return x;
 }
-/* the general engine's quantiles, started at the normal approximation from the moments (gen_icdf) */
+/* the general engine's quantiles, started at the normal approximation from the moments (gen_icdf): from jets in the six
+ * classical cases (dfl_mom_start), otherwise from the engines' moments where they have them */
 static int gen_icdf(int n, const double *p, const spec_t *R, double c, double c0, double tol, int gm, double *q, char *err, size_t errlen)
 {
     double x0 = -2.0, sd = 1.0, m[2], me[2]; int have = 0;
-    if (R->model != 0 && R->model != 4 && classical_valid(R, c, c0, 0) && dfl_autoengine(DFL_F_MOM, R->model, R->stat, R->g0, R->gls, c, c0, 0.0) == DFL_ENGINE_CLASSICAL) {
+    int cv = R->model != 0 && R->model != 4 && classical_valid(R, c, c0, 0);
+    if (cv) have = dfl_mom_start(2, R->model, R->stat, c, c0, R->start == 1 ? R->g0 : 0.0, m);
+    if (have) {
+    } else if (cv && dfl_autoengine(DFL_F_MOM, R->model, R->stat, R->g0, R->gls, c, c0, 0.0) == DFL_ENGINE_CLASSICAL) {
         have = dfl_moments(R->model, c, c0, R->g0, R->stat, 2, m, me, err, errlen) == 0;
     } else if (!R->D->first) {
         dfl_det_opts o; det_opts_of(R, c0, 0, &o);
@@ -299,7 +303,11 @@ static int routed_icdf(int n, const double *p, const spec_t *R, double c, double
     double mu, sd, m[2], me[2];
     for (int k = 0; k < n; k++) if (!(p[k] > 0 && p[k] < 1)) { snprintf(err, errlen, "p must lie in (0, 1)"); return 1; }
     if (R->model == 4) { mu = -1.9 + 0.1 * dmin(c, 0.0); sd = 0.8; }
-    else { if (dfl_moments(R->model, c, c0, R->g0, R->stat, 2, m, me, err, errlen)) return 1; mu = m[0]; sd = sqrt(dmax(m[1] - m[0] * m[0], 1e-6)); }
+    else {
+        /* (the start: the moments from jets, dfl_mom_start, where they hold; otherwise the classical engine's circles) */
+        if (!dfl_mom_start(2, R->model, R->stat, c, c0, R->start == 1 ? R->g0 : 0.0, m) && dfl_moments(R->model, c, c0, R->g0, R->stat, 2, m, me, err, errlen)) return 1;
+        mu = m[0]; sd = sqrt(dmax(m[1] - m[0] * m[0], 1e-6));
+    }
     dfl_spec S = {NULL, R->model, R->start, R->g0, R->gls};
     cwarn_t cw = {""};
     int rc = 0;

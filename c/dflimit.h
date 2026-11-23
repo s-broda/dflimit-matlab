@@ -353,6 +353,14 @@ int dfl_power_envelope(int n, const double *c, int model, double alpha, const df
 #define DFL_PT_INV_CMAX 4.0    /* the same for the point-optimal statistic of the general engine (PT_INV_CMAX) */
 #define DFL_GP_INV_CMAX 5.0    /* and for its coefficient statistic by Gil-Pelaez (GP_INV_CMAX) */
 
+/* The first p moments of the t-ratio of a classical case (model 1, 2, 3; c0, the fixed start g0, stat) from jets, for the
+ * start of the quantile searches (dfl_icdf, dfl_engine_icdf; mom_start of merged.jl, after Bao and Kan): 1 with m[0..p-1],
+ * or 0 outside their region (c > DFL_INV_CMAX, case DG), where they fail or where an error estimate exceeds 1e-6 relative;
+ * the searches then start from the engines' moments.  DFL_MOM_START = 0 (1 by default) restores the start from the
+ * engines' moments, as before November 2026 (for checking) */
+int dfl_mom_start(int p, int model, bool stat, double c, double c0, double g0, double *m);
+extern int DFL_MOM_START;
+
 /* ---- the user-level entry points (dfl_api.c) ---- */
 /* the validation shared by the entry points (and dfl_moments): the model, c (finite, at least DFL_CMIN), c0, g0, the start */
 int dfl_check_args(int model, double c, double c0, double g0, bool stat, char *err, size_t errlen);
