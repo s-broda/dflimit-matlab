@@ -373,17 +373,18 @@ errline("lmq", 3, NaN, 0, 0.0, 11.0, 0.0, 0.0, [0.05], "must be at most 10")
 errline("lmpow", 3, NaN, 0, 0.0, 0.0, 0.0, 0.05, [-5.0, 11.0], "must be at most 10")
 # the guard on the U-shapes of the zero start: (1 + r, 1{r < 0.4}) at c = 1
 errline("cdf", 19, NaN, 0, 0.0, 1.0, 0.0, 0.0, [-2.0], "the U-shapes of the zero start")
-# the point-optimal statistic: the last values below the refusal and the first refused c (linear trend at cbar = -13.5,
-# intercept at -7, Perron B and C at 0.5), q beyond the range of the grid, the non-finite q; c = 5 with N = 1e6
-# ('ptcdfN': the field c0 carries N)
+# the point-optimal statistic on the fixed grid ('ptcdfG', method = :grid; the default, the single inversion of Bao and
+# Kan up to c = 4, has no such refusals): the last values below the refusal and the first refused c (linear trend at
+# cbar = -13.5, intercept at -7, Perron B and C at 0.5), q beyond the range of the grid; the non-finite q; c = 5 with
+# N = 1e6 ('ptcdfN': the field c0 carries N)
 qq = [4.0, 10.0, 30.0]
 for (id, cb, cok, cno) in ((3, -13.5, 3.6, 3.7), (2, -7.0, 3.0, 3.1), (8, -17.8, 4.3, 4.4), (24, -20.0, 4.2, 4.3))
     id == 24 && !haskey(designs, 24) && defd(24, "perron C 1 0.5", DG.perron(:C, 0.5))
-    val("ptcdf", id, cb, 0, 0.0, cok, 0.0, 0, cb, qq, () -> DG.pt_cdf(designs[id], qq, cb, cok))
-    errline("ptcdf", id, cb, 0, 0.0, cno, 0.0, cb, qq, "does not resolve")
+    val("ptcdfG", id, cb, 0, 0.0, cok, 0.0, 0, cb, qq, () -> DG.pt_cdf(designs[id], qq, cb, cok; method = :grid))
+    errline("ptcdfG", id, cb, 0, 0.0, cno, 0.0, cb, qq, "does not resolve")
 end
 val("ptcdf", 3, -13.5, 0, 0.0, 0.0, 0.0, 0, -13.5, [1e3, Inf, -Inf, NaN], () -> DG.pt_cdf(designs[3], [1e3, Inf, -Inf, NaN], -13.5, 0.0))
-errline("ptcdf", 3, -13.5, 0, 0.0, 0.0, 0.0, -13.5, [1e5], "beyond the range")
+errline("ptcdfG", 3, -13.5, 0, 0.0, 0.0, 0.0, -13.5, [1e5], "beyond the range")
 val("ptcdfN", 3, -13.5, 0, 0.0, 5.0, 1e6, 0, -13.5, [73.28, 100.0], () -> DG.pt_cdf(designs[3], [73.28, 100.0], -13.5, 5.0; N = 1_000_000))
 # p outside (0, 1): an error, not a growing bracket
 for (fn, id, cb, par) in (("linq", 1, NaN, -3.5), ("adfq", 2, NaN, -2.0), ("ptq", 3, -13.5, -13.5), ("quant", 3, NaN, -2.0), ("coefq", 3, NaN, -10.0),

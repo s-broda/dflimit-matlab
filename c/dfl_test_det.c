@@ -141,6 +141,7 @@ static int val_call(const char *fn0, int id, double cb, int st, double g0, doubl
     else if (!strcmp(fn, "adfq")) rc = dfl_det_adfmax_quantile(&DS[id], x[0], c, par, 1e-10, &o, got, err, 512);
     else if (!strcmp(fn, "env")) rc = dfl_det_power_envelope(&DS[id], n, x, par, got, err, 512);
     else if (!strcmp(fn, "ptcdf")) rc = dfl_det_pt(2, &DS[id], n, x, par, c, 0, 0, got, err, 512);
+    else if (!strcmp(fn, "ptcdfG")) rc = dfl_det_pt_x(2, &DS[id], n, x, par, c, DFL_METHOD_GRID, 0, 0, NAN, got, NULL, err, 512);   /* (the fixed grid) */
     else if (!strcmp(fn, "ptcdfN")) rc = dfl_det_pt(2, &DS[id], n, x, par, c, (int) c0, 0, got, err, 512);   /* (c0 carries N) */
     else if (!strcmp(fn, "ptpdf")) rc = dfl_det_pt(1, &DS[id], n, x, par, c, 0, 0, got, err, 512);
     else if (!strcmp(fn, "ptq")) rc = dfl_det_pt_quantile(&DS[id], x[0], par, 0, 0, got, err, 512);

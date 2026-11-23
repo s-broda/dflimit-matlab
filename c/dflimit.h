@@ -497,6 +497,12 @@ int dfl_det_quantile(const dfl_design *D, int n, const double *p, double c, doub
 int dfl_det_coef(int kind, const dfl_design *D, int n, const double *y, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
 int dfl_det_coef_quantile(const dfl_design *D, int n, const double *p, double c, double y0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen);
 int dfl_det_coef_cdf_gp(const dfl_design *D, int n, const double *y, double c, const dfl_det_opts *o, int N, double umax, double *out, char *err, size_t errlen);
+/* coef_cdf_gp by default (a zero or stationary start, c <= DFL_GP_INV_CMAX) the single inversion of Bao and Kan with the
+ * branch of the square root of the determinant from the pivots at each point, tol (NaN or 0: 1e-12) its absolute
+ * tolerance, errest (may be NULL) its estimates; method DFL_METHOD_GRID (or N, umax > 0, or a fixed start) the fixed grid
+ * of before with its refusal, DFL_METHOD_INVERSION forces the single inversion; a warning names the points whose estimate
+ * exceeds the tolerance */
+int dfl_det_coef_cdf_gp_x(const dfl_design *D, int n, const double *y, double c, const dfl_det_opts *o, int method, int N, double umax, double tol, double *out, double *errest, char *err, size_t errlen);
 /* the moments E tau^k, k = 1..pmax, and the differences to the rule of twice the step (dist_moments; errest may be NULL) */
 int dfl_det_moments(const dfl_design *D, double c, int pmax, const dfl_det_opts *o, double *m, double *errest, char *err, size_t errlen);
 /* the asymptotic local power at c[0..n-1] of the level test of phi = 1 + c0/n (statistic 0: the t-ratio, 1: the
@@ -514,12 +520,22 @@ int dfl_det_adfmax_quantile(const dfl_design *D, double p, double c, double x0, 
 /* P{U <= g(V)}: type 1 the line g(v) = par[1] + par[0] v, type 2 the parabola par[0] sqrt(v) + par[1] v (region_prob) */
 int dfl_det_region(const dfl_design *D, int type, const double *par, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
 /* the companions: the point-optimal statistic against cbar and its envelope (pt_cdf, pt_pdf, pt_quantile, pt_power,
- * pt_envelope; zero start, Gil-Pelaez with N steps to umax: 0 for 60000, 4000), the LM statistic (lm_cdf, lm_quantile,
- * lm_power), MZ_alpha and MSB with the data GLS-detrended at gls (mza_cdf, mza_quantile, msb_cdf, msb_quantile) */
+ * pt_envelope; zero start; by default the single inversion of Bao and Kan up to c = DFL_PT_INV_CMAX, the inversion of
+ * Gil-Pelaez on a grid of N steps to umax beyond or where N or umax is given (0 for 60000, 4000)), the LM statistic (lm_cdf,
+ * lm_quantile, lm_power), MZ_alpha and MSB with the data GLS-detrended at gls (mza_cdf, mza_quantile, msb_cdf, msb_quantile) */
 int dfl_det_pt(int kind, const dfl_design *D, int n, const double *q, double cbar, double c, int N, double umax, double *out, char *err, size_t errlen);
 int dfl_det_pt_quantile(const dfl_design *D, double p, double cbar, int N, double umax, double *q, char *err, size_t errlen);
 int dfl_det_pt_power(const dfl_design *D, double cbar, double c, double level, int N, double umax, double *b, double *power, char *err, size_t errlen);
 int dfl_det_pt_envelope(const dfl_design *D, int n, const double *cs, double level, int N, double umax, double *out, char *err, size_t errlen);
+/* the same with the method (pt_method): 0 automatic, the single inversion of Bao and Kan up to c = DFL_PT_INV_CMAX (the
+ * branch of the transform from the pivots, the tail completed by integration by parts, no limit on q; regula falsi for the
+ * quantiles with the values along the ray kept), the fixed grid beyond and where N or umax is given (> 0); DFL_METHOD_GRID
+ * the grid of before with its refusals; DFL_METHOD_INVERSION forces the single inversion; tol (NaN or 0: 1e-12), errest
+ * (may be NULL) the estimates (NaN on the grid); a warning names the points whose estimate exceeds the tolerance */
+int dfl_det_pt_x(int kind, const dfl_design *D, int n, const double *q, double cbar, double c, int method, int N, double umax, double tol, double *out, double *errest, char *err, size_t errlen);
+int dfl_det_pt_quantile_x(const dfl_design *D, double p, double cbar, int method, int N, double umax, double tol, double *q, double *errest, char *err, size_t errlen);
+int dfl_det_pt_power_x(const dfl_design *D, double cbar, double c, double level, int method, int N, double umax, double tol, double *b, double *power, char *err, size_t errlen);
+int dfl_det_pt_envelope_x(const dfl_design *D, int n, const double *cs, double level, int method, int N, double umax, double tol, double *out, char *err, size_t errlen);
 int dfl_det_lm_cdf(const dfl_design *D, int n, const double *x, double c, double *out, char *err, size_t errlen);
 int dfl_det_lm_quantile(const dfl_design *D, double p, double c, double *q, char *err, size_t errlen);
 int dfl_det_lm_power(const dfl_design *D, int n, const double *cs, double level, double *q, double *out, char *err, size_t errlen);

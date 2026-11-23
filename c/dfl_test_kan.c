@@ -5,6 +5,7 @@
  * t-ratio and of the coefficient statistic from jets, the closed form at zero; each kind of line with its own tolerance
  * (at least ten times the largest difference measured on macOS, November 2026), and the largest difference per kind is
  * printed.  The program ends with a line that counts the checks and the failures. */
+#include "dfl_det_int.h"
 #include "dfl_kan_int.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,8 @@ static kind_t KINDS[] = {
     {"coefq", 1e-8, 0, 0, 0}, {"lin", 1e-11, 0, 0, 0}, {"env", 1e-11, 0, 0, 0}, {"tmom", 1e-10, 0, 0, 0}, {"cmom", 1e-10, 0, 0, 0},
     {"ray", 1e-13, 0, 0, 0}, {"rcoef", 1e-11, 0, 0, 0}, {"rcoefpdf", 1e-11, 0, 0, 0}, {"rcoefq", 1e-8, 0, 0, 0}, {"rcoefmom", 1e-10, 0, 0, 0},
     {"rmom", 1e-10, 0, 0, 0}, {"rlin", 1e-11, 0, 0, 0}, {"renv", 1e-11, 0, 0, 0}, {"self", 0, 0, 0, 0},
+    {"dcf", 1e-10, 0, 0, 0}, {"ptcdf", 1e-11, 0, 0, 0}, {"ptpdf", 1e-11, 0, 0, 0}, {"ptq", 1e-10, 0, 0, 0}, {"ptpow", 1e-10, 0, 0, 0},
+    {"ptenv", 1e-11, 0, 0, 0}, {"gp", 1e-11, 0, 0, 0},
 };
 static kind_t *kind(const char *tag) { for (size_t i = 0; i < sizeof KINDS / sizeof KINDS[0]; i++) if (!strcmp(KINDS[i].tag, tag)) return &KINDS[i]; return NULL; }
 static int nfail = 0, ntot = 0;
@@ -80,6 +83,77 @@ static int router_line(FILE *f, const char *tag)
     return 0;
 }
 
+/* a design of the lines of the general engine: D kind np par.. (kind 0 trend(par), 1, 2, 3 Perron's models A, B, C) */
+static int read_design(FILE *f, dfl_design *D, char *desc, size_t dl)
+{
+    char t[8]; int kind, np; double par[8]; char err[256];
+    if (fscanf(f, "%7s %d %d", t, &kind, &np) != 3 || strcmp(t, "D") || np < 1 || np > 8) return 1;
+    for (int k = 0; k < np; k++) if (!rd(f, &par[k])) return 1;
+    int rc = kind == 0 ? dfl_design_trend((int) par[0], D, err, sizeof err) : dfl_design_perron("ABC"[kind - 1], np, par, D, err, sizeof err);
+    if (rc) { printf("design: %s\n", err); return 1; }
+    if (kind == 0) snprintf(desc, dl, "trend(%g)", par[0]); else snprintf(desc, dl, "perron(%c, %g%s)", "ABC"[kind - 1], par[0], np > 1 ? ", ..." : "");
+    return 0;
+}
+/* the lines of the general engine: 0, or 1 at the end of the file */
+static int general_line(FILE *f, const char *tag)
+{
+    char err[512], what[300], ds[64]; dfl_design D; double x[64], v[64], got[64], est[64];
+    if (read_design(f, &D, ds, sizeof ds)) return 1;
+    int rc = 0, n = 0;
+    if (!strcmp(tag, "dcf")) {
+        int st; double gls, c, t1, t2; cdouble L;
+        if (!(fscanf(f, "%d", &st) == 1 && rd(f, &gls) && rd(f, &c) && rd(f, &t1) && rd(f, &t2) && rdc(f, &L))) { dfl_design_free(&D); return 1; }
+        det_prep *P = det_prep_cached(&D, gls, err, sizeof err); det_model Mo;
+        if (!P || det_model_make(P, st, 0.0, &Mo, err, sizeof err)) { printf("FAIL dcf: %s\n", err); nfail++; dfl_design_free(&D); return 0; }
+        det_cf *F = det_cf_new(&Mo, c, 0);
+        cdouble Lc = det_cf_logcf(F, t1, t2);
+        snprintf(what, sizeof what, "%s start %d gls %g c = %g at (%g, %g): %.15g%+.15gi vs %.15g%+.15gi", ds, st, gls, c, t1, t2, creal(Lc), cimag(Lc), creal(L), cimag(L));
+        check(tag, cdist(Lc, L) / fmax(1.0, cabs(L)), what);
+        det_cf_free(F); det_model_free(&Mo); det_prep_release(P); dfl_design_free(&D);
+        return 0;
+    }
+    if (!strcmp(tag, "ptcdf") || !strcmp(tag, "ptpdf")) {
+        double cbar, c; if (!(rd(f, &cbar) && rd(f, &c) && fscanf(f, "%d", &n) == 1 && n <= 64)) { dfl_design_free(&D); return 1; }
+        for (int k = 0; k < n; k++) rd(f, &x[k]);
+        for (int k = 0; k < n; k++) rd(f, &v[k]);
+        rc = dfl_det_pt_x(tag[2] == 'c' ? 2 : 1, &D, n, x, cbar, c, 0, 0, 0, NAN, got, est, err, sizeof err);
+        for (int k = 0; k < n; k++) {
+            snprintf(what, sizeof what, "%s cbar %g c = %g q = %g: %.15g vs %.15g (estimate %.2g) %s", ds, cbar, c, x[k], got[k], v[k], est[k], rc ? err : "");
+            check(tag, rc ? INFINITY : fabs(got[k] - v[k]) / (tag[2] == 'p' ? fmax(1.0, fabs(v[k])) : 1.0), what);
+        }
+    } else if (!strcmp(tag, "ptq")) {
+        double cbar, p, q, qc, e; if (!(rd(f, &cbar) && rd(f, &p) && rd(f, &q))) { dfl_design_free(&D); return 1; }
+        rc = dfl_det_pt_quantile_x(&D, p, cbar, 0, 0, 0, NAN, &qc, &e, err, sizeof err);
+        snprintf(what, sizeof what, "%s cbar %g p = %g: %.15g vs %.15g %s", ds, cbar, p, qc, q, rc ? err : "");
+        check(tag, rc ? INFINITY : fabs(qc - q) / fmax(1.0, fabs(q)), what);
+    } else if (!strcmp(tag, "ptpow")) {
+        double cbar, c, lev, b, P, bc, Pc; if (!(rd(f, &cbar) && rd(f, &c) && rd(f, &lev) && rd(f, &b) && rd(f, &P))) { dfl_design_free(&D); return 1; }
+        rc = dfl_det_pt_power(&D, cbar, c, lev, 0, 0, &bc, &Pc, err, sizeof err);
+        snprintf(what, sizeof what, "%s cbar %g c = %g: b %.15g vs %.15g, power %.15g vs %.15g %s", ds, cbar, c, bc, b, Pc, P, rc ? err : "");
+        check(tag, rc ? INFINITY : fmax(fabs(bc - b) / fmax(1.0, fabs(b)), fabs(Pc - P)), what);
+    } else if (!strcmp(tag, "ptenv")) {
+        double lev; if (!(rd(f, &lev) && fscanf(f, "%d", &n) == 1 && n <= 64)) { dfl_design_free(&D); return 1; }
+        for (int k = 0; k < n; k++) rd(f, &x[k]);
+        for (int k = 0; k < n; k++) rd(f, &v[k]);
+        rc = dfl_det_pt_envelope(&D, n, x, lev, 0, 0, got, err, sizeof err);
+        for (int k = 0; k < n; k++) {
+            snprintf(what, sizeof what, "%s level %g c = %g: %.15g vs %.15g %s", ds, lev, x[k], got[k], v[k], rc ? err : "");
+            check(tag, rc ? INFINITY : (isnan(v[k]) && isnan(got[k]) ? 0.0 : fabs(got[k] - v[k])), what);
+        }
+    } else if (!strcmp(tag, "gp")) {
+        int st; double gls, c, c0; if (!(fscanf(f, "%d", &st) == 1 && rd(f, &gls) && rd(f, &c) && rd(f, &c0) && fscanf(f, "%d", &n) == 1 && n <= 64)) { dfl_design_free(&D); return 1; }
+        for (int k = 0; k < n; k++) rd(f, &x[k]);
+        for (int k = 0; k < n; k++) rd(f, &v[k]);
+        dfl_det_opts o; dfl_det_defaults(&o); o.c0 = c0; o.start = st; o.gls = gls;
+        rc = dfl_det_coef_cdf_gp_x(&D, n, x, c, &o, 0, 0, 0, NAN, got, est, err, sizeof err);
+        for (int k = 0; k < n; k++) {
+            snprintf(what, sizeof what, "%s start %d gls %g c = %g c0 = %g y = %g: %.15g vs %.15g (estimate %.2g) %s", ds, st, gls, c, c0, x[k], got[k], v[k], est[k], rc ? err : "");
+            check(tag, rc ? INFINITY : (isnan(v[k]) && isnan(got[k]) ? 0.0 : fabs(got[k] - v[k])), what);
+        }
+    }
+    dfl_design_free(&D);
+    return 0;
+}
 /* the router's rules without reference values: the regions of the defaults (the error estimates NaN where the engines
  * compute), method DFL_METHOD_ENGINE as the computation of before (bit for bit), the refusals */
 #define SELF(cond, what) check("self", (cond) ? 0.0 : 1.0, what)
@@ -180,6 +254,7 @@ int main(int argc, char **argv)
             continue;
         }
         if (tag[0] == 'r' && strcmp(tag, "ray")) { if (router_line(f, tag)) break; continue; }
+        if (!strcmp(tag, "dcf") || !strncmp(tag, "pt", 2) || !strcmp(tag, "gp")) { if (general_line(f, tag)) break; continue; }
         int m, st; double c, g0;
         if (fscanf(f, "%d %d %lf %lf", &m, &st, &c, &g0) != 4) break;
         dfl_limcf F;

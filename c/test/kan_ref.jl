@@ -23,6 +23,14 @@
 #   rlin p start g0 c a n b.. P..                                  ltratio_lincdf(b, a, trend(p), c; g0, start) (p = -1 with a
 #                                                                  zero start: also the case code DK, model 1)
 #   renv alpha n c.. P..                                           power_envelope(c, "DK"; alpha)
+# and the general engine (a design: D kind np par.., kind 0 trend(par), 1, 2, 3 Perron's models A, B, C with np breaks):
+#   dcf D.. start gls c t1 t2 Lr Li                               DFDet.DetCF: logcf with the branch from the pivots
+#   ptcdf D.. cbar c n q.. P..                                     pt_cdf (the default: the single inversion up to c = 4)
+#   ptpdf D.. cbar c n q.. f..                                     pt_pdf
+#   ptq D.. cbar p q                                               pt_quantile
+#   ptpow D.. cbar c level b power                                 pt_power
+#   ptenv D.. level n c.. P..                                      pt_envelope
+#   gp D.. start gls c c0 n y.. P..                                coef_cdf_gp (the default: the single inversion up to c = 5)
 using Printf
 using DFLimit
 const K = DFLimit.DFKan
@@ -126,5 +134,51 @@ for (p, st, g0, c, a, bs) in ((-1, :zero, 0.0, 0.0, -3.5, [-0.2639, 0.5]), (-1, 
 end
 for (alpha, cs) in ((0.05, [-1e-4, -0.01, -1.0, -7.0, -13.5, -30.0, -500.0, 0.0, 1.0]), (0.01, [-10.0]), (0.1, [-2.0, -25.0]))
     line("renv", fmt(alpha), length(cs), vec(cs), vec(power_envelope(cs, "DK"; alpha)))
+end
+# ---- the general engine: the transform with the branch from the pivots, the point-optimal statistic, coef_cdf_gp ----
+G = DFLimit.DFDet
+dspec(kind, par) = kind == 0 ? ("D 0 1 " * fmt(par[1]), G.trend(Int(par[1]))) :
+    ("D $kind $(length(par)) " * join(fmt.(par), " "), G.perron((:A, :B, :C)[kind], length(par) == 1 ? par[1] : collect(par)))
+for (kind, par, st, cs) in ((0, (-1,), :zero, (-4.0, 0.0, 2.0)), (0, (0,), :zero, (-4.0, 0.0)), (0, (1,), :zero, (-4.0, 0.0, 3.0)), (0, (0,), :stationary, (-4.0, -20.0)),
+                            (0, (1,), :stationary, (-4.0,)), (0, (2,), :zero, (-5.0,)), (3, (0.5,), :zero, (-5.0, 1.0)), (2, (0.3,), :stationary, (-10.0,)))
+    ds, D = dspec(kind, par)
+    for c in cs
+        F = G.DetCF(G.startmodel(D, c, st, 0.0, nothing), c)
+        for (t1, t2) in ((0.3, -0.2), (4.0, 30.0), (-25.0, 700.0), (60.0, -2000.0), (1e-3, 0.5))
+            line("dcf", ds, ST[st], fmt(NaN), fmt(c), fmt(t1), fmt(t2), fmt(K.logcf(F, t1, t2)))
+        end
+    end
+end
+let (ds, D) = dspec(0, (1,)), c = -2.0
+    F = G.DetCF(G.startmodel(D, c, :zero, 0.0, -13.5), c)
+    for (t1, t2) in ((0.3, -0.2), (4.0, 30.0), (-25.0, 700.0))
+        line("dcf", ds, 0, fmt(-13.5), fmt(c), fmt(t1), fmt(t2), fmt(K.logcf(F, t1, t2)))
+    end
+end
+for (kind, par, cbar, c, qs) in ((0, (0,), -7.0, 0.0, [18.1014815, 3.0]), (0, (1,), -13.5, 4.0, [969.3008382]), (2, (0.5,), -17.8, 2.0, [16.5697]), (0, (0,), -7.0, 4.0, [2223.714162]),
+                                 (0, (1,), -13.5, -30.0, [1.5, 4.0]), (0, (1,), -13.5, 0.0, [5.0, 10.0, 2000.0]), (0, (2,), -20.0, -5.0, [6.0, 12.0]), (3, (0.3, 0.7), -20.0, -10.0, [5.0]))
+    ds, D = dspec(kind, par)
+    line("ptcdf", ds, fmt(cbar), fmt(c), length(qs), vec(qs), vec(pt_cdf(D, qs, cbar, c)))
+    line("ptpdf", ds, fmt(cbar), fmt(c), length(qs), vec(qs), vec(pt_pdf(D, qs, cbar, c)))
+end
+for (kind, par, cbar, p) in ((0, (1,), -13.5, 0.05), (0, (0,), -7.0, 0.05), (2, (0.5,), -17.8, 0.1), (0, (2,), -20.0, 0.5))
+    ds, D = dspec(kind, par)
+    line("ptq", ds, fmt(cbar), fmt(p), fmt(pt_quantile(D, p, cbar)))
+end
+for (kind, par, cbar, c, lev) in ((0, (1,), -13.5, -13.5, 0.05), (0, (0,), -7.0, -3.0, 0.05), (3, (0.5,), -20.0, -20.0, 0.1))
+    ds, D = dspec(kind, par)
+    b, P = pt_power(D, cbar, c; level = lev)
+    line("ptpow", ds, fmt(cbar), fmt(c), fmt(lev), fmt(b), fmt(P))
+end
+for (kind, par, lev, cs) in ((0, (0,), 0.05, [-7.0, NaN, 0.5]), (2, (0.5,), 0.05, [-17.8, -5.0]), (0, (2,), 0.1, [-20.0]))
+    ds, D = dspec(kind, par)
+    line("ptenv", ds, fmt(lev), length(cs), vec(cs), vec(pt_envelope(D, cs; level = lev)))
+end
+for (kind, par, st, gls, c, c0, ys) in ((0, (0,), :zero, nothing, -5.0, 0.0, [-13.83853904, -5.0]), (0, (2,), :zero, nothing, 0.0, 0.0, [-20.0]), (3, (0.3, 0.7), :zero, nothing, -13.5, 0.0, [-15.0]),
+                                       (0, (1,), :stationary, nothing, -13.5, 0.0, [-20.0]), (0, (0,), :zero, nothing, 5.0, 0.0, [9.942147816]), (3, (0.5,), :zero, nothing, -5.0, 0.0, [-15.0]),
+                                       (0, (1,), :zero, -13.5, 0.0, 0.0, [-20.0]), (0, (-1,), :zero, nothing, -5.0, 2.0, [-10.0, Inf, NaN]))
+    ds, D = dspec(kind, par)
+    P = coef_cdf_gp(D, ys, c; c0, start = st, gls)
+    line("gp", ds, ST[st], fmt(gls === nothing ? NaN : gls), fmt(c), fmt(c0), length(ys), vec(ys), vec(P))
 end
 close(out)
