@@ -481,5 +481,106 @@ end
 for m in 1:3, c in (1.0, 0.0, -2.0, -5.0, -10.0, -50.0, -80.0), c0 in (-3.0, 2.0)
     aline(1, m, 0, 0.0, NaN, c, c0, 0.0)
 end
+# ---------------------------------------------------------------------------------------------------------------------
+# the rules of one evaluation (DFLimit.jl fde1632 to 9c71860, November 2026).  'pregion id cbar start g0 c c0 rule': the rule
+# of the general engine's paths (path_region; 1 present, 2 thin, 3 inner, 4 outer, 5 fine, 6 finestep); 'val cdf#rule' and
+# so on: the values by a rule given; 'ctrrule c c0 g0 n hfac' and 'ctrval kind model c c0 g0 rule n x... nv v... tol' (rule 0
+# the rule of one evaluation, 1 the rule of before) the contour integral's rule and its one evaluation; 'condrule model stat
+# g0 c c0 n' and 'condval kind model stat c c0 g0 N n x... nv v... tol' (N 0 the rule, 96 the nodes of before) the
+# conditional integral's; 'momstart model stat g0 c c0 has m1 m2 tol' the start of the quantile searches from jets; the
+# repaired placement of the fixed start, the cells of the router and the quantiles by its searches.  Where both engines take
+# the same rule the values agree to 3.7e-14 (the paths), 2.3e-14 (the contour integral) and 7.1e-13 (the conditional
+# integral), the quantiles to 5.6e-11 (the searches stop at 1e-10): the tolerances are 1e-11 and 1e-9
+const DX = DFLimit.DFExact
+RULES = (:auto, :present, :thin, :inner, :outer, :fine, :finestep)
+for (id, cb) in ((1, NaN), (2, NaN), (3, NaN), (10, NaN), (3, -13.5)), st in (0, 1, 2), c in (-100.0, -61.0, -60.0, -30.0, -5.0, -1.0, -0.999, -0.5, 0.0, 0.5, 2.0, 2.5, 5.0, 5.5)
+    (st == 2 && c >= 0) && continue
+    (!isnan(cb) && st != 0) && continue
+    g0 = st == 1 ? 1.0 : 0.0
+    for c0 in unique((0.0, -5.0, 2.0, c))
+        r = DG.path_region(DG.startmodel(designs[id], c, startsym(st), g0, isnan(cb) ? nothing : cb), c, c0)
+        println(io, join(["pregion", string(id), fmt(cb), string(st), fmt(g0), fmt(c), fmt(c0), string(findfirst(==(r), RULES) - 1)], " "))
+    end
+end
+# the values of the default rule in each region, and of every rule at two configurations
+xr = [-3.5, -2.3, -0.7, 0.4]
+for (id, cb, st, g0, c, c0, xs) in (
+        (3, NaN, 0, 0.0, -5.0, 2.0, xr), (10, NaN, 0, 0.0, -13.5, 0.0, xr), (3, NaN, 2, 0.0, -5.0, -2.0, xr), (3, -13.5, 0, 0.0, -5.0, 2.0, xr),
+        (1, NaN, 1, 1.0, -5.0, 2.0, xr), (2, NaN, 0, 0.0, -30.0, -5.0, [-6.0, -4.5, -3.0]),                              # thin
+        (1, NaN, 0, 0.0, 0.0, -5.0, [-1.0, 2.0, 8.0, 16.0]), (2, NaN, 2, 0.0, -0.5, -2.0, xr), (1, NaN, 1, 1.0, 0.5, 0.0, [-2.0, 0.0, 2.5, 6.0]),  # inner
+        (2, NaN, 1, 1.0, 0.5, -5.0, [-2.0, 2.0, 8.0, 16.0]), (3, NaN, 1, 1.0, 0.0, -2.0, [-3.0, -1.0, 2.0, 6.0]),        # fine
+        (1, NaN, 1, 1.0, 0.5, -5.0, [7.435, 16.304, 25.173, 34.042]), (1, NaN, 1, 1.5, 0.0, -1.0, [-1.0, 1.0, 4.0, 9.0]),  # finestep
+        (2, NaN, 1, 1.0, 3.0, 0.0, [-1.0, 1.0, 3.0]), (1, NaN, 0, 0.0, -100.0, 2.0, [-15.5, -14.8, -14.0]))              # present
+    D = designs[id]; k = kw4(cb, st, g0, c0)
+    val("cdf", id, cb, st, g0, c, c0, 0, 0.0, xs, () -> DG.dist_cdf(D, xs, c; k...); tol = 1e-11)
+    val("pdf", id, cb, st, g0, c, c0, 0, 0.0, xs, () -> DG.dist_pdf(D, xs, c; k...); tol = 1e-11)
+end
+for (id, st, g0, c, c0, xs) in ((3, 0, 0.0, -5.0, 2.0, xr), (1, 1, 1.0, 0.5, -5.0, [7.435, 16.304, 25.173]), (8, 1, 1.0, -5.0, 0.0, xr)), r in RULES[2:end]
+    D = designs[id]; k = kw4(NaN, st, g0, c0)
+    val("cdf#$r", id, NaN, st, g0, c, c0, 0, 0.0, xs, () -> DG.dist_cdf(D, xs, c; k..., rule = r); tol = 1e-11)
+    val("pdf#$r", id, NaN, st, g0, c, c0, 0, 0.0, xs, () -> DG.dist_pdf(D, xs, c; k..., rule = r); tol = 1e-11)
+end
+for (id, cb, st, g0, c, c0) in ((3, NaN, 0, 0.0, -5.0, 2.0), (1, NaN, 1, 1.0, 0.5, -5.0), (10, NaN, 0, 0.0, -13.5, 0.0)), p in (0.05, 0.5, 0.99)
+    val("quant", id, cb, st, g0, c, c0, 0, -2.0, [p], () -> DG.dist_quantile(designs[id], p, c; x0 = -2.0, kw4(cb, st, g0, c0)...); tol = 1e-9)
+end
+# the placement of the fixed start at every c (fde1632): case DK near the unit root in the upper tail
+val("cdf", 1, NaN, 1, 1.0, 0.0, 0.0, 0, 0.0, [9.732, 12.0, 20.0], () -> DG.dist_cdf(designs[1], [9.732, 12.0, 20.0], 0.0; start = :fixed, gamma0 = 1.0); tol = 1e-11)
+val("cdf", 1, NaN, 1, 1.0, -0.5, 2.0, 0, 0.0, [4.0, 8.0], () -> DG.dist_cdf(designs[1], [4.0, 8.0], -0.5; c0 = 2.0, start = :fixed, gamma0 = 1.0); tol = 1e-11)
+val("cdf", 1, NaN, 1, 1.0, 0.0, -2.0, 0, 0.0, [-3.0, 0.0, 4.0, 12.0], () -> DG.dist_cdf(designs[1], [-3.0, 0.0, 4.0, 12.0], 0.0; c0 = -2.0, start = :fixed, gamma0 = 1.0); tol = 1e-11)
+# the router: case DK with a fixed start and c0 < 0 near the unit root (the classical engine), cases DU, DT far from the unit
+# root (the general engine), with their values (xs nothing: the mean and the mean -/+ one standard deviation)
+for (m, g0, c, c0, xs) in ((1, 1.0, 0.5, -10.0, [45.11]), (1, 1.0, 0.5, -5.0, [7.435, 16.304, 25.173, 34.042]), (1, 1.0, -2.0, -5.0, nothing),
+                           (2, 1.5, -60.0, 2.0, [-10.0, -9.1684, -8.5]), (2, 0.5, -30.0, 2.0, nothing), (2, 1.5, -13.5, 2.0, nothing),
+                           (3, 1.0, -60.0, -2.0, nothing), (2, 1.5, -60.0, -2.0, nothing), (3, 3.0, -25.0, 0.0, nothing))
+    if xs === nothing
+        mm = DFLimit.ltratio_mom(2, casestr(m, 0), c; c0, g0); sd = sqrt(mm[2] - mm[1]^2)
+        xs = round.(mm[1] .+ sd .* [-1.0, 0.0, 1.0]; digits = 4)
+    end
+    rline("cdf", 0, "case", m, 1, g0, NaN, c, c0, 0.0, xs, () -> DFLimit.ltratio_cdf(xs, casestr(m, 0), c; c0, g0); tol = 1e-11)
+    rline("pdf", 0, "case", m, 1, g0, NaN, c, c0, 0.0, xs, () -> DFLimit.ltratio_pdf(xs, casestr(m, 0), c; c0, g0); tol = 1e-11)
+end
+for m in 1:3, g0 in (0.5, 1.0, 1.5, 3.0), c in (-100.0, -75.0, -60.0, -30.0, -21.0, -20.0, -15.0, -13.5, -10.0, -5.0, -1.0, -0.5, 0.0, 0.5, 1.0), c0 in (-5.0, -2.0, 0.0, 2.0, 5.0)
+    aline(1, m, 0, g0, NaN, c, c0, -3.0)
+end
+# the contour integral's rule and its one evaluation (cases DU, DT with a fixed start)
+for c in (2.0, 1.5, 1.0, 0.0, -1.0, -2.5, -2.6, -5.0, -10.0, -10.5, -13.5, -30.0, -60.0), c0 in (-5.0, 0.0, 2.0), g0 in (0.5, 1.0, 1.5, 3.0)
+    n, h = DX.ctr_rule(c, c0, g0)
+    println(io, join(["ctrrule", fmt(c), fmt(c0), fmt(g0), string(n), fmt(h)], " "))
+end
+function cval(kind, m, c, c0, g0, rl, xs; tol = 1e-11)
+    v = quiet(() -> DX.tr_contour(xs, m, c; c0, g0, pdf = kind == 1, warn = false, rule = rl == 0 ? :auto : :present)[1])
+    println(io, join(["ctrval", string(kind), string(m), fmt(c), fmt(c0), fmt(g0), string(rl), string(length(xs)), fmt.(xs)..., string(length(v)), fmt.(v)..., fmt(tol)], " "))
+end
+for (m, c, c0, g0, xs) in ((2, -2.0, 0.0, 1.5, [-3.0, -1.6, 0.0]), (3, -5.0, 2.0, 1.0, [-4.0, -2.9, -1.5]), (2, 2.0, 0.0, 1.0, [-1.0, 1.0, 3.0]), (3, -30.0, 0.0, 1.5, [-6.2, -5.3, -4.4]),
+                           (2, -13.5, -2.0, 1.0, [-4.0, -3.0, -2.0]), (2, -5.0, -2.0, 1.0, [-3.5, -2.2, -0.8]), (3, -0.5, -5.0, 2.0, [-2.5, -1.0, 1.0])), rl in (0, 1), kind in (2, 1)
+    cval(kind, m, c, c0, g0, rl, xs)
+end
+# the conditional integral's rule and its one evaluation
+for m in 1:3, st in (0, 1), g0 in (0.0, 1.5), c in (3.0, 2.0, 0.0, -1.0, -2.0, -2.1, -5.0, -5.1, -13.5, -13.6, -50.0)
+    (st == 1 && (g0 != 0 || c >= 0)) && continue
+    n = DX.cond_rule(m, c, -2.0, g0, st == 1).Nv
+    println(io, join(["condrule", string(m), string(st), fmt(g0), fmt(c), fmt(-2.0), string(n)], " "))
+end
+function dval(kind, m, st, c, c0, g0, N, xs; tol = 1e-11)
+    k = N == 0 ? (;) : (Nv = N, Nl = N)
+    v = quiet(() -> DX.tr_limdist(xs, m, c; c0, g0, start = st == 1 ? :stationary : :zero, pdf = kind == 1, warn = false, k...)[1])
+    println(io, join(["condval", string(kind), string(m), string(st), fmt(c), fmt(c0), fmt(g0), string(N), string(length(xs)), fmt.(xs)..., string(length(v)), fmt.(v)..., fmt(tol)], " "))
+end
+for (m, st, c, c0, g0, xs) in ((2, 0, -5.0, -2.0, 0.0, [-3.5, -2.2, -0.8]), (2, 1, -5.0, -5.0, 0.0, [-3.0, -1.5, 0.0]), (1, 0, -20.0, -2.0, 0.0, [-4.0, -2.8, -1.5]),
+                               (1, 1, -1.0, -2.0, 0.0, [-2.5, -1.0, 0.5]), (3, 0, -2.0, -5.0, 0.0, [-4.0, -2.5, -1.0]), (3, 1, -10.0, 1.0, 0.0, [-4.0, -3.0, -2.0]),
+                               (2, 0, -13.5, -2.0, 0.0, [-4.5, -3.3, -2.0]), (2, 0, -5.0, 0.0, 1.5, [-3.0, -2.0, -0.5])), N in (0, 96), kind in (2, 1)
+    dval(kind, m, st, c, c0, g0, N, xs)
+end
+# the start of the quantile searches from jets (mom_start) and the quantiles of the router's searches
+for (m, st, g0, c, c0) in ((2, 0, 0.0, -5.0, -2.0), (1, 0, 0.0, 0.0, 0.0), (1, 0, 1.0, -5.0, 2.0), (2, 2, 0.0, -5.0, -5.0), (3, 0, 1.5, -20.0, 0.0), (2, 0, 0.0, 25.0, 0.0),
+                           (1, 0, 1.0, 2.0, 0.0), (3, 2, 0.0, -50.0, -50.0), (1, 0, 0.0, -60.0, 2.0))
+    m2 = DFLimit.mom_start(2, casestr(m, st), c; c0, g0)
+    println(io, join(["momstart", string(m), string(st), fmt(g0), fmt(c), fmt(c0), m2 === nothing ? "0 NaN NaN" : "1 " * join(fmt.(m2), " "), fmt(1e-11)], " "))
+end
+for (e, m, st, g0, c, c0) in ((0, 2, 0, 0.0, -5.0, 2.0), (0, 2, 2, 0.0, -5.0, -5.0), (0, 1, 1, 1.0, -5.0, -2.0), (1, 2, 0, 0.0, -5.0, -2.0), (0, 3, 0, 0.0, -5.0, -2.0),
+                               (0, 2, 1, 1.5, -60.0, 2.0), (0, 1, 0, 0.0, -20.0, 2.0))
+    ps = [0.05, 0.5, 0.95]
+    rline("icdf", e, "case", m, st, g0, NaN, c, c0, 0.0, ps, () -> DFLimit.ltratio_icdf(ps, casestr(m, st), c; c0, g0, engine = ENG[e+1]); tol = 1e-9)
+end
 close(io)
 println("written ", OUT)
