@@ -69,11 +69,15 @@ end
 end
 
 function M = buildM(P,S,c,s,t,theta)
-% I - 2 (s A + t B + gamma E11) Sigma, its (1,1) entry without cancellation
+% I - 2 (s A + t B + gamma E11) Sigma, its (1,1) entry without cancellation: m011 - 2 ((s A + t B) Sigma)_11, formed from
+% these two terms alone (above the unit root it is of the order e^{-2c} where the transform matters, and the earlier
+% form 1 - 2 ((s A + t B) Sigma)_11 - 2 gamma Sigma_11 + (m011 - (1 - 2 gamma Sigma_11)) carried an absolute rounding
+% error of 1e-16, which put the moments off by 6e-4 relative at c = 15 and by 0.95 at c = 20)
 N = P.N; gam = (c + theta)/2;
-M = eye(N) - 2*((s*P.A + t*P.B)*S);
+Q = -2*((s*P.A + t*P.B)*S);
+M = eye(N) + Q;
 M(1,:) = M(1,:) - 2*gam*S(1,:);
-M(1,1) = M(1,1) + m011(c,t,theta) - (1 - 2*gam*S(1,1));
+M(1,1) = m011(c,t,theta) + Q(1,1);
 end
 
 function v = m011(c,t,theta)

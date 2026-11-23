@@ -621,7 +621,12 @@ end
 
 function out = graded_panels(A,B,foc)
 % panels [lo hi] of [A, B] graded toward the focus points (position, scale): a focus point whose position lies within its
-% own scale of one with a smaller scale is dropped; between two kept points the interval is split at the midpoint
+% own scale of one with a smaller scale is dropped; between two kept points the interval is split at the midpoint.
+% Points within 1e-12 (B - A) of each other or of an end are merged with it, a tolerance relative to the length of the
+% interval: far above the unit root the segments of the U-shapes are tiny (the positive root lies within about
+% 2c e^{-2c} of the branch point -t/c0 of the coefficient statistic, 1e-16 at c = 20), and with the tolerance
+% 1e-12 max(B - A, 1) used before a segment shorter than 1e-12 got no panel at all (from c = 16 on the coefficient
+% statistic was off by up to 0.2)
 [~,o] = sort(foc(:,2));
 kl = zeros(0,1); kh = kl;
 for k = o(:).'
@@ -629,7 +634,7 @@ for k = o(:).'
     if any(abs(pos - kl) <= h), continue, end
     kl(end+1,1) = pos; kh(end+1,1) = h; %#ok<AGROW>
 end
-tol = 1e-12*max(B - A,1);
+tol = 1e-12*(B - A);
 pts = [A Inf];
 [~,o] = sort(kl);
 for k = o(:).'
@@ -696,6 +701,11 @@ function sig = place(lm,grp,oth,side,lo,hi,A,sig0,xq,tr,c0p)
 if side == 1, edge = min(real(grp)); else, edge = max(real(grp)); end
 foc = 0;
 if ~isempty(oth), if side == 1, foc(2) = max(real(oth)); else, foc(2) = min(real(oth)); end, end
+% (above the unit root with c0 > 0 the branch point -Re(t)/c0 of the v-kernels, the left end of the admissible interval of
+% G+, is a focus of the grading cost too: the kernel of the density of the coefficient statistic has a double pole there,
+% (t + c0 s)^{-2}, which the objective did not see, and with a fixed start at c from 1 to 5 the density was off by up to
+% 0.12 (case DU, c = 5, g0 = 0.5, at the 90% point) without a warning; as place of DFDet.jl)
+if side == 1 && c0p > 0, foc(end+1) = -tr/c0p; end
 f = @(sg) objective(lm,grp,oth,side,A,xq,tr,c0p,foc,sg);
 if side == 1, D = edge - lo; else, D = hi - edge; end
 m = 1e-3*D; nh = 12;

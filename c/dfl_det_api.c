@@ -426,10 +426,18 @@ static void mom_body(int i, void *v)
     for (int att = 0; att < 8; att++) {
         cdouble thk; cdouble U0 = CPX(rad, 0);
         if (det_logmgf_tpart(&W, c, csub(CPX(-s, 0), cscale(c0, U0)), &thk, fx)) { det_fail(&o->st, "the eigenvalues of the reciprocal roots did not converge"); break; }
+        int cut = c0 != 0 && -s + fabs(c0) * rad > c * c / 2;   /* (whether the circle in t = -s - c0 u reaches the cut of theta) */
         for (int k = 0; k < Nu; k++) {
             cdouble Uk = cscale(rad, cis_(2 * M_PI * k / Nu)), tk = csub(CPX(-s, 0), cscale(c0, Uk));
             if (c0 != 0 && k > 0) det_logmgf_tpart(&W, c, tk, &thk, fx);
             det_logmgf_spart(&W, c, Uk, tk, thk, fx, &L0[k], &LD[k]);
+            /* (where the circle reaches the cut, the logarithm continued around it is that of the entire function
+             * e^{c + theta} det(...), real and positive at the real point u = r, and not that of the determinant alone,
+             * whose phase jumps with theta across the cut: where -s - c0 r > c^2/2, as at c = 0 with c0 < 0 for every s
+             * below |c0| r, theta is imaginary at the real point, the check of the real start failed on every circle, and
+             * the moments refused (case DT at c = 0, c0 = -2); elsewhere the logarithm of the determinant, as before, bit
+             * for bit, as dist_moments of DFDet.jl) */
+            if (cut) { cdouble e = caddr(thk, c); LD[k] = cadd(LD[k], e); L0[k] = cadd(L0[k], cscale(0.5, e)); }
         }
         double r0 = creal(LD[0]);
         for (int k = 0; k < Nu; k++) Z[k] = cexp(caddr(LD[k], -r0));

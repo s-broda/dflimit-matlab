@@ -56,8 +56,19 @@ for i = 1:ns
             LD = (ld0 - c - th0) + sum(log(1 - U*mu0.'),2);
         else
             L0 = complex(zeros(Nu,1)); LD = L0;
+            cut = -s + abs(c0)*r > c*c/2;              % (whether the circle in t = -s - c0 u reaches the cut of theta)
             for k = 1:Nu
-                [L0(k),LD(k)] = dfdet_logmgf(Mo,c,U(k),-s - c0*U(k));
+                tk = -s - c0*U(k);
+                [L0(k),LD(k)] = dfdet_logmgf(Mo,c,U(k),tk);
+                % (where the circle reaches the cut, the logarithm continued around it is that of the entire function
+                % e^{c + theta} det(...), real and positive at the real point u = r, and not that of the determinant
+                % alone, whose phase jumps with theta across the cut: where -s - c0 r > c^2/2, as at c = 0 with c0 < 0
+                % for every s below |c0| r, theta is imaginary at the real point, the check of the real start failed on
+                % every circle, and the moments refused (case DT at c = 0, c0 = -2); elsewhere as before)
+                if cut
+                    e = c + sqrt(complex(c*c - 2*tk));
+                    LD(k) = LD(k) + e; L0(k) = L0(k) + e/2;
+                end
             end
         end
         [ld,ok] = circlog(exp(LD - real(LD(1))));

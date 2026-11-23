@@ -16,7 +16,8 @@ if strcmp(Mo.start,'stationary')
     return
 end
 S = dfdet_sigma(P,theta); N = P.N;
-M = eye(N) - 2*((s*P.A + t*P.B)*S);
+Q = -2*((s*P.A + t*P.B)*S);
+M = eye(N) + Q;
 M(1,:) = M(1,:) - 2*gam*S(1,:);
 if abs(theta) < 0.5
     z = 2*theta;
@@ -26,6 +27,8 @@ else
     if c > 0, d = -2*t/(theta + c); else, d = theta - c; end
     m11 = (d + (c + theta)*exp(-2*theta))/(2*theta);
 end
-M(1,1) = M(1,1) + m11 - (1 - 2*gam*S(1,1));
+% (the (1,1) entry from m11 and the product term alone, as dfdet_mgf's buildM: without the absolute rounding error of
+% 1 - 2 gamma Sigma_11, which above the unit root is of the size of the entry)
+M(1,1) = m11 + Q(1,1);
 D = exp(c + theta)*det(M);
 end

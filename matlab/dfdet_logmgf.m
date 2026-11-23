@@ -36,9 +36,12 @@ else
     if c > 0, d = -2*t/(theta + c); else, d = theta - c; end
     m11 = (d + (c + theta)*exp(-2*theta))/(2*theta);
 end
-AS = P.A*S; M0 = eye(N) - 2*(t*P.B*S);
+% (the (1,1) entry m11 - 2 (t B Sigma)_11 from these two terms alone, and the term of s added to it: above the unit
+% root it is of the order e^{-2c}, and the form 1 - 2 (t B Sigma)_11 - 2 gamma Sigma_11 + (m11 - (1 - 2 gamma
+% Sigma_11)) carried an absolute rounding error of 1e-16; dfdet_mgf's buildM)
+AS = P.A*S; Q = -2*(t*P.B*S); M0 = eye(N) + Q;
 M0(1,:) = M0(1,:) - 2*gam*S(1,:);
-M0(1,1) = M0(1,1) + m11 - (1 - 2*gam*S(1,1));
+M0(1,1) = m11 + Q(1,1);
 for k = 1:numel(s)
     LD(k) = ldet(M0 - 2*s(k)*AS);
 end
