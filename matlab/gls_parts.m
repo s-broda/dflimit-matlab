@@ -1,4 +1,4 @@
-function [lch, D, s1] = gls_parts(t, c, cbar)
+function [lch, D, s1, N11] = gls_parts(t, c, cbar)
 %GLS_PARTS  The GLS-detrended trend case (model 4) at cbar (default -13.5, the DF-GLS tests; shared by DFX_CORE and
 %   TR_GILPELAEZ, which needs cbar = c for the trend envelope), elementwise in t: log cosh th, D = det(I - Q Sig) and the root
 % s1 = 1/(2 kap1), 2 kap1 = (1 - lam)^2 v' Sig (I - Q Sig)^-1 v, v = (1, 0, -3), from the Girsanov forms of case DT:
@@ -26,4 +26,8 @@ v = [1 0 -3];
 x = cell(3, 1); for i = 1:3, x{i} = (A{i,1} * v(1) + A{i,2} * v(2) + A{i,3} * v(3)) ./ D; end   % N^-1 v
 y = cell(3, 1); for i = 1:3, y{i} = Sg{i,1} .* x{1} + Sg{i,2} .* x{2} + Sg{i,3} .* x{3}; end   % Sig N^-1 v
 s1 = 1 ./ ((1 - lam)^2 * (v(1) * y{1} + v(2) * y{2} + v(3) * y{3}));
+if nargout > 3                         % 1 - c tanh(th)/th (the factor of case DK in D; its argument for the branch at the point)
+    if c > 0, del = -2 * t ./ (th + c); else, del = th - c; end
+    N11 = (del + c * 2 * e2 ./ (1 + e2)) ./ th; N11(sm) = 1 - c * g1(sm);
+end
 end
