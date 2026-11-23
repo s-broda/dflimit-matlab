@@ -14,6 +14,15 @@
 #   tmom model stat c g0 c0 k m_1 .. m_k                           tratio_mom1 (tol 1e-10)
 #   cmom model stat c g0 c0 k m_1 .. m_k                           coef_mom1 (tol 1e-10)
 #   ray model stat c g0 P                                          ray_cdf
+# and the user-level functions with their defaults (the router, dfl_engine_*; start 0 zero, 1 fixed, 2 stationary):
+#   rcoef model start g0 c c0 n y_1 .. y_n P_1 .. P_n               coef_cdf(y, cas, c; c0, g0)
+#   rcoefpdf model start g0 c c0 n y.. f..                         coef_pdf
+#   rcoefq model start g0 c c0 n p.. y..                           coef_icdf (tol 1e-9)
+#   rcoefmom model start g0 c c0 k m..                             coef_mom
+#   rmom model start g0 c c0 k m..                                 ltratio_mom
+#   rlin p start g0 c a n b.. P..                                  ltratio_lincdf(b, a, trend(p), c; g0, start) (p = -1 with a
+#                                                                  zero start: also the case code DK, model 1)
+#   renv alpha n c.. P..                                           power_envelope(c, "DK"; alpha)
 using Printf
 using DFLimit
 const K = DFLimit.DFKan
@@ -86,5 +95,36 @@ for (cas, c, g0) in (("DK", 2.0, 0.0), ("DK", 2.0, 1.0), ("DK", 0.0, 0.0), ("DK"
                      ("DU", 2.0, 0.0), ("DU", 2.0, 1.0), ("DU", 0.0, 0.0), ("DU", -0.1, 1.0), ("DU", -5.0, 0.0), ("DU", -5.0, 1.0), ("DU", -50.0, 0.0), ("DU", -50.0, 1.0),
                      ("SK", -0.1, 0.0), ("SK", -5.0, 0.0), ("SK", -50.0, 0.0), ("SU", -0.1, 0.0), ("SU", -5.0, 0.0), ("SU", -50.0, 0.0))
     line("ray", cas[2] == 'K' ? 1 : 2, cas[1] == 'S' ? 1 : 0, fmt(c), fmt(g0), fmt(K.ray_cdf(cas, c; g0)))
+end
+
+# ---- the user-level functions (src/merged.jl) with their defaults ----
+vec(xs) = join(fmt.(xs), " ")
+ST = (zero = 0, fixed = 1, stationary = 2)
+for (cas, c, g0, ys, c0) in (("DK", -5.0, 0.0, [-9.0, -3.0], 0.0), ("DU", -5.0, 1.0, [-12.0, -6.0], 0.0), ("DT", 1.0, 0.0, [-10.0, 0.5], 0.0), ("SK", -1.0, 0.0, [-3.0], 0.0),
+                             ("SU", -10.0, 0.0, [-20.0, -8.0], 0.0), ("ST", -5.0, 0.0, [-25.0], 0.0), ("DU", -5.0, 0.0, [-14.0], 0.0), ("DK", 0.0, 0.0, [-8.039, 1.0, -Inf, NaN, Inf], 0.0),
+                             ("DT", -2.0, 0.0, [-4.0], 0.0), ("DU", -60.0, 1.5, [-30.0, -10.0], 0.0), ("DK", 20.0, 0.0, [-0.5, 0.5], 20.0), ("DU", -20.0, 0.0, [-12.0], -3.0),
+                             ("DT", 2.0, 0.5, [-15.0], 2.0), ("SU", -100.0, 0.0, [-15.0], -100.0))
+    m = findfirst(==(cas[2]), "KUT"); st = cas[1] == 'S' ? 2 : g0 != 0 ? 1 : 0
+    line("rcoef", m, st, fmt(g0), fmt(c), fmt(c0), length(ys), vec(ys), vec(coef_cdf(ys, cas, c; c0, g0)))
+    yf = filter(isfinite, ys)
+    line("rcoefpdf", m, st, fmt(g0), fmt(c), fmt(c0), length(yf), vec(yf), vec(coef_pdf(yf, cas, c; c0, g0)))
+    ps = [0.05, 0.5]
+    line("rcoefq", m, st, fmt(g0), fmt(c), fmt(c0), 2, vec(ps), vec(coef_icdf(ps, cas, c; c0, g0)))
+    line("rcoefmom", m, st, fmt(g0), fmt(c), fmt(c0), 3, vec(coef_mom(3, cas, c; c0, g0)))
+end
+for (cas, c, c0, g0) in (("DK", 0.0, 0.0, 0.0), ("DU", -5.0, 0.0, 0.0), ("DT", -5.0, -5.0, 0.0), ("SU", -3.0, 0.0, 0.0), ("DK", 2.0, -2.0, 1.0), ("DK", 20.0, 20.0, 0.0),
+                     ("DU", -100.0, -100.0, 0.0), ("ST", -20.0, 2.0, 0.0), ("DT", 1.0, 0.0, 1.0), ("SK", -0.5, -0.5, 0.0), ("DU", 10.0, 10.0, 0.0))
+    m = findfirst(==(cas[2]), "KUT"); st = cas[1] == 'S' ? 2 : g0 != 0 ? 1 : 0
+    line("rmom", m, st, fmt(g0), fmt(c), fmt(c0), 4, vec(ltratio_mom(4, cas, c; c0, g0)))
+end
+for (p, st, g0, c, a, bs) in ((-1, :zero, 0.0, 0.0, -3.5, [-0.2639, 0.5]), (-1, :zero, 0.0, -5.0, -2.5, [0.3]), (-1, :zero, 0.0, -13.5, 1.0, [-0.1]), (-1, :zero, 0.0, 2.0, -3.5, [5.0]),
+                              (-1, :zero, 0.0, 4.0, -1.0, [2.0, 20.0]), (-1, :zero, 0.0, -100.0, -50.0, [-0.3]), (0, :zero, 0.0, -5.0, -3.5, [-0.2639]), (1, :zero, 0.0, -5.0, -3.5, [-0.2639]),
+                              (0, :stationary, 0.0, -5.0, -3.5, [-0.2639, 0.4]), (-1, :fixed, 1.5, -5.0, -3.5, [-0.2639]), (-1, :fixed, 1.0, 1.0, -7.0, [1.0, 30.0]), (0, :fixed, 1.0, 2.0, -3.5, [2.0]),
+                              (1, :stationary, 0.0, -20.0, -10.0, [-0.3, 0.2]), (-1, :stationary, 0.0, -1.0, 2.0, [-0.5]))
+    P = ltratio_lincdf(bs, a, trend(p), c; g0, start = st)
+    line("rlin", p, ST[st], fmt(g0), fmt(c), fmt(a), length(bs), vec(bs), vec(P))
+end
+for (alpha, cs) in ((0.05, [-1e-4, -0.01, -1.0, -7.0, -13.5, -30.0, -500.0, 0.0, 1.0]), (0.01, [-10.0]), (0.1, [-2.0, -25.0]))
+    line("renv", fmt(alpha), length(cs), vec(cs), vec(power_envelope(cs, "DK"; alpha)))
 end
 close(out)

@@ -15,7 +15,8 @@ typedef struct { const char *tag; double tol, worst; int n, fail; } kind_t;
 static kind_t KINDS[] = {
     {"lcf", 1e-12, 0, 0, 0}, {"jet", 1e-11, 0, 0, 0}, {"scale", 1e-12, 0, 0, 0}, {"coef", 1e-11, 0, 0, 0}, {"coefpdf", 1e-11, 0, 0, 0},
     {"coefq", 1e-8, 0, 0, 0}, {"lin", 1e-11, 0, 0, 0}, {"env", 1e-11, 0, 0, 0}, {"tmom", 1e-10, 0, 0, 0}, {"cmom", 1e-10, 0, 0, 0},
-    {"ray", 1e-13, 0, 0, 0},
+    {"ray", 1e-13, 0, 0, 0}, {"rcoef", 1e-11, 0, 0, 0}, {"rcoefpdf", 1e-11, 0, 0, 0}, {"rcoefq", 1e-8, 0, 0, 0}, {"rcoefmom", 1e-10, 0, 0, 0},
+    {"rmom", 1e-10, 0, 0, 0}, {"rlin", 1e-11, 0, 0, 0}, {"renv", 1e-11, 0, 0, 0}, {"self", 0, 0, 0, 0},
 };
 static kind_t *kind(const char *tag) { for (size_t i = 0; i < sizeof KINDS / sizeof KINDS[0]; i++) if (!strcmp(KINDS[i].tag, tag)) return &KINDS[i]; return NULL; }
 static int nfail = 0, ntot = 0;
@@ -29,6 +30,139 @@ static void check(const char *tag, double d, const char *what)
 static int rd(FILE *f, double *x) { return fscanf(f, "%lf", x) == 1; }
 static int rdc(FILE *f, cdouble *z) { double a, b; if (fscanf(f, "%lf %lf", &a, &b) != 2) return 0; *z = CPX(a, b); return 1; }
 static double cdist(cdouble a, cdouble b) { return cabs(csub(a, b)); }
+
+/* the lines of the router's functions with their defaults: 0, or 1 at the end of the file */
+static int router_line(FILE *f, const char *tag)
+{
+    char err[512], what[256]; double x[64], v[64], got[64], est[64];
+    if (!strcmp(tag, "renv")) {
+        double alpha; int n; if (!(rd(f, &alpha) && fscanf(f, "%d", &n) == 1 && n <= 64)) return 1;
+        for (int k = 0; k < n; k++) if (!rd(f, &x[k])) return 1;
+        for (int k = 0; k < n; k++) if (!rd(f, &v[k])) return 1;
+        int rc = dfl_engine_envelope(n, x, 1, alpha, DFL_ENGINE_AUTO, got, err, sizeof err);
+        for (int k = 0; k < n; k++) { snprintf(what, sizeof what, "alpha = %g c = %g: %.15g vs %.15g %s", alpha, x[k], got[k], v[k], rc ? err : ""); check(tag, rc ? INFINITY : fabs(got[k] - v[k]), what); }
+        return 0;
+    }
+    int a1, st, n; double g0, c, par;
+    if (fscanf(f, "%d %d %lf %lf %lf %d", &a1, &st, &g0, &c, &par, &n) != 6 || n > 64) return 1;
+    int mom = !strcmp(tag, "rcoefmom") || !strcmp(tag, "rmom"), nv = n;
+    for (int k = 0; k < n && !mom; k++) if (!rd(f, &x[k])) return 1;
+    for (int k = 0; k < nv; k++) if (!rd(f, &v[k])) return 1;
+    if (mom) for (int k = 0; k < n; k++) x[k] = k + 1;
+    int rc;
+    snprintf(what, sizeof what, "%d start %d g0 = %g c = %g (%g)", a1, st, g0, c, par);
+    size_t wl = strlen(what);
+    dfl_spec S = {NULL, a1, st, g0, NAN};
+    if (!strcmp(tag, "rcoef")) rc = dfl_engine_coef(n, x, &S, c, par, DFL_ENGINE_AUTO, got, err, sizeof err);
+    else if (!strcmp(tag, "rcoefpdf")) rc = dfl_engine_coef_pdf(n, x, &S, c, par, DFL_ENGINE_AUTO, NULL, got, est, err, sizeof err);
+    else if (!strcmp(tag, "rcoefq")) rc = dfl_engine_coef_icdf(n, x, &S, c, par, DFL_ENGINE_AUTO, 1e-9, got, err, sizeof err);
+    else if (!strcmp(tag, "rcoefmom")) rc = dfl_engine_coef_mom(n, &S, c, par, DFL_ENGINE_AUTO, NULL, got, est, err, sizeof err);
+    else if (!strcmp(tag, "rmom")) rc = dfl_engine_mom(n, &S, c, par, DFL_ENGINE_AUTO, got, err, sizeof err);
+    else if (!strcmp(tag, "rlin")) {
+        dfl_design D; dfl_design_trend(a1, &D, err, sizeof err);
+        dfl_spec SD = {&D, 0, st, g0, NAN};
+        rc = dfl_engine_lincdf_x(n, x, par, &SD, c, NAN, DFL_ENGINE_AUTO, NULL, got, est, err, sizeof err);
+        if (!rc && a1 == -1 && st == 0) {
+            double g2[64]; int r2 = dfl_engine_lincdf(n, x, par, 1, c, NAN, DFL_ENGINE_AUTO, g2, err, sizeof err);
+            for (int k = 0; k < n; k++) check("self", r2 || g2[k] != got[k] ? 1 : 0, "the linear form of case DK by the case code and by trend(-1)");
+        }
+        dfl_design_free(&D);
+    } else { printf("unknown tag %s\n", tag); return 1; }
+    for (int k = 0; k < nv; k++) {
+        double d = fabs(got[k] - v[k]);
+        if (!strcmp(tag, "rcoefpdf")) d /= fmax(1.0, fabs(v[k]));
+        if (!strcmp(tag, "rcoefq")) d /= fmax(1.0, fabs(v[k]));
+        if (!strcmp(tag, "rcoefmom") || !strcmp(tag, "rmom")) d /= fmax(fabs(v[k]), nv > 1 ? pow(fabs(v[1]), (k + 1) / 2.0) : 1e-300);
+        if (isnan(v[k]) && isnan(got[k])) d = 0;
+        snprintf(what + wl, sizeof what - wl, " %s #%d (%g): %.15g vs %.15g %s", tag, k + 1, x[k], got[k], v[k], rc ? err : "");
+        check(tag, rc ? INFINITY : d, what);
+    }
+    return 0;
+}
+
+/* the router's rules without reference values: the regions of the defaults (the error estimates NaN where the engines
+ * compute), method DFL_METHOD_ENGINE as the computation of before (bit for bit), the refusals */
+#define SELF(cond, what) check("self", (cond) ? 0.0 : 1.0, what)
+static void selftests(void)
+{
+    char err[512]; double v[8], e[8], w[8];
+    dfl_spec DK = {NULL, 1, 0, 0.0, NAN}, DU = {NULL, 2, 0, 0.0, NAN}, SU = {NULL, 2, 2, 0.0, NAN}, DG = {NULL, 4, 0, 0.0, NAN};
+    dfl_inv_opts io; dfl_inv_defaults(&io);
+    double y[2] = {-9.0, -3.0}, x0 = 0;
+    /* the coefficient statistic: the region c <= 20, the engines beyond and for case DG, method engine = the t-ratio at 0 */
+    int rc = dfl_engine_coef_x(2, y, &DK, 20.0, 0.0, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(!rc && isfinite(e[0]) && e[0] <= DFL_KAN_TOL, "coef_cdf at c = 20: the single inversion with its estimate");
+    rc = dfl_engine_coef_x(1, y, &DK, 20.5, 0.0, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(!rc && isnan(e[0]), "coef_cdf at c = 20.5: the engines (estimate NaN)");
+    io.method = DFL_METHOD_ENGINE;
+    rc = dfl_engine_coef_x(1, y, &DU, -5.0, 0.0, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err) || dfl_engine_dist(2, 1, &x0, &DU, -5.0, -9.0, DFL_ENGINE_AUTO, 0, 0, w, err, sizeof err);
+    SELF(!rc && v[0] == w[0] && isnan(e[0]), "coef_cdf with method engine is the t-ratio at 0 with the null value c0 + y");
+    rc = dfl_engine_coef_x(1, y, &DU, -5.0, 0.0, DFL_ENGINE_CLASSICAL, NULL, w + 1, e, err, sizeof err);
+    SELF(!rc && w[1] == w[0], "coef_cdf with engine classical: the engines");
+    io.method = DFL_METHOD_INVERSION;
+    rc = dfl_engine_coef_x(1, y, &DU, 25.0, 0.0, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err);
+    SELF(rc || isfinite(e[0]), "coef_cdf with method inversion beyond c = 20");
+    rc = dfl_engine_coef_x(1, y, &DU, -5.0, 0.0, DFL_ENGINE_GENERAL, &io, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "does not apply with engine general"), "coef_cdf: method inversion with engine general refused");
+    rc = dfl_engine_coef_x(1, y, &DG, -5.0, 0.0, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "applies to the cases DK, DU, DT, SK, SU, ST"), "coef_cdf: method inversion in case DG refused");
+    io.method = 9;
+    rc = dfl_engine_coef_x(1, y, &DU, -5.0, 0.0, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "method must be"), "coef_cdf: an unknown method refused");
+    /* verified keeps the values whose estimate meets the tolerance */
+    dfl_inv_defaults(&io); io.verified = 1;
+    rc = dfl_engine_coef_x(2, y, &SU, -10.0, 0.0, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err) || dfl_engine_coef(2, y, &SU, -10.0, 0.0, DFL_ENGINE_AUTO, w, err, sizeof err);
+    SELF(!rc && v[0] == w[0] && v[1] == w[1], "coef_cdf with verified: the values of the single inversion where their estimates meet the tolerance");
+    /* the density with engine classical (which has none): the single inversion; the moments beyond c = 20 refused */
+    dfl_inv_defaults(&io);
+    rc = dfl_engine_coef_pdf(1, y, &DK, -5.0, 0.0, DFL_ENGINE_CLASSICAL, NULL, v, e, err, sizeof err) || dfl_engine_coef_pdf(1, y, &DK, -5.0, 0.0, DFL_ENGINE_AUTO, NULL, w, e + 1, err, sizeof err);
+    SELF(!rc && v[0] == w[0] && isfinite(e[0]), "coef_pdf with engine classical: the single inversion");
+    rc = dfl_engine_coef_mom(2, &DK, 21.0, 0.0, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "c must be at most 20"), "coef_mom at c = 21 refused with method 0");
+    rc = dfl_engine_coef_mom(2, &DG, 0.0, 0.0, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "cases DK, DU, DT, SK, SU, ST"), "coef_mom in case DG refused");
+    rc = dfl_engine_coef_mom(2, &DK, 0.0, 0.0, DFL_ENGINE_GENERAL, NULL, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "no moments of the coefficient statistic"), "coef_mom with engine general refused");
+    /* the moments of the t-ratio: jets up to c = 20, the circles beyond and with method engine */
+    rc = dfl_engine_mom_x(4, &DU, -5.0, 0.0, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(!rc && isfinite(e[0]) && e[3] <= 1e-10 * fabs(v[3]), "ltratio_mom: the jets with their estimates");
+    io.method = DFL_METHOD_ENGINE;
+    rc = dfl_engine_mom_x(4, &DU, -5.0, 0.0, DFL_ENGINE_AUTO, &io, w, e, err, sizeof err);
+    { double m2[4]; int r2 = dfl_engine_mom(4, &DU, -5.0, 0.0, DFL_ENGINE_GENERAL, m2, err, sizeof err);
+      SELF(!rc && !r2 && isnan(e[0]) && w[0] == m2[0] && fabs(w[3] / v[3] - 1) < 1e-9, "ltratio_mom with method engine: the engines' circles (the rule takes the general engine at c0 = 0)"); }
+    dfl_inv_defaults(&io);
+    /* the linear form: case DK up to c = 4, the other cases through their designs up to c = 2, a = 0 and a = NaN by the engines */
+    double b[2] = {-0.2639, 0.5};
+    rc = dfl_engine_lincdf_x(1, b, -1.0, &DK, 4.0, NAN, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(!rc && isfinite(e[0]), "ltratio_lincdf case DK at c = 4: the single inversion");
+    rc = dfl_engine_lincdf_x(1, b, -1.0, &DK, 4.5, NAN, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(!rc && isnan(e[0]), "ltratio_lincdf case DK at c = 4.5: the engines");
+    rc = dfl_engine_lincdf_x(1, b, 0.0, &DK, -5.0, NAN, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err) || dfl_lincdf(1, b, 0.0, 1, -5.0, DFL_CBAR_GLS, NULL, w, err, sizeof err);
+    SELF(!rc && isnan(e[0]) && v[0] == w[0], "ltratio_lincdf at a = 0: the engines' closed form");
+    { dfl_design T0; dfl_design_trend(0, &T0, err, sizeof err); dfl_spec ST0 = {&T0, 0, 0, 0.0, NAN};
+      rc = dfl_engine_lincdf_x(1, b, -3.5, &ST0, 2.0, NAN, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+      SELF(!rc && isfinite(e[0]), "ltratio_lincdf trend(0) at c = 2: the single inversion");
+      rc = dfl_engine_lincdf_x(1, b, -3.5, &ST0, 2.5, NAN, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+      dfl_det_opts o; dfl_det_defaults(&o); int r2 = dfl_det_lin(2, &T0, 1, b, -3.5, 2.5, &o, w, err, sizeof err);
+      SELF(!rc && !r2 && isnan(e[0]) && v[0] == w[0], "ltratio_lincdf trend(0) at c = 2.5: the general engine");
+      dfl_design_free(&T0); }
+    io.method = DFL_METHOD_INVERSION;
+    rc = dfl_engine_lincdf_x(1, b, NAN, &DK, -5.0, NAN, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "needs a finite a"), "ltratio_lincdf: method inversion with a = NaN refused");
+    rc = dfl_engine_lincdf_x(1, b, -3.5, &DG, -5.0, NAN, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err);
+    SELF(rc && strstr(err, "not to case DG"), "ltratio_lincdf: method inversion in case DG refused");
+    dfl_inv_defaults(&io);
+    /* the envelope: c <= -1e-4 by the single inversion, -1e-4 < c < 0 by the engines */
+    double cs[3] = {-1e-4, -5e-5, -7.0};
+    rc = dfl_engine_envelope_x(3, cs, 1, 0.05, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(!rc && isfinite(e[0]) && isnan(e[1]) && isfinite(e[2]), "power_envelope: the single inversion for c <= -1e-4, the engines at c = -5e-5");
+    rc = dfl_engine_envelope_x(1, cs + 2, 4, 0.05, DFL_ENGINE_AUTO, NULL, v, e, err, sizeof err);
+    SELF(!rc && isnan(e[0]), "power_envelope case DG: the engines");
+    /* the warning of the single inversion where an estimate exceeds the tolerance */
+    io.tol = 1e-20;
+    rc = dfl_engine_coef_x(1, y, &DK, -5.0, 0.0, DFL_ENGINE_AUTO, &io, v, e, err, sizeof err);
+    SELF(!rc && dfl_det_warning() && strstr(dfl_det_warning(), "exceeds the tolerance"), "coef_cdf: the warning of an estimate above the tolerance");
+}
 
 int main(int argc, char **argv)
 {
@@ -45,6 +179,7 @@ int main(int argc, char **argv)
             check(tag, rc ? INFINITY : fabs(Pc - P), what);
             continue;
         }
+        if (tag[0] == 'r' && strcmp(tag, "ray")) { if (router_line(f, tag)) break; continue; }
         int m, st; double c, g0;
         if (fscanf(f, "%d %d %lf %lf", &m, &st, &c, &g0) != 4) break;
         dfl_limcf F;
@@ -105,6 +240,7 @@ int main(int argc, char **argv)
         } else { printf("unknown tag %s\n", tag); return 1; }
     }
     fclose(f);
+    selftests();
     for (size_t i = 0; i < sizeof KINDS / sizeof KINDS[0]; i++)
         if (KINDS[i].n) printf("  %-10s %5d checks, %d failed, worst difference %.2e (tolerance %.0e)\n", KINDS[i].tag, KINDS[i].n, KINDS[i].fail, KINDS[i].worst, KINDS[i].tol);
     printf("%d checks, %d failed (%.1f s, %d threads)\n", ntot, nfail, dfl_wtime() - t0, dfl_nworkers());
