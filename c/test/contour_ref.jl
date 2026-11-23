@@ -19,8 +19,10 @@ const PTS = [  # model, c, c0, g0, x
 if abspath(PROGRAM_FILE) == @__FILE__
     out = open(ARGS[1], "w")
     for (model, c, c0, g0, x) in PTS
-        F, iF = D.tr_contour([x], model, c; c0, g0, pdf = false, warn = false)
-        f, i_f = D.tr_contour([x], model, c; c0, g0, pdf = true, warn = false)
+        # (the checked computation, verified = true, with its error estimates; one evaluation, by the rule of one
+        # evaluation since November 2026, is compared with these values at a looser tolerance)
+        F, iF = D.tr_contour([x], model, c; c0, g0, pdf = false, warn = false, verified = true)
+        f, i_f = D.tr_contour([x], model, c; c0, g0, pdf = true, warn = false, verified = true)
         (iF.status[1] == 0 && i_f.status[1] == 0) || @warn "flagged reference point" model c c0 g0 x
         @printf(out, "%d %.17g %.17g %.17g %.17g %.17g %.17g %.3e %.3e\n", model, c, c0, g0, x, F[1], f[1], iF.err[1], i_f.err[1])
     end
