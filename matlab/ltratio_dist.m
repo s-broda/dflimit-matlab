@@ -55,12 +55,21 @@ function [F,info] = ltratio_dist(x,cas,c,opts,mode)
 %   refuses the point before evaluating it (DFX_CORE raises dfx:bound:rule or
 %   dfx:bound:path; the bounds of the C and Julia engines).  With 'auto' the
 %   conditional integral serves there, with its checks (at large x above the
-%   unit root its one evaluation where the checked value is flagged; the
-%   warning ltratio:bound where a value near c0 = 0 is flagged; ROUTE_DOUBLE),
+%   unit root, in cases DU, DT its one evaluation where the checked value is
+%   flagged, in case DK the checked value whatever its flag; the warning
+%   ltratio:bound where a value near c0 = 0 is flagged; ROUTE_DOUBLE),
 %   info.nrouted of them; with 'single', and in case DG, which has the line
 %   integral only, the error ltratio:bound names the arguments.  With
 %   opts.verified = true a flagged point whose fallback, the line integral,
 %   refuses it keeps its flagged value, with the warning ltratio:bound.
+%   Far above the unit root (c > 4) cases DK, DU, DT take the conditional
+%   integral at x > 300 as well, and case DK with c0 > c at x < -20 (FAR_TAIL:
+%   the line integral's cost grows like x^4 at large x, and in case DK with
+%   c0 > c it is off by up to 1.5e-3 in the lower tail); above c = 14 these
+%   points raise the error ltratio:args (the conditional integral is off by up
+%   to 7.7e-5 in case DK at c = 16 and gives 1e44 in case DT).  LTRATIO_CDF
+%   ends with LTRATIO_RANGECHECK: a value outside [0, 1] by more than 1e-8 is
+%   an error.
 %
 %   The engine (opts.engine).  'classical' the programs above; 'general' the
 %   general engine (DFDET_CDF, DFDET_PDF: the inversion on paths around the
@@ -166,6 +175,13 @@ if any(fin(:))
             for k = 1:numel(fn), info.(fn{k}) = inf2.(fn{k}); end
         case 'auto'
             verified = logical(getf_(opts,'verified',false));
+            % far above the unit root at large |x| (FAR_TAIL): the conditional integral as ROUTE_DOUBLE gives it, in place of
+            % the rule's representations; above c = 14 refused before anything is computed (FAR_CHECK), with verified too
+            far = false(size(x));
+            if g0 == 0, for kk = find(fin(:))', far(kk) = far_tail(cas,c,c0,x(kk)); end, end
+            for kk = find(far(:))', far_check(mode,cas,c,c0,x(kk)); end
+            for kk = find(far(:))', F(kk) = route_double(x(kk),cas,c,c0,opts,mode,'dfx:bound:rule'); end
+            fin = fin & ~far;
             [dbl,tails,ctr] = ltratio_method(cas,c,c0,g0,x,verified); ctr = fin & ctr;
             if ~verified
                 % the default: one evaluation by one method at each point (no second evaluation, no refinement driven by
@@ -301,6 +317,7 @@ for k = 1:numel(x)
         if ~strncmp(ME.identifier,'dfx:bound:',10), rethrow(ME); end
         if strcmp(route,'keep'), F(k) = Fkeep(k); nkeep = nkeep + 1; continue; end
         if strcmp(route,'error') || model == 4, error('ltratio:bound','%s',bound_msg(mode,cas,c,c0,x(k),ME)); end
+        if any(strcmp(cas,{'DK','DU','DT'})) && strcmp(ME.identifier,'dfx:bound:rule'), far_check(mode,cas,c,c0,x(k)); end
         [F(k),fl] = route_double(x(k),cas,c,c0,opts,mode,ME.identifier);
         nrouted = nrouted + 1; nflag = nflag + fl;
     end
@@ -323,8 +340,13 @@ function [F,fl] = route_double(x,cas,c,c0,opts,mode,id)
 % (opts.verified = true), whatever its status, fl where it is flagged (against the contour integral of a newer engine,
 % November 2026: within 5e-7 at most of the points of case SK with c = c0 from -1e-4 to -0.1 and x from 0.05 to 1.5,
 % flagged at most of them, but the density at c = c0 = -1e-3, x = 0.05 off by 1.2e-3; case DK within 1e-13); large x
-% above the unit root (dfx:bound:rule) with its checks where its status is 0, otherwise one evaluation (in case DT the
-% checked value is off by up to 3e-2 with the status 2 at c = 7 and c = 10, where one path is right)
+% above the unit root (dfx:bound:rule) in case DK with its checks whatever its status, in cases DU, DT with its checks
+% where its status is 0, otherwise one evaluation (in case DT the checked value is off by up to 3e-2 with the status 2
+% at c = 7 and c = 10, where one path is right; in case DK the status 2 is a false alarm and one evaluation is far off:
+% against an independent computation, the law of V given J(1) from Girsanov's theorem inverted on a line through its
+% saddle point and integrated over J(1), at c = 7, 10 and 13 with c0 in {-2, 0, 2, c - 1, c + 2} from the 24% to the 99.7%
+% point the checked value is within 1.2e-9 at every point, 32 of 36 with the status 2, one evaluation off by up to 8;
+% route_double of DFExact.jl and of the C engine)
 o = rmfield_safe(opts,{'method'}); o.c0 = c0; o.g0 = 0; o.verified = true;
 ws = warning('off','tr_limdist:status');
 [F,inf2] = tr_limdist(x,cas,c,o,mode);
@@ -332,9 +354,38 @@ warning(ws);
 st = 0; if isfield(inf2,'status'), st = inf2.status(1); end
 fl = false;
 if strcmp(id,'dfx:bound:path'), fl = st ~= 0; return; end
-if st == 0, return; end
+if st == 0 || strcmp(cas,'DK'), return; end
 o.verified = false;
 F = tr_limdist(x,cas,c,o,mode);
+end
+
+function tf = far_tail(cas,c,c0,x)
+% Far above the unit root at large |x| (a zero start, c > 4): at x > 300 in cases DK, DU, DT, and in case DK with c0 > c at
+% x < -20, the conditional integral as ROUTE_DOUBLE gives it (in case DK the checked value, in cases DU, DT the checked
+% value where its status is 0 and one evaluation otherwise), as at the points where the line integral exceeds the bounds
+% of the engine.  At large x the line integral's cost grows like x^4 (the phase of the saddle factor of its inner integrals
+% grows like x^2, and the panels of the outer rule follow it): in the Julia engine, case DK at c = 10, c0 = -2, 0.9 s at
+% x = 200, 10 s at 700, more than three minutes at 2350, and cases DU, DT at c = 16, c0 = 0, some 2 GB at x = 1.3e6 and
+% more than 8 GB at x = 4.4e6 (the median), where the conditional integral takes 0.1 to 0.4 s at every x.  With c0 > c the
+% bulk of case DK lies at x < 0, where the line integral is off by up to 9.8e-6 at c = 5, 5.5e-5 at c = 7, 1.5e-3 at c = 10
+% and 2.9e-4 at c = 13 without a warning, and within 5e-7 at x >= -20.  The values: in case DK within 1.3e-8 of an
+% independent computation up to c = 14; in cases DU, DT within 1e-14 of the general engine up to c = 13 (x up to 3e4) and
+% within 5e-7 of the large-c law at c = 13 and 14 (far_tail of DFExact.jl and of the C engine)
+tf = any(strcmp(cas,{'DK','DU','DT'})) && c > 4 && (x > 300 || (strcmp(cas,'DK') && c0 > c && x < -20));
+end
+
+function far_check(mode,cas,c,c0,x)
+% far above the unit root at large |x| (FAR_TAIL, or where the line integral exceeds its bounds) the classical programs
+% compute for c <= 14: in case DK the checked conditional integral is off by up to 7.7e-5 at c = 16, 5.5e-3 at c = 18 and
+% by orders of magnitude at c = 20 (within 1.3e-8 at c = 13 and 14); in case DT at c = 16 one evaluation gives values of
+% 1e44 and more; in case DU the line integral at c0 = 0 exhausts the memory (far_check of DFExact.jl and of the C engine)
+if ~(c > 14), return, end
+args = sprintf('case %s, c = %g',cas,c); if c0 ~= 0, args = [args sprintf(', c0 = %g',c0)]; end
+error('ltratio:args',['ltratio_%s: %s, x = %g: far above the unit root at large |x| (for c > 4 at x > 300, in case DK with ' ...
+      'c0 > c at x < -20, and where the line integral exceeds the bounds of the engine) the classical engine computes for ' ...
+      'c <= 14 only: beyond, the conditional integral that takes these points is off by up to 7.7e-5 in case DK at c = 16 ' ...
+      'and gives values of 1e44 and more in case DT, the line integral exhausts the memory, and the general engine''s line ' ...
+      'exceeds its bounds'],mode,args,x);
 end
 
 function m = bound_msg(mode,cas,c,c0,x,ME)

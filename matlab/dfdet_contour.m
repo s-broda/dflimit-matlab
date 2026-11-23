@@ -1,4 +1,4 @@
-function varargout = dfdet_contour(mode,CP,arg,opts)
+function varargout = dfdet_contour(mode,CP,arg,opts,c0s)
 %DFDET_CONTOUR  The inversion on paths around the roots: the inner integrals over the U-shapes and the outer sum.
 %
 %   [F,f,nodes,eF,ef] = DFDET_CONTOUR('tratio',CP,xs,opts): the distribution
@@ -47,11 +47,13 @@ function varargout = dfdet_contour(mode,CP,arg,opts)
 %   on G- for A < 0; with a finite vmax the boundary term
 %   -e^{-t vmax^2} P(R <= X(vmax) under the tilt) is added (bnd).
 %
-%   CP = DFDET_CONTOUR('refine',CP,xs,amax): the vertical line with its panels
-%   in w cut to the oscillation of the outer integrand at |x| <= max|xs|
+%   CP = DFDET_CONTOUR('refine',CP,xs,amax,c0s): the vertical line with its
+%   panels in w cut to the oscillation of the outer integrand at |x| <= max|xs|
 %   (above the unit root the inner integral oscillates in w at the rate
-%   kappa^2 x^2/4 + kappa |A|, kappa = |Im s_k|/w): each panel cut into parts of
-%   length at most 30/Omega; cached; CP itself when nothing needs cutting.
+%   kappa^2 x^2/4 + kappa |A|, kappa = |Im s_k|/w, and with a local null value
+%   c0 ~= 0 (c0s) at the rate of the stationary value of its exponent, faster by
+%   about 1/|1 - c0/c| in case DK): each panel cut into parts of length at most
+%   30/Omega; cached; CP itself when nothing needs cutting.
 %
 %   See also DFDET_CPATH, DFDET_CDF, DFDET_XSPEC.
 if nargin < 4 || isempty(opts), opts = struct; end
@@ -61,7 +63,8 @@ switch mode
     case 'specs'
         [varargout{1:nargout}] = eval_specs(CP,arg,opts);
     case 'refine'
-        varargout{1} = line_refined(CP,arg,opts);
+        if nargin < 5, c0s = []; end
+        varargout{1} = line_refined(CP,arg,opts,c0s);
     otherwise
         error('dfdet:args','dfdet_contour: unknown mode %s.',mode);
 end
@@ -1090,29 +1093,43 @@ if est > 1e-6
 end
 end
 
-function CPr = line_refined(CP,xs,amax)
+function CPr = line_refined(CP,xs,amax,c0s)
 % the line cut to the oscillation of the outer integrand (line_refine), cached per path, the bound of |x| and the values
-% |A| beyond the shift a, both rounded up to powers of two; CP itself unless it is a vertical line
+% |A| beyond the shift a, both rounded up to powers of two, and the local null values c0s ~= 0 of the kernels with a
+% slope; CP itself unless it is a vertical line
 CPr = CP;
 if ~isnan(CP.h), return, end
 if nargin < 3 || isempty(amax) || isstruct(amax), amax = CP.Mo.a; end
+if nargin < 4, c0s = []; end
 fin = abs(xs(isfinite(xs)));
 if isempty(fin), xm = 0; else, xm = max(fin); end
 if xm > 0, xb = 2^ceil(log2(xm)); else, xb = 0; end
 av = amax(isfinite(amax) & amax > CP.Mo.a);
 ab = unique(2.^ceil(log2(av(:)')));
 if ~(xb > 0 || ~isempty(ab)), return, end
+c0s = c0s(:)'; c0s = reshape(unique(c0s(isfinite(c0s) & c0s > 0)),1,[]);   % (only c0 > 0 refines further: LINE_REFINE)
+if xb == 0, c0s = []; end
 key = sprintf('%s|%.17g|%s',CP.key,xb,sprintf('%.17g,',ab));
+if ~isempty(c0s), key = [key '|c0' sprintf('%.17g,',c0s)]; end
 hit = dfdet_cache('get','line',key);
 if ~isempty(hit), CPr = hit; return, end
-CPr = line_refine(CP,xb,[CP.Mo.a ab]);
+CPr = line_refine(CP,xb,[CP.Mo.a ab],c0s);
 dfdet_cache('put','line',key,CPr);
 end
 
-function CPr = line_refine(CP,xmax,amax)
+function CPr = line_refine(CP,xmax,amax,c0s)
 % each panel of the line cut into parts of length at most 30/Omega, Omega the largest rate kappa^2 x^2/4 + kappa |A| over
 % the roots at the panel's ends and over |x| <= xmax with an amplitude above e^{-40}; the roots continued along the new
-% nodes; CP itself when no panel needs cutting
+% nodes; CP itself when no panel needs cutting.  A local null value c0 ~= 0 (c0s): X(v) = c0 v^2 + x v + a, the exponent
+% -alpha v^2 - s_k x v - s_k a with alpha = t + c0 s_k has the stationary value phi_s = (s_k x)^2/(4 alpha) - s_k a, which
+% changes with w at the rate Re dphi_s/dt (s_k' = Im s_k/w the drift of the root along the line); for c0 near c in case
+% DK alpha ~ t (1 - c0/c) and the rate is that of c0 = 0 times 1/|1 - c0/c| (at c = 10, c0 = 9 the panels cut to the
+% rate of c0 = 0 left the distribution function off by 1.1e-3 at x = 1000 and 3.8e-3 at x = 3000); the largest |x| <=
+% xmax at which the term is not negligible from log|M_V| + Re phi_s; the cut is to the larger of this rate and that of
+% c0 = 0 (line_refine of DFDet.jl).  Only c0 > 0: with c0 < 0, alpha ~ t (1 + |c0|/c) and the rate is below that of
+% c0 = 0, which the cut covers (for c0 < 0 the stationary values at the roots of a fixed start gave rates far above the
+% oscillation: 1e6 nodes in case DU at c = 10, g0 = 1, c0 = -2, x = 132)
+if nargin < 4, c0s = []; end
 CPr = CP;
 if ~(isnan(CP.h) && (xmax > 0 || max(amax) > CP.Mo.a)), return, end
 [nq,wa,Ls] = linepanels(CP);
@@ -1137,6 +1154,20 @@ for k = 1:np
                 Om = max(Om,kap^2*xu^2/4 + kap*am);
             end
         end
+        if xmax > 0
+            for c0 = reshape(c0s,1,[])          % (a row: an empty c0s of any shape gives no pass)
+                for r = CP.R(:,j).'
+                    rp = imag(r)/wj; al = CP.t(j) + c0*r;
+                    for am = amax
+                        L0 = 40 + lmv - real(r)*am;
+                        if ~(L0 > 0), continue, end
+                        Q = real(r*r/(4*al));
+                        if Q < 0, xu = min(xmax,sqrt(L0/(-Q))); else, xu = xmax; end
+                        Om = max(Om,abs(real(xu^2*(2*r*rp*al - r*r*(1 + c0*rp))/(4*al^2))) + abs(rp)*am);
+                    end
+                end
+            end
+        end
     end
     m = max(1,ceil(min((b - a)*Om/30,1e6)));
     if m > 1, changed = true; end
@@ -1148,6 +1179,7 @@ if nn > 400000, error('dfdet:line','line_refine: the line would need %d nodes fo
 if numel(newcuts) > 4000, warning('dfdet:line','line_refine: the line needs %d panels for |x| <= %g at c = %g (the oscillation of the outer integrand grows with x); this is slow.',numel(newcuts) - 1,xmax,CP.c); end
 CPr = dfdet_cpath(CP.Mo,CP.c,struct('cuts',newcuts,'nq',nq,'ts',CP.tstar,'tau',tau));
 CPr.key = sprintf('%s|refined%.17g',CP.key,xmax);
+if ~isempty(c0s), CPr.key = [CPr.key '|c0' sprintf('%.17g,',c0s)]; end
 end
 
 function v = getf(o,f,d)

@@ -42,7 +42,17 @@ function nfail = ltratio_test(quick,strict)
 %   11. the contour integral (TR_CONTOUR, a fixed start in cases DU, DT)
 %       against the reference values of the Julia engine
 %       (c/test/contour_ref.txt), the automatic choice there, and the error
-%       outside its scope.
+%       outside its scope;
+%   12. the default (one evaluation), verified and the warnings of the
+%       brittle regimes;
+%   13. the upper tail above the unit root (November 23, 2026): case DK with
+%       c0 ~= c beyond the line integral's bound, and for c > 4 at x > 300,
+%       the conditional integral with its checks (before, its flagged points
+%       got one evaluation, off by up to 2.4), the refusal above c = 14, the
+%       general engine's line cut to the rate with c0, and the final check of
+%       a distribution function (LTRATIO_RANGECHECK), against an independent
+%       computation (the law of V given J(1) by Girsanov's theorem, inverted
+%       and integrated over J(1)).
 %
 %   See also LTRATIO_CDF, LTRATIO_PDF, LTRATIO_ICDF, LTRATIO_MOM, ADFMAX_CDF,
 %   COEF_CDF, LTRATIO_REGION, POWER_ENVELOPE.
@@ -469,13 +479,57 @@ nw = @(f) nwarn_(f);
 fire = [nw(@() ltratio_cdf(-3,'DU',-5,struct('c0',2,'method','double'))), nw(@() ltratio_cdf([-3 1],'DK',2,struct('c0',-5,'method','double'))), ...
         nw(@() ltratio_cdf(-5,'DU',-20,struct('c0',2,'g0',0.5))), nw(@() ltratio_cdf(-2,'SK',-0.1,struct('c0',1,'method','double'))), ...
         nw(@() ltratio_icdf([0.05 0.5],'DU',-20,struct('c0',2,'g0',0.5))), nw(@() ltratio_cdf(-3.5,'DK',-25,struct('g0',0.3,'engine','classical'))), ...
-        nw(@() ltratio_cdf(-8.4,'DU',2,struct('c0',5,'g0',1.5,'method','contour')))];
+        nw(@() tryf_(@() ltratio_cdf(-8.4,'DU',2,struct('c0',5,'g0',1.5,'method','contour'))))];
+% (the failing contour integral at c = 2, c0 = 5, g0 = 1.5 gives 1.2e44 at x = -8.4: since November 23, 2026 the final
+% check, LTRATIO_RANGECHECK, turns it into the error ltratio:range after the warning)
+try, ltratio_cdf(-8.4,'DU',2,struct('c0',5,'g0',1.5,'method','contour')); id = ''; catch ME, id = ME.identifier; end
+check('DU c=2 c0=5 g0=1.5, the contour integral at x = -8.4 (1.2e44): the error ltratio:range of the final check',double(~strcmp(id,'ltratio:range')),0);
 quiet = [nw(@() ltratio_cdf(-3,'DU',-5,struct('c0',2))), nw(@() ltratio_cdf(-2,'DU',-5)), nw(@() ltratio_cdf(-2,'DU',-5,struct('g0',1.5))), ...
          nw(@() ltratio_cdf(-3,'DU',-5,struct('c0',2,'method','double','verified',true))), nw(@() ltratio_cdf(-6,'DK',-10,struct('g0',1)))];
 check(sprintf('the warnings: once each where they should (%s), none elsewhere (%s)',num2str(fire),num2str(quiet)),sum(fire ~= 1) + sum(quiet),0);
 % case DU with a fixed start, c0 > 3 at c > 1.5: the contour integral fails (1e44), the default takes the conditional integral
 Fa = ltratio_cdf(-8.4075,'DU',2,struct('c0',5,'g0',1.5)); Fv = ltratio_cdf(-8.4075,'DU',2,struct('c0',5,'g0',1.5,'method','double','verified',true));
 check('DU c=2 c0=5 g0=1.5: the default (the conditional integral, not the failing contour) vs verified',abs(Fa - Fv),1e-9);
+
+fprintf('\n=== 13. the upper tail above the unit root ===\n');
+% (the references: the independent computation by conditioning on J(1); the classical programs before: 0.8415, -1.3674,
+% 1.1422, 0.6076, 1.0479)
+R = [10 2 1e4 0.743623945123; 10 2 3e4 0.999338346257; 7 2 2e3 0.999999671714; 10 9 1e3 0.636120922790; 10 9 3e3 0.993550212928];
+for k = 1:size(R,1)
+    o = struct('c0',R(k,2),'engine','classical');
+    F = ltratio_cdf(R(k,3),'DK',R(k,1),o);
+    check(sprintf('DK c=%g c0=%g x=%g: F against the independent computation',R(k,1),R(k,2),R(k,3)),abs(F - R(k,4)),1e-10);
+end
+F = ltratio_cdf([1e3 3e3 1e4],'DK',10,struct('c0',9,'engine','general'));
+check('DK c=10 c0=9 x=1e3, 3e3, 1e4: the general engine (the line cut to the rate with c0)',max(abs(F - [0.636120922790 0.993550212928 1])),1e-10);
+try
+    ltratio_cdf(1e7,'DK',16,struct('c0',2,'engine','classical')); ok = false;
+catch ME
+    ok = ~isempty(strfind(ME.message,'computes for c <= 14 only')) && ~isempty(strfind(ME.message,'c = 16, c0 = 2, x = 1e+07'));
+end
+check('DK c=16 c0=2 x=1e7: refused, with the arguments and the region',double(~ok),0);
+try
+    ltratio_cdf(1e7,'DK',16,struct('c0',-2,'verified',true,'engine','classical')); ok = false;
+catch ME
+    ok = ~isempty(strfind(ME.message,'computes for c <= 14 only'));
+end
+check('DK c=16 c0=-2 x=1e7, verified (the rule''s conditional integral): refused',double(~ok),0);
+% cases DU, DT far above the unit root: the conditional integral at x > 300, against the large-c law; above c = 14 refused
+F = [ltratio_cdf(4.07e5,'DU',13,struct('engine','classical')) ltratio_cdf(4.766e5,'DT',13,struct('engine','classical'))];
+check('DU, DT c=13 far above the unit root: against the large-c law',max(abs(F - [0.9545202704 0.9973023556])),1e-6);
+try
+    ltratio_cdf(4.4e6,'DT',16,struct('engine','classical')); ok = false;
+catch ME
+    ok = ~isempty(strfind(ME.message,'computes for c <= 14 only'));
+end
+check('DT c=16 x=4.4e6 (the line integral exhausted the memory): refused',double(~ok),0);
+try
+    ltratio_rangecheck('ltratio_cdf','case DK, c = 1','x',[0.5 1],[0.3 1 + 2e-8]); ok = false;
+catch ME
+    ok = strcmp(ME.identifier,'ltratio:range') && ~isempty(strfind(ME.message,'ltratio_cdf: case DK, c = 1, x = 1: the computed distribution function is 1.00000002'));
+end
+ok = ok && isequal(ltratio_rangecheck('ltratio_cdf','case DK, c = 1','x',[0.5 1],[0.3 1 + 5e-9]),[0.3 1 + 5e-9]);
+check('LTRATIO_RANGECHECK: an error outside [0, 1] by more than 1e-8, the values otherwise',double(~ok),0);
 
 fprintf('\n%d of %d checks failed (%.0f s).\n',nfail,ntest,toc(t00));
 if strict && nfail > 0, error('ltratio_test:fail','%d check(s) failed.',nfail); end
@@ -489,6 +543,10 @@ if strict && nfail > 0, error('ltratio_test:fail','%d check(s) failed.',nfail); 
 end
 
 % ---------------------------------------------------------------------------
+function tryf_(f)
+% f(), its error ignored (the warnings it gives before the error are counted by NWARN_)
+try, f(); catch, end
+end
 function n = nwarn_(f)
 % the number of warnings of a brittle regime (LTRATIO_BRITTLE) that f() gives
 ws = warning('on','ltratio:brittle');

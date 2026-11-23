@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+**The upper tail above the unit root, and the final check of a distribution function** (C and MATLAB alike, the
+changes of DFLimit.jl). Above the unit root the t-ratio with c0 != c has its upper tail at x of the order
+(c - c0) e^c/(2c), and the automatic method returned values outside [0, 1] there without a warning (case DK at c = 10,
+c0 = 2: 0.8415 for 0.7436 at x = 1e4 and -1.3674 for 0.9993 at x = 3e4; at c = 10, c0 = 9 1.0479 for 0.9936 at x = 3e3;
+also with `verified` and the classical engine forced). Beyond x ~ 700 the line integral's inner rule needs more than
+`DFL_RULEMAX` nodes, the point goes to the conditional integral with its checks (`route_double` in `c/dfl_api.c` and
+`matlab/ltratio_dist.m`), and where that flagged the point its one evaluation was returned, which in case DK is off by up
+to 14. In case DK the flag is a false alarm (the checked value within 1.3e-8 of an independent computation, the law of V
+given J(1) by Girsanov's theorem, up to c = 14): case DK now takes the checked value whatever its flag (cases DU, DT
+unchanged). Far above the unit root (c > 4) the three cases take the conditional integral at x > 300 too, and case DK with
+c0 > c at x < -20 (`far_tail`, before the rule's representations): the line integral's cost grows like x^4 at large x (in
+cases DU, DT at c = 16, c0 = 0 it exhausted more than 8 GB at the median in the Julia engine; here the size of its outer
+rule overflowed an int), and in case DK with c0 > c it was off by up to 1.5e-3 in the lower tail (a negative value at
+c = 7, c0 = 9, x = -627); the values of cases DU, DT there are within 1e-14 of the general engine up to c = 13 and within
+5e-7 of the large-c law at c = 13 and 14. Above c = 14 these points are refused in the three cases with an error that
+names the statistic, c, c0, x and the region computed (`DFL_FAR_CMAX`; `ltratio:args` in MATLAB; before anything is
+computed, with `verified` too): the conditional integral of case DK is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18,
+one path of case DT gives 1e44 and more at c = 16. With `verified` these points no longer fall back to the line
+integral. The general engine cut its vertical line to the oscillation as if c0 were 0
+(`line_refine` in `c/dfl_det_path.c` and `matlab/dfdet_contour.m`): it was off by 1.1e-3 at c = 10, c0 = 9, x = 1000 and
+gave 1.0000000112 at x = 1e4; for c0 > 0 the line is now cut to the larger of the rates with and without c0
+(`det_line_refined` takes the values c0; `dfdet_contour('refine', CP, xs, amax, c0s)`; with c0 < 0 the rate is below
+that of c0 = 0 and the cut is unchanged). Every distribution function of both engines ends with
+a check of its values: below -1e-8 or above 1 + 1e-8 an error that names the call (`dfl_cdf_range_check` in `dfl_dist`,
+`dfl_det_dist` and `dfl_det_coef`; `ltratio_rangecheck` in `ltratio_cdf`, `coef_cdf`, `dfdet_cdf` and `dfdet_coef_cdf`,
+the error `ltratio:range`). Tests: `c/dfl_test_bounds.c` (part 4) and section 13 of `matlab/ltratio_test.m`.
+
 **The general engine above the unit root** (C and MATLAB alike, the repairs of DFLimit.jl). The coefficient statistic
 far above the unit root was silently wrong: the panels of the paths around the roots merged every point within 1e-12
 max(B - A, 1) of an end with it (`graded_panels` in `c/dfl_det_inner.c` and `matlab/dfdet_contour.m`), and from c = 16

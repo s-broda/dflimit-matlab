@@ -113,4 +113,12 @@ function [F,info] = ltratio_cdf(x,cas,c,opts)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 [F,info] = ltratio_dist(x,cas,c,opts,'cdf');
+F = ltratio_rangecheck('ltratio_cdf',cdf_args(cas,c,opts),'x',x,F);   % (the final check of the values)
+end
+
+function a = cdf_args(cas,c,opts)
+% the arguments of the call, for the message of LTRATIO_RANGECHECK
+if ischar(cas) || isstring(cas), a = sprintf('case %s, c = %g',upper(char(cas)),c); else, a = sprintf('a design, c = %g',c); end
+if isfield(opts,'c0') && ~isempty(opts.c0) && opts.c0 ~= 0, a = [a sprintf(', c0 = %g',opts.c0)]; end
+if isfield(opts,'g0') && ~isempty(opts.g0) && opts.g0 ~= 0, a = [a sprintf(', g0 = %g',opts.g0)]; end
 end

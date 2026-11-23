@@ -14,4 +14,7 @@ function F = dfdet_coef_cdf(y,D,c,opts)
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
 F = dfdet_stat('coef','cdf',y,D,c,opts);
+nm = 'a design'; if isstruct(D) && isfield(D,'name') && ~isempty(D.name), nm = ['the design ' char(D.name)]; end
+a = sprintf('%s, c = %g',nm,c); if isfield(opts,'c0') && ~isempty(opts.c0), a = [a sprintf(', c0 = %g',opts.c0)]; end
+F = ltratio_rangecheck('dfdet_coef_cdf',a,'y',y,F);   % (the final check of the values)
 end

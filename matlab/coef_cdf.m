@@ -33,6 +33,10 @@ F = zeros(size(y));
 ltratio_brittle('begin'); cl = onCleanup(@() ltratio_brittle('end'));   % (the regimes c0 + y passes, each warned once)
 for k = 1:numel(y)
     if isnan(y(k)), F(k) = NaN; elseif y(k) == Inf, F(k) = 1; elseif y(k) == -Inf, F(k) = 0;
-    else, o = opts; o.c0 = c0 + y(k); F(k) = ltratio_cdf(0,cas,c,o); end
+    else, o = opts; o.c0 = c0 + y(k); F(k) = ltratio_dist(0,cas,c,o,'cdf'); end
 end
+% (the final check of the values, named as this call)
+a = sprintf('case %s, c = %g',upper(char(cas)),c); if c0 ~= 0, a = [a sprintf(', c0 = %g',c0)]; end
+if isfield(opts,'g0') && ~isempty(opts.g0) && opts.g0 ~= 0, a = [a sprintf(', g0 = %g',opts.g0)]; end
+F = ltratio_rangecheck('coef_cdf',a,'y',y,F);
 end
