@@ -360,6 +360,10 @@ int dfl_power_envelope(int n, const double *c, int model, double alpha, const df
  * engines' moments, as before November 2026 (for checking) */
 int dfl_mom_start(int p, int model, bool stat, double c, double c0, double g0, double *m);
 extern int DFL_MOM_START;
+/* whether the router's classical quantile search (dfl_engine_icdf) takes F and f in one evaluation where the rule gives a
+ * Newton step's point to the general engine (route_dist2 of merged.jl: dfl_det_dist_both, the values of dfl_engine_dist bit
+ * for bit, so that the quantiles are unchanged bit for bit); 0: two evaluations, as before November 2026 (for checking) */
+extern int DFL_DIST2;
 
 /* ---- the user-level entry points (dfl_api.c) ---- */
 /* the validation shared by the entry points (and dfl_moments): the model, c (finite, at least DFL_CMIN), c0, g0, the start */
@@ -538,6 +542,10 @@ void dfl_det_empty_caches(void);      /* drop the cached prepared designs and ou
  * points of one call share the paths of the inversion (as in Julia, where the values depend on the points evaluated
  * together only through the rules of the paths, far below 1e-10). */
 int dfl_det_dist(int kind, const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen);
+/* the distribution function F and the density f of the inversion on paths (method paths) at the finite points x from one pass
+ * (dist_both of DFDet.jl): the values of dfl_det_dist (kinds 2 and 1, method paths) bit for bit, one evaluation by the rule
+ * of DFL_RULE_AUTO; o supplies c0, the start, gamma0 and gls only.  F ends with the final check */
+int dfl_det_dist_both(const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o, double *F, double *f, char *err, size_t errlen);
 /* the p-quantiles (dist_quantile): Newton's method from x0 (-2), the safeguarded search where it does not converge */
 int dfl_det_quantile(const dfl_design *D, int n, const double *p, double c, double x0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen);
 /* the coefficient statistic (U - c0 V)/V of n(phi^ - phi0): distribution function (kind 2) and density (kind 1) at y, its

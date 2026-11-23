@@ -296,6 +296,24 @@ static int gen_icdf(int n, const double *p, const spec_t *R, double c, double c0
     det_warn_hold(0);
     return 0;
 }
+/* F and f at a point x of the Newton steps of the classical search in one evaluation (route_dist2 of merged.jl): where the
+ * rule gives the point to the general engine (method 0), its paths return both from one pass (dfl_det_dist_both), the
+ * values of dfl_engine_dist bit for bit; 0 elsewhere (the classical engine, the tails that go back to it, other methods),
+ * and the search takes the two evaluations; 1 with F, f; -1 with an error */
+int DFL_DIST2 = 1;
+static int route_dist2(double x, const spec_t *R, double c, double c0, int method, double *F, double *f, char *err, size_t errlen)
+{
+    if (!(DFL_DIST2 && method == 0 && isfinite(x))) return 0;
+    if (dfl_autoengine(DFL_F_DIST, R->model, R->stat, R->g0, R->gls, c, c0, x) != DFL_ENGINE_GENERAL) return 0;
+    dfl_det_opts o; det_opts_of(R, c0, 0, &o);
+    double Fv, fv;
+    if (dfl_det_dist_both(R->D, 1, &x, c, &o, &Fv, &fv, err, errlen)) return -1;
+    /* (the tails below 1e-3 where the classical engine would take its conditional integral go back to it, as in
+     * merged_dist, for F and f each: the search then takes the two evaluations) */
+    if ((Fv < 1e-3 || fv < 1e-3) && dfl_automethod(R->model, c, c0, R->g0, R->stat, x) == 2) return 0;
+    *F = Fv; *f = fv < 0 ? 0.0 : fv;
+    return 1;
+}
 /* the classical search with each evaluation routed (ltratio_icdf_ with engine = auto); the warnings of the evaluations
  * collected (the general engine's under the hold, the classical engine's in cw), the hold released on every return */
 static int routed_icdf(int n, const double *p, const spec_t *R, double c, double c0, int method, double tol, double *q, char *err, size_t errlen)
@@ -321,7 +339,10 @@ static int routed_icdf(int n, const double *p, const spec_t *R, double c, double
         for (;;) { CDF(hi, F); if (!(F < pk)) break; hi += 2 * (hi - x); }
         int conv = 0;
         for (int it = 0; it < 60; it++) {
-            CDF(x, F); PDF(x, f);
+            /* (F and f from one evaluation where the rule gives the point to the general engine's paths, route_dist2) */
+            int r2 = route_dist2(x, R, c, c0, method, &F, &f, err, errlen);
+            if (r2 < 0) { rc = 1; goto done; }
+            if (r2 == 0) { CDF(x, F); PDF(x, f); }
             if (F > pk) hi = x; else lo = x;
             double xn = x - (F - pk) / f;
             if (!(lo <= xn && xn <= hi && isfinite(xn))) xn = (lo + hi) / 2;   /* (a step below half an ulp lands on the end of the bracket: converged) */

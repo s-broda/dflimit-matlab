@@ -303,6 +303,37 @@ int dfl_det_dist(int kind, const dfl_design *D, int n, const double *x, double c
     free(xf); free(ix); det_path_release(CP); det_line_release(pv);
     return rc;
 }
+/* F and f of the inversion on paths from one pass (dist_both of DFDet.jl): the values of dfl_det_dist with method paths bit
+ * for bit (the same path, rule and points; det_contour_eval returns both), for the Newton steps of the router's quantile
+ * search (route_dist2 in dfl_det_route.c) */
+int dfl_det_dist_both(const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o0, double *F, double *f, char *err, size_t errlen)
+{
+    dfl_det_opts o; dfl_det_defaults(&o);
+    if (o0) { o.c0 = o0->c0; o.start = o0->start; o.gamma0 = o0->gamma0; o.gls = o0->gls; }
+    det_warn_clear();
+    if (check_common(D, c, &o, "the t-ratio (dist_cdf)", err, errlen)) return 1;
+    for (int k = 0; k < n; k++) if (!isfinite(x[k])) { snprintf(err, errlen, "dist_both: finite points only"); return 1; }
+    int nr = 0, ntr = 0;
+    det_path *CP = rule_path(D, c, &o, 0, &nr, &ntr, NULL, err, errlen);
+    if (!CP) return 1;
+    int rc = 0;
+    if (n > 0) {
+        det_path *CPr = det_line_refined(CP, n, x, 1, &CP->Mo->a, 1, &o.c0, err, errlen);
+        if (!CPr) rc = 1;
+        else {
+            det_eval_opts eo; det_eval_defaults(CPr, &eo); eo.n = nr; eo.ntail = ntr;
+            rc = det_contour_eval(CPr, n, x, o.c0, 2, &eo, F, f, NULL, NULL, err, errlen);
+            det_path_release(CPr);
+        }
+        if (!rc && o.c0 > 0 && CP->Mo->r == 1 && CP->Mo->rm == 0) {
+            double xs_ = -sqrt(4 * o.c0 * CP->Mo->a);
+            for (int j = 0; j < n; j++) if (fabs(x[j] - xs_) <= 1e-12 * dmax(1.0, fabs(x[j]))) f[j] = INFINITY;
+        }
+        if (!rc) rc = range_check("dist_cdf", D, c, &o, "x", n, x, F, err, errlen);
+    }
+    det_path_release(CP);
+    return rc;
+}
 
 /* newton_safe: F(x) = p for an increasing F, ff(x) -> (F, f) */
 typedef int (*ff_t)(double x, void *ctx, double *F, double *f, char *err, size_t errlen);
