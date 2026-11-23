@@ -505,15 +505,24 @@ check('DK c=10 c0=9 x=1e3, 3e3, 1e4: the general engine (the line cut to the rat
 try
     ltratio_cdf(1e7,'DK',16,struct('c0',2,'engine','classical')); ok = false;
 catch ME
-    ok = ~isempty(strfind(ME.message,'is computed for c <= 14 only')) && ~isempty(strfind(ME.message,'c = 16, c0 = 2, x = 1e+07'));
+    ok = ~isempty(strfind(ME.message,'computes for c <= 14 only')) && ~isempty(strfind(ME.message,'c = 16, c0 = 2, x = 1e+07'));
 end
 check('DK c=16 c0=2 x=1e7: refused, with the arguments and the region',double(~ok),0);
 try
     ltratio_cdf(1e7,'DK',16,struct('c0',-2,'verified',true,'engine','classical')); ok = false;
 catch ME
-    ok = ~isempty(strfind(ME.message,'is computed for c <= 14 only'));
+    ok = ~isempty(strfind(ME.message,'computes for c <= 14 only'));
 end
 check('DK c=16 c0=-2 x=1e7, verified (the rule''s conditional integral): refused',double(~ok),0);
+% cases DU, DT far above the unit root: the conditional integral at x > 300, against the large-c law; above c = 14 refused
+F = [ltratio_cdf(4.07e5,'DU',13,struct('engine','classical')) ltratio_cdf(4.766e5,'DT',13,struct('engine','classical'))];
+check('DU, DT c=13 far above the unit root: against the large-c law',max(abs(F - [0.9545202704 0.9973023556])),1e-6);
+try
+    ltratio_cdf(4.4e6,'DT',16,struct('engine','classical')); ok = false;
+catch ME
+    ok = ~isempty(strfind(ME.message,'computes for c <= 14 only'));
+end
+check('DT c=16 x=4.4e6 (the line integral exhausted the memory): refused',double(~ok),0);
 try
     ltratio_rangecheck('ltratio_cdf','case DK, c = 1','x',[0.5 1],[0.3 1 + 2e-8]); ok = false;
 catch ME

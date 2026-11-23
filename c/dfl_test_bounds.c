@@ -57,7 +57,7 @@ int main(void)
     /* 1. large x above the unit root (the former crash) */
     val("DT c = 7 x = 751 F", 2, 3, 7, 0, 0, false, 0, 751, 0.990823749760809, 1e-12, 0, 0);
     val("DT c = 7 x = 751 f", 1, 3, 7, 0, 0, false, 0, 751, 9.2924954e-5, 1e-6, 1, 0);
-    val("DT c = 7 x = 403.7 F (the line integral, below the bound)", 2, 3, 7, 0, 0, false, 0, 403.7, 0.838656678280211, 1e-12, 0, 0);
+    val("DT c = 7 x = 403.7 F (below the bound; far_tail: the conditional integral)", 2, 3, 7, 0, 0, false, 0, 403.7, 0.838656678280211, 1e-12, 0, 0);
     refused("DT c = 7 x = 751, the line integral requested", 2, 3, 7, 0, 0, false, 1, 751, DFL_BOUND_RULE, "the line integral needs more nodes than the engine allows", "at large x above the unit root");
     /* 2. c0 < 0 near zero with x > 0 (the unbounded paths); the values of the conditional integral, which the automatic
      * method takes there, against the Julia engine, and at x = 0.05 to 1.5 at c = c0 = -1e-4 against the contour integral of
@@ -108,14 +108,27 @@ int main(void)
     val("DK c = 10 c0 = 2 x = 1e5 F", 2, 1, 10, 2, 0, false, 0, 1e5, 1.0, 1e-12, 0, 0);
     {   double x = 1e7, v; char err[1024] = ""; nchk++;
         int rc = dfl_dist(2, 1, &x, 1, 16, 2, 0, false, 0, NULL, NULL, &v, NULL, err, sizeof err);
-        if (rc != 1 || !strstr(err, "is computed for c <= 14 only") || !strstr(err, "c = 16, c0 = 2, x = 1e+07")) { nfail++; printf("FAIL DK c = 16 c0 = 2 x = 1e7: rc %d, \"%s\"\n", rc, err); }
+        if (rc != 1 || !strstr(err, "computes for c <= 14 only") || !strstr(err, "c = 16, c0 = 2, x = 1e+07")) { nfail++; printf("FAIL DK c = 16 c0 = 2 x = 1e7: rc %d, \"%s\"\n", rc, err); }
         else printf("ok   DK c = 16 c0 = 2 x = 1e7: refused, \"%s\"\n", err);
     }
     {   /* the same with verified, where the rule names the conditional integral (c0 < 0) */
         double x = 1e7, v; char err[1024] = ""; dfl_double_opts dv; dfl_double_defaults(&dv); dv.verified = 1; nchk++;
         int rc = dfl_dist(2, 1, &x, 1, 16, -2, 0, false, 0, NULL, &dv, &v, NULL, err, sizeof err);
-        if (rc != 1 || !strstr(err, "is computed for c <= 14 only")) { nfail++; printf("FAIL DK c = 16 c0 = -2 x = 1e7 verified: rc %d, \"%s\"\n", rc, err); }
+        if (rc != 1 || !strstr(err, "computes for c <= 14 only")) { nfail++; printf("FAIL DK c = 16 c0 = -2 x = 1e7 verified: rc %d, \"%s\"\n", rc, err); }
         else printf("ok   DK c = 16 c0 = -2 x = 1e7 verified: refused\n");
+    }
+    {   /* cases DU, DT far above the unit root: the conditional integral at x > 300 (the line integral exhausted the memory at
+         * c = 16, c0 = 0, x = 4.4e6), against the large-c law; above c = 14 refused */
+        double x1 = 4.07e5, x2 = 4.766e5, x3 = 4.4e6, v; char err[1024] = "";
+        nchk++;
+        int rc1 = dfl_dist(2, 1, &x1, 2, 13, 0, 0, false, 0, NULL, NULL, &v, NULL, err, sizeof err);
+        if (rc1 || !(fabs(v - 0.9545202704) < 1e-6)) { nfail++; printf("FAIL DU c = 13 x = 4.07e5: rc %d, %.12g\n", rc1, v); } else printf("ok   DU c = 13 x = 4.07e5: %.12g\n", v);
+        nchk++;
+        rc1 = dfl_dist(2, 1, &x2, 3, 13, 0, 0, false, 0, NULL, NULL, &v, NULL, err, sizeof err);
+        if (rc1 || !(fabs(v - 0.9973023556) < 1e-6)) { nfail++; printf("FAIL DT c = 13 x = 4.766e5: rc %d, %.12g\n", rc1, v); } else printf("ok   DT c = 13 x = 4.766e5: %.12g\n", v);
+        nchk++;
+        rc1 = dfl_dist(2, 1, &x3, 3, 16, 0, 0, false, 0, NULL, NULL, &v, NULL, err, sizeof err);
+        if (rc1 != 1 || !strstr(err, "computes for c <= 14 only")) { nfail++; printf("FAIL DT c = 16 x = 4.4e6: rc %d, \"%s\"\n", rc1, err); } else printf("ok   DT c = 16 x = 4.4e6: refused\n");
     }
     {   /* the general engine (cases DK, c = 10, c0 = 9: the line cut to the rate with c0; was 0.6372, 0.99735, 1.0000000112) */
         dfl_design D; char err[1024] = ""; double xs[3] = {1e3, 3e3, 1e4}, v[3], r[3] = {0.636120922790, 0.993550212928, 1.0};
