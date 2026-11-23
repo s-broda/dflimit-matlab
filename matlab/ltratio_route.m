@@ -72,7 +72,7 @@ switch op
     case 'gopts'
         S = varargin{1}; opts = varargin{2};
         o = struct('start',S.start,'g0',S.g0,'gls',S.gls);
-        for f = {'c0','verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol','method'}
+        for f = {'c0','verified','vtol','phi','hfac','n','ntail','alpha','filon','warn','tol','method','rule'}
             if isfield(opts,f{1}), o.(f{1}) = opts.(f{1}); end
         end
         varargout = {o};

@@ -26,8 +26,12 @@ function F = dfdet_cdf(x,D,c,opts)
 %   as by Elliott, Rothenberg and Stock; zero start only); verified (false: one
 %   evaluation, with the warnings dfdet:rounding, dfdet:contour and dfdet:line
 %   where the computation is known to be brittle; true: the checked
-%   computation of DFDET_VERIFY, about twice the cost); vtol (1e-9); and the
-%   rules phi, hfac, n, ntail, alpha, filon, tol (DFDET_CPATH, DFDET_CONTOUR).
+%   computation of DFDET_VERIFY, about twice the cost); vtol (1e-9); rule, the
+%   rule of one evaluation ('auto', the default, by regions; 'present', the
+%   rule before November 2026, also taken by verified = true; 'thin', 'inner',
+%   'outer', 'fine', 'finestep'; DFDET_RULES); and the rules phi, hfac, n,
+%   ntail (which override the rule), alpha, filon, tol (DFDET_CPATH,
+%   DFDET_CONTOUR).
 %   method: 'auto' (the default) or 'paths', the inversion on paths; 'line',
 %   the line integral with the explicit kernel, is in the MEX file only
 %   (DFDET_METHOD).

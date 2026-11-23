@@ -9,7 +9,8 @@ function q = dfdet_icdf(p,D,c,opts)
 %   step leaves it).  The start is opts.x0 or the normal approximation from
 %   the first two moments (DFDET_MOM; at c0 = 0, where they are cheap, when
 %   c0 ~= 0; -2 for the statistic that detrends first).  opts.tol (1e-10) is
-%   the tolerance on q; the other options as in DFDET_CDF.
+%   the tolerance on q; the other options (the rule of one evaluation,
+%   opts.rule, DFDET_RULES) as in DFDET_CDF.
 %
 %   Examples
 %      dfdet_icdf([0.01 0.05 0.10], dfdet_perron('C', 0.3))   % critical values with a break at 0.3
@@ -33,9 +34,11 @@ if isempty(x0) && ~strcmp(D.detrend,'first')
     end
 end
 Mo = dfdet_startmodel(D,c,start,g0,gls);
-CP = dfdet_cpath(Mo,c,struct('phi',getf(o,'phi',[]),'hfac',getf(o,'hfac',1)));
-co = struct('c0',c0);
-for f = {'n','ntail','alpha','filon','warn'}, if isfield(o,f{1}), co.(f{1}) = o.(f{1}); end, end
+% (the rule of one evaluation and its outer contour, DFDET_RULES)
+[hf,n,nt,rl] = dfdet_rules('rule',getf(o,'rule','auto'),false,Mo,c,c0,o);
+CP = dfdet_rules('path',Mo,c,getf(o,'phi',[]),hf,rl,c0);
+co = struct('c0',c0,'n',n,'ntail',nt);
+for f = {'alpha','filon','warn'}, if isfield(o,f{1}), co.(f{1}) = o.(f{1}); end, end
 FF = @(x) ev(CP,x,co);
 q = zeros(size(p));
 for k = 1:numel(p)
