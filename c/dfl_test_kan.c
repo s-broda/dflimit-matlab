@@ -19,7 +19,7 @@ static kind_t KINDS[] = {
     {"ray", 1e-13, 0, 0, 0}, {"rcoef", 1e-11, 0, 0, 0}, {"rcoefpdf", 1e-11, 0, 0, 0}, {"rcoefq", 1e-8, 0, 0, 0}, {"rcoefmom", 1e-10, 0, 0, 0},
     {"rmom", 1e-10, 0, 0, 0}, {"rlin", 1e-11, 0, 0, 0}, {"renv", 1e-11, 0, 0, 0}, {"self", 0, 0, 0, 0},
     {"dcf", 1e-10, 0, 0, 0}, {"ptcdf", 1e-11, 0, 0, 0}, {"ptpdf", 1e-11, 0, 0, 0}, {"ptq", 1e-10, 0, 0, 0}, {"ptpow", 1e-10, 0, 0, 0},
-    {"ptenv", 1e-11, 0, 0, 0}, {"gp", 1e-11, 0, 0, 0},
+    {"ptenv", 1e-11, 0, 0, 0}, {"gp", 1e-11, 0, 0, 0}, {"tpp", 1e-10, 0, 0, 0}, {"tpp-far", 2e-8, 0, 0, 0}, {"tgrid", 0, 0, 0, 0}, {"dline", 1e-11, 0, 0, 0},
 };
 static kind_t *kind(const char *tag) { for (size_t i = 0; i < sizeof KINDS / sizeof KINDS[0]; i++) if (!strcmp(KINDS[i].tag, tag)) return &KINDS[i]; return NULL; }
 static int nfail = 0, ntot = 0;
@@ -140,6 +140,19 @@ static int general_line(FILE *f, const char *tag)
             snprintf(what, sizeof what, "%s level %g c = %g: %.15g vs %.15g %s", ds, lev, x[k], got[k], v[k], rc ? err : "");
             check(tag, rc ? INFINITY : (isnan(v[k]) && isnan(got[k]) ? 0.0 : fabs(got[k] - v[k])), what);
         }
+    } else if (!strcmp(tag, "dline")) {
+        int first, st; double c; if (!(fscanf(f, "%d %d", &first, &st) == 2 && rd(f, &c) && fscanf(f, "%d", &n) == 1 && n <= 64)) { dfl_design_free(&D); return 1; }
+        for (int k = 0; k < n; k++) rd(f, &x[k]);
+        for (int k = 0; k < n; k++) rd(f, &v[k]);
+        dfl_design Dl = D;
+        if (first) { if (dfl_design_detrend_first(&D, &Dl, err, sizeof err)) { printf("FAIL dline: %s\n", err); nfail++; dfl_design_free(&D); return 0; } }
+        dfl_det_opts o; dfl_det_defaults(&o); o.start = st; o.method = DFL_DET_LINE;
+        rc = dfl_det_dist(2, &Dl, n, x, c, &o, got, err, sizeof err);
+        for (int k = 0; k < n; k++) {
+            snprintf(what, sizeof what, "%s%s start %d c = %g x = %g: %.15g vs %.15g %s", first ? "detrend_first " : "", ds, st, c, x[k], got[k], v[k], rc ? err : "");
+            check(tag, rc ? INFINITY : fabs(got[k] - v[k]), what);
+        }
+        if (first) dfl_design_free(&Dl);
     } else if (!strcmp(tag, "gp")) {
         int st; double gls, c, c0; if (!(fscanf(f, "%d", &st) == 1 && rd(f, &gls) && rd(f, &c) && rd(f, &c0) && fscanf(f, "%d", &n) == 1 && n <= 64)) { dfl_design_free(&D); return 1; }
         for (int k = 0; k < n; k++) rd(f, &x[k]);
@@ -152,6 +165,30 @@ static int general_line(FILE *f, const char *tag)
         }
     }
     dfl_design_free(&D);
+    return 0;
+}
+/* the branches at the point: the classical tparts at a single point against the Julia engine's (tpp), and the same point
+ * in a grid of the line from the real point (tgrid: the values do not depend on the neighbours) */
+static int tparts_line(FILE *f)
+{
+    int m, st; double c; cdouble t, R[4], Q[4]; char what[256];
+    if (!(fscanf(f, "%d %d", &m, &st) == 2 && rd(f, &c) && rdc(f, &t) && rdc(f, &R[0]) && rdc(f, &R[1]) && rdc(f, &R[2]) && rdc(f, &R[3]))) return 1;
+    dfl_tparts(m, c, 1, &t, st, &Q[0], &Q[1], &Q[2], &Q[3]);
+    int n = (m == 1 || m == 4) && !st ? 2 : 4;
+    double d = 0; for (int i = 0; i < n; i++) d = fmax(d, cdist(Q[i], R[i]) / fmax(1e-300, cabs(R[i])));
+    snprintf(what, sizeof what, "model %d stat %d c = %g t = %g%+gi: P %.15g%+.15gi vs %.15g%+.15gi", m, st, c, creal(t), cimag(t), creal(Q[0]), cimag(Q[0]), creal(R[0]), cimag(R[0]));
+    /* (far from the unit root, c < -20, the quadratic coefficient a2 of D(., t) cancels: there C and Julia differ in P by up to
+     * 1.1e-9 relative already at the real point, where no branch is involved, as before the branch at the point) */
+    check(c < -20 ? "tpp-far" : "tpp", d, what);
+    /* the grid from the real point to t (and its conjugate): the values at t the same, bit for bit */
+    enum { K = 9 }; cdouble tt[K + 1], P[K + 1], s1[K + 1], s2[K + 1], M0[K + 1];
+    double im = cimag(t);
+    for (int k = 0; k < K; k++) tt[k] = CPX(creal(t), im * k / K);
+    tt[K] = t;
+    dfl_tparts(m, c, K + 1, tt, st, P, s1, s2, M0);
+    cdouble G[4] = {P[K], s1[K], s2[K], M0[K]};
+    d = 0; for (int i = 0; i < n; i++) d = fmax(d, cdist(G[i], Q[i]) / fmax(1e-300, cabs(Q[i])));
+    check("tgrid", d, what);
     return 0;
 }
 /* the router's rules without reference values: the regions of the defaults (the error estimates NaN where the engines
@@ -254,7 +291,8 @@ int main(int argc, char **argv)
             continue;
         }
         if (tag[0] == 'r' && strcmp(tag, "ray")) { if (router_line(f, tag)) break; continue; }
-        if (!strcmp(tag, "dcf") || !strncmp(tag, "pt", 2) || !strcmp(tag, "gp")) { if (general_line(f, tag)) break; continue; }
+        if (!strcmp(tag, "dcf") || !strncmp(tag, "pt", 2) || !strcmp(tag, "gp") || !strcmp(tag, "dline")) { if (general_line(f, tag)) break; continue; }
+        if (!strcmp(tag, "tpp")) { if (tparts_line(f)) break; continue; }
         int m, st; double c, g0;
         if (fscanf(f, "%d %d %lf %lf", &m, &st, &c, &g0) != 4) break;
         dfl_limcf F;

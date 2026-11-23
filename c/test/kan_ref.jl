@@ -31,6 +31,9 @@
 #   ptpow D.. cbar c level b power                                 pt_power
 #   ptenv D.. level n c.. P..                                      pt_envelope
 #   gp D.. start gls c c0 n y.. P..                                coef_cdf_gp (the default: the single inversion up to c = 5)
+# and the branches inside the engines:
+#   tpp model stat c t P s1 s2 M0                                  DFExact.tparts at the single point t (the branch at the point)
+#   dline D.. first start c n x.. F..                              dist_cdf(D, x, c; start, method = :line) (the line provider)
 using Printf
 using DFLimit
 const K = DFLimit.DFKan
@@ -180,5 +183,22 @@ for (kind, par, st, gls, c, c0, ys) in ((0, (0,), :zero, nothing, -5.0, 0.0, [-1
     ds, D = dspec(kind, par)
     P = coef_cdf_gp(D, ys, c; c0, start = st, gls)
     line("gp", ds, ST[st], fmt(gls === nothing ? NaN : gls), fmt(c), fmt(c0), length(ys), vec(ys), vec(P))
+end
+# ---- the branches at each point: the classical tparts and the general line provider ----
+X = DFLimit.DFExact
+for model in 1:4, stat in (false, true), c in (5.0, 0.0, -1.0, -20.0, -100.0)
+    (stat && (c >= 0 || model == 4)) && continue
+    tau = X.default_tau(model, c; stat)
+    ts = [tau + im * tau * sinh(u) for u in 0.0:0.075*X.hufac(c):asinh(X.wmaxc(model, c) / tau)]
+    for k in unique((1, 2, length(ts) ÷ 3, length(ts))), t in (ts[k], conj(ts[k]))
+        P, s1, s2, M0 = X.tparts(model, c, [t]; stat)
+        line("tpp", model, stat ? 1 : 0, fmt(c), fmt(t), fmt(P[1]), fmt(s1[1]), fmt(s2[1]), fmt(M0[1]))
+    end
+end
+for (kind, par, first, st, c) in ((0, (2,), 0, :zero, -5.0), (0, (4,), 0, :zero, 0.0), (0, (0,), 0, :stationary, -20.0), (0, (2,), 1, :zero, 2.0), (0, (1,), 0, :zero, -10.0))
+    ds, D = dspec(kind, par)
+    first == 1 && (D = G.detrend_first(D))
+    x = [-2.5, -1.0]
+    line("dline", ds, first, ST[st], fmt(c), 2, vec(x), vec(dist_cdf(D, x, c; start = st, method = :line)))
 end
 close(out)
