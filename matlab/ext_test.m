@@ -144,6 +144,19 @@ chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('vol',V2,'rho',0.5)),'rho and vol 
 chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('rho',1.5)),'rho must lie in [-1, 1]','dfdet_cdf rho = 1.5');
 chkerr('errors',@() dfdet_cdf(-2,T1,-5,struct('rho',0.5,'gls',-13.5)),'GLS detrending','dfdet_cdf rho = 0.5, gls = -13.5');
 chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('rho',0.5,'g0',1,'method','lines')),'zero or a stationary start','dfdet_cdf rho = 0.5, lines, fixed start');
+% (the methods of rho without it, rho = 1: refused with the message of DFLimit.jl for a method other than 'auto', 'line'
+% and 'paths'; in the MEX file the message of the C engine, the same words; November 26, 2026)
+LM_ = 'method must be ''auto'', ''line'' (the line integral with the explicit kernel';
+for m_ = {'lines','mixture'}
+    chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('method',m_{1})),LM_,['dfdet_cdf rho = 1, method ' m_{1}]);
+    chkerr('errors',@() dfdet_pdf(-2,T0,-5,struct('method',m_{1})),LM_,['dfdet_pdf rho = 1, method ' m_{1}]);
+    chkerr('errors',@() dfdet_icdf(0.05,T0,-5,struct('method',m_{1})),LM_,['dfdet_icdf rho = 1, method ' m_{1}]);
+    if hasmex
+        d_ = ltratio_croute('design',T0);
+        chkerr('errors',@() ltratio_mex('det','cdf',d_{:},-2,-5,[0 0 0 NaN 0 3 + strcmp(m_{1},'mixture')]), ...
+               'method must be ''auto'', ''line'' (the line integral with the explicit kernel) or ''paths'' (the inversion on paths around the roots)',['the MEX file, dist_cdf rho = 1, method ' m_{1}]);
+    end
+end
 chkerr('errors',@() cadf_c0(-5,0),'not be 0','cadf_c0 rho = 0');
 chkerr('errors',@() hegy_t3_cdf(1,T0,1),'must be at most 0','hegy_t3_cdf c = 1');
 chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('vol',V2,'method','line')),'method must be ''auto'' or ''paths''','dfdet_cdf vol, method line');

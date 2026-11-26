@@ -242,6 +242,18 @@ int main(int argc, char **argv)
             dfl_det_defaults(&o); o.rho = 0.5; o.method = DFL_DET_PATHS; rc = dfl_det_dist(2, &DS[2], 1, &x, -5.0, &o, out, err, sizeof err); checkerr("errors", rc, err, "method must be", "dist_cdf rho = 0.5, method paths");
             dfl_det_defaults(&o); o.rho = 0.5; o.hfac = 2; rc = dfl_det_dist(2, &DS[2], 1, &x, -5.0, &o, out, err, sizeof err); checkerr("errors", rc, err, "do not apply", "dist_cdf rho = 0.5, hfac = 2");
             dfl_det_defaults(&o); o.rho = 0.5; o.n = 16; rc = dfl_det_dist(2, &DS[2], 1, &x, -5.0, &o, out, err, sizeof err); checkerr("errors", rc, err, "do not apply", "dist_cdf rho = 0.5, n = 16");
+            /* (the methods of rho without it, rho = 1: refused with the message of DFLimit.jl for a method other than 'auto',
+             * 'line' and 'paths'; November 26, 2026) */
+            for (int m = DFL_DET_LINES; m <= DFL_DET_MIXTURE; m++) {
+                const char *mn = m == DFL_DET_LINES ? "lines" : "mixture"; char w2[96];
+                dfl_det_defaults(&o); o.method = m;
+                rc = dfl_det_dist(2, &DS[2], 1, &x, -5.0, &o, out, err, sizeof err); snprintf(w2, sizeof w2, "dist_cdf rho = 1, method %s", mn);
+                checkerr("errors", rc, err, DET_LINE_METHOD_MSG, w2);
+                rc = dfl_det_dist(1, &DS[2], 1, &x, -5.0, &o, out, err, sizeof err); snprintf(w2, sizeof w2, "dist_pdf rho = 1, method %s", mn);
+                checkerr("errors", rc, err, DET_LINE_METHOD_MSG, w2);
+                rc = dfl_det_quantile(&DS[2], 1, CL1, -5.0, NAN, NAN, &o, out, err, sizeof err); snprintf(w2, sizeof w2, "dist_quantile rho = 1, method %s", mn);
+                checkerr("errors", rc, err, DET_LINE_METHOD_MSG, w2);
+            }
             double c0;
             rc = dfl_cadf_c0(-5.0, 0.0, NAN, &c0, err, sizeof err); checkerr("errors", rc, err, "not be 0", "cadf_c0 rho = 0");
             rc = dfl_predictive_c0(-5.0, 1.5, 0.0, &c0, err, sizeof err); checkerr("errors", rc, err, "not be 0", "predictive_c0 rho = 1.5");

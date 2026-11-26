@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+**The methods `'lines'` and `'mixture'` without a normal component** (rho = 1) are refused by the general engine's
+distribution function, density and quantiles (`dfl_det_dist`, `dfl_det_quantile`; `dfdet_cdf`, `dfdet_pdf`,
+`dfdet_icdf`) with the message of DFLimit.jl for a method other than `'auto'`, `'line'` and `'paths'` ("method must be
+'auto', 'line' (the line integral with the explicit kernel) or 'paths' (the inversion on paths around the roots)"),
+as DFLimit.jl refuses them; before, the C engine named them the methods of a normal component. Tests: the group `errors`
+of `c/dfl_test_ext.c` and of `ext_test`. The local build of the MEX file in `c/mex/README.md` lists `dfl_det_ext`.
+
 **`verified = true` with c0 > 0 far from the unit root** (November 26, 2026, as DFLimit.jl). The checked computation took
 the conditional integral for a zero start with c0 != 0 down to c = -100 inclusive; with c0 > 0 far from the unit root
 that integral with its checks was off by 2.4e-6 to 1e-5 in cases DU, DT (in DFLimit.jl), its agreement rule flagged

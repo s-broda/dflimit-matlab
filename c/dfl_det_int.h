@@ -133,6 +133,9 @@ int det_prep_lm(const dfl_design *D, det_prep **out, double *a1norm, char *err, 
  * piece to tol (span_has_constant of DFDet.jl, tol 1e-6): the LM statistic's functions refuse a design without it, with
  * DET_LM_CONST_MSG followed by " does not contain it" */
 int det_span_has_constant(const dfl_design *D, double tol);
+/* the methods of the t-ratio's dist_cdf, dist_pdf and dist_quantile without a normal component (LINE_METHOD_MSG of
+ * DFLimit.jl: also its refusal of 'lines' and 'mixture' there) */
+#define DET_LINE_METHOD_MSG "method must be 'auto', 'line' (the line integral with the explicit kernel) or 'paths' (the inversion on paths around the roots)"
 #define DET_LM_CONST_MSG "the LM statistic: the limit computed here holds only for trend functions whose span contains the constant (the LM regression estimates the level from the first observation, and the limit of the statistic is otherwise a different one); the design"
 /* the cached prepared design (prep_cached); release with det_prep_release */
 det_prep *det_prep_cached(const dfl_design *D, double cbar, char *err, size_t errlen);

@@ -30,6 +30,7 @@ switch m
             '(their line integral is slower than the inversion on paths for these designs); use the MEX file: with the folder c/mex ahead on the path, ' ...
             'ltratio_cdf(x,D,c,struct(''method'',''line'')) or ltratio(''cdf'',x,D,c,struct(''method'',''line'')).'],fn);
     otherwise
-        error('dfdet:args','%s: opts.method must be ''auto'', ''line'' (the line integral with the explicit kernel, in the MEX file) or ''paths'' (the inversion on paths).',fn);
+        % (also 'lines' and 'mixture' without a normal component, rho = 1: the refusal and the message of DFLimit.jl)
+        error('dfdet:args','%s: opts.method must be ''auto'', ''line'' (the line integral with the explicit kernel, in the MEX file) or ''paths'' (the inversion on paths around the roots).',fn);
 end
 end
