@@ -41,7 +41,7 @@ function Q = tr_nsstart(lam,s,cas,c)
 %   initial-value terms (the finite-sample paper's TR_LOGCF at n = Inf) used
 %   in earlier versions, which was accurate to about 1e-8; they agree with it
 %   to that accuracy (the joint moment generating function with a fixed
-%   start in the paper).
+%   start in the companion paper).
 %
 %   See also TR_CFLIM, TR_JBSTART, TR_LIMDIST, TR_LIMMOM.
 cas = upper(cas);

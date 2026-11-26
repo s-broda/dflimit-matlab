@@ -8,7 +8,7 @@ function [q,info] = adfmax_icdf(p,cas,c,opts)
 %   cas may be a design of the general engine (LTRATIO_SPEC; a design other than
 %   the cases DU, DT, SU, ST: DFDET_ADFMAX_ICDF).
 %
-%   Example: adfmax_icdf([0.01 0.05 0.10],'DT')   % -3.67949 -3.11891 -2.82890 (the quantiles of the ADFmax statistic in the paper)
+%   Example: adfmax_icdf([0.01 0.05 0.10],'DT')   % -3.67949 -3.11891 -2.82890 (the ADFmax quantiles of the companion paper)
 %
 %   See also ADFMAX_CDF, ADFMAX_PDF, DFDET_ADFMAX_ICDF.
 if nargin < 3 || isempty(c), c = 0; end

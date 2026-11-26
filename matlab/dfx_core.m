@@ -1,7 +1,8 @@
 function varargout = dfx_core(action, varargin)
-%DFX_CORE  Engine of the DFX routines: a MATLAB port of DFExact.jl (Bao, Broda and Kan,
-%   "The exact limiting distribution of the Dickey-Fuller t-ratio and some related
-%   statistics", repository df_limiting).
+%DFX_CORE  Engine of the DFX routines: a MATLAB port of DFExact.jl, the classical engine of
+%   the Julia package DFLimit.jl, after the line integral representation of Bao, Broda and
+%   Kan, "Low-Rank Representations of the Classical Dickey-Fuller Limits, with an Extension to
+%   Predictive Regressions" (the companion paper).
 %
 %   Not called directly; use DFX_CDF, DFX_PDF, DFX_QUANTILE, DFX_MOMENTS and DFX_TSTAR.
 %

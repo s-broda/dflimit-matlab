@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**The two papers.** The programs cite the lead paper, Bao, Broda and Kan, "The Exact Limiting Distribution of the
+Dickey-Fuller t-Ratio with General Deterministic Terms" (SSRN 7745921), the paper of the general engine and of the
+inversion formula on paths, and, for the classical programs and their representations, its companion, "Low-Rank
+Representations of the Classical Dickey-Fuller Limits, with an Extension to Predictive Regressions" (SSRN 7725619,
+the posting that carried the former title "... and Some Related Statistics"): README, `Contents.m`, the help of the
+routines that named the paper, the manual (rebuilt), `CITATION.cff` (the companion under `references`) and
+`.zenodo.json`.
+
 **The rules of one evaluation** (C, the MEX file and MATLAB alike, a port of DFLimit.jl fde1632 to 9c71860, merged at
 d95305c; the README, "The rules of one evaluation"). One evaluation, the default, takes thinner rules where they hold,
 with the rules, regions and constants of the Julia package:

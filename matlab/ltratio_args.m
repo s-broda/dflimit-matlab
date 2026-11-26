@@ -44,7 +44,7 @@ g0 = 0; if isfield(opts,'g0') && ~isempty(opts.g0), g0 = opts.g0; end
 if ~(isnumeric(g0) && isscalar(g0) && isreal(g0) && isfinite(g0)), error('ltratio:args','ltratio: opts.g0 must be a finite real scalar.'); end
 if g0 ~= 0 && cas(1) == 'S', error('ltratio:args','ltratio: opts.g0 (a fixed start) applies to cases DK, DU, DT only.'); end
 method = 'auto'; if isfield(opts,'method') && ~isempty(opts.method), method = lower(char(opts.method)); end
-% the paper's names, the line integral and the conditional integral, are synonyms
+% the companion paper's names, the line integral and the conditional integral, are synonyms
 if strcmp(method,'line'), method = 'single'; elseif strcmp(method,'conditional'), method = 'double'; end
 if ~any(strcmp(method,{'auto','single','double','contour'})), error('ltratio:args','ltratio: opts.method must be ''auto'', ''single'' (''line''), ''double'' (''conditional'') or ''contour''.'); end
 % the contour integral (TR_CONTOUR): a fixed start in cases DU, DT only (the same check and message in the C and Julia
@@ -57,8 +57,8 @@ if g0 ~= 0 && strcmp(method,'single'), if dut, method = 'auto'; else, method = '
 if g0 ~= 0 && ~dut, method = 'double'; end
 % the region of a fixed start (the C and Julia engines: dfl_fixed_ok, fixed_ok), and where the conditional integral is
 % the method (case DK, and an explicit 'double' in cases DU, DT) also c >= -20, or c >= -40 with (c g0)^2/2 <= 100
-% (which covers a start of up to three stationary standard deviations, g0 = xi/sqrt(-2c), xi <= 3, as in the paper's
-% table of power with the initial observation: within 5e-13 of the line integral of the Julia engine there); beyond, it flags most values, off by up to
+% (which covers a start of up to three stationary standard deviations, g0 = xi/sqrt(-2c), xi <= 3, as in the companion
+% paper's table of power with the initial observation: within 5e-13 of the line integral of the Julia engine there); beyond, it flags most values, off by up to
 % 3e-2 at c = -200 in case DK, and at c = -60 it is off by 1e-10 without a flag.  The contour integral covers the
 % region of the C and Julia engines in cases DU, DT.
 if g0 ~= 0 && any(strcmp(cas,{'DK','DU','DT'}))

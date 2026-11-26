@@ -1,5 +1,5 @@
 function varargout = dfx_core(action, varargin)
-%DFX_CORE  Engine of the DFX routines, on the C engine of the repository df_limiting (MEX file LTRATIO_MEX).
+%DFX_CORE  Engine of the DFX routines, on the C engine of dflimit-matlab, c/ (MEX file LTRATIO_MEX).
 %
 %   A drop-in replacement for the MATLAB engine of the same name: the line integral representation (the general kernel
 %   when c0 ~= 0, and with a fixed start g0 ~= 0), the moments and t_*, computed in C on several threads.  Not called directly; use DFX_CDF, DFX_PDF,

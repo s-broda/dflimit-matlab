@@ -10,8 +10,8 @@ function [F,info] = tr_limdist(x,cas,c,opts,mode)
 %   test of phi = 1 under local alternatives; c0 = c: t centered at the true
 %   phi), as in LTRATIO_CDF.
 %
-%   The method is the conditional integral representation of the paper (its
-%   first part, the probability of a region of the plane, for the
+%   The method is the conditional integral representation of the companion
+%   paper (its first part, the probability of a region of the plane, for the
 %   parabola a(b) = 1/2 + x sqrt(b) + c0 b): with A, B the limiting
 %   functionals of TR_CFLIM, A' = A + c B and R = A' + 1/2,
 %      t => (A + (c - c0) B)/sqrt(B),

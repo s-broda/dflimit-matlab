@@ -6,7 +6,7 @@ DFLimit.jl, checked against its values by the tests in `c/test/`).  It needs not
 - **Self-contained**: `ltratio.m` offers the functions of the MATLAB programs in `matlab/` with the same arguments.
 - **Under the MATLAB programs**: `dfx_core.m`, `tr_limdist.m`, `tr_contour.m` and `tr_limmom.m` have the names and
   signatures of the engines in `matlab/`; with this folder ahead of `matlab/` on the path, `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`,
-  `ltratio_mom`, `ltratio_test` and the paper's replication script `ltratio_paper` (in the paper's replication package) run unchanged on the C engine (`ltratio_test` passes all 268
+  `ltratio_mom`, `ltratio_test` and the companion paper's replication script `ltratio_paper` (in its replication package) run unchanged on the C engine (`ltratio_test` passes all 268
   checks in about 30 s instead of about five minutes, when started from a folder other than `matlab/`: the current folder
   comes first on MATLAB's path).  In the repository this folder also has `tr_adfmax.m`, `tr_region.m` and
   `tr_gilpelaez.m`, the replacements of the engines of the applications in `matlab/`: `adfmax_cdf`, `adfmax_pdf`,
@@ -65,7 +65,7 @@ ltratio('lincdf', -0.2639, -3.5, ltratio('design', 'trend', 0), -5, struct('star
 ```
 
 The case `'DG'` is the GLS-detrended trend case of Elliott, Rothenberg and Stock (1996) at cbar = -13.5 (the DF-GLS
-tests of the paper): zero start, the single integral only, no moments, and no tail recomputation (far in the tails the values carry the single integral's absolute error).  `opts.method` is `'auto'`
+tests of the companion paper): zero start, the single integral only, no moments, and no tail recomputation (far in the tails the values carry the single integral's absolute error).  `opts.method` is `'auto'`
 (the default), `'single'` or `'line'` (the line integral representation), `'double'` or `'conditional'` (the conditional integral
 representation) or `'contour'` (the contour integral representation: the inversion formula on paths around the
 singularities of the moment generating function, with the integral over v in closed form and the paths in s and t deformed, a double integral with an explicit integrand, for a

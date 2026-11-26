@@ -14,7 +14,7 @@ function [P,err] = power_envelope(c,cas,opts)
 %   conditional integral (TR_LINEXACT), the critical value by bisection in x = b + 1/2 to 1e-12 of the scale
 %   s = E(U + 1/2) + |a| E V of U + 1/2 - aV (in case DG detrended at cbar = c the law of U + 1/2 shrinks like c^4,
 %   so that a tolerance in b of 1e-9 does not resolve it).  As power_envelope of
-%   julia/DFExact.jl (the data of the paper's figures of local power and of the weighted-average-power test).
+%   julia/DFExact.jl (the data of the companion paper's figures of local power and of the weighted-average-power test).
 %
 %   In case DK (and DU) the default (opts.method 'auto' with opts.engine 'auto') for c <= -1e-4 computes both by the
 %   single inversion of the joint characteristic function along the ray of the half-plane, the method of Yong Bao and

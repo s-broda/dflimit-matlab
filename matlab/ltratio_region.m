@@ -3,8 +3,8 @@ function [P,info] = ltratio_region(bnd,cas,c,opts)
 %
 %   P = LTRATIO_REGION(bnd,cas,c,opts) is P{U <= g(V)} under phi = 1 + c/n, no drift, zero start, case 'DK' (no
 %   deterministic terms; also the constant case with GLS demeaning), with U = int J dJ and V = int J^2 as in
-%   LTRATIO_CDF.  Every test of the unit root in the limit experiment of case DK rejects on such a region (the paper's
-%   section on the weighted-average-power test), and the first part of the conditional integral representation, the
+%   LTRATIO_CDF.  Every test of the unit root in the limit experiment of case DK rejects on such a region (the companion
+%   paper's section on the weighted-average-power test), and the first part of the conditional integral representation, the
 %   probability of a region of the plane, gives its probability for every boundary g, by one outer integral over V
 %   (TR_REGION).
 %   bnd is a structure with the field type and its parameters:
@@ -16,7 +16,7 @@ function [P,info] = ltratio_region(bnd,cas,c,opts)
 %   and optionally v0 (g = +Inf on (0, v0), whose probability P(V < v0) is added) and brks (kinks of g, as
 %   breakpoints of the outer rule).  Accurate to about 1e-11; 0.2 to 1 s per probability on the MATLAB engines.
 %
-%   Example: ltratio_region(struct('type','wap','k',3.6658,'omega',10),'DK',0)   % 0.05 (the critical values of the weighted-average-power test in the paper)
+%   Example: ltratio_region(struct('type','wap','k',3.6658,'omega',10),'DK',0)   % 0.05 (the weighted-average-power test of the companion paper)
 %
 %   See also LTRATIO_LINCDF, POWER_ENVELOPE, LTRATIO_CDF, TR_REGION.
 if nargin < 2 || isempty(cas), cas = 'DK'; end

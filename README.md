@@ -5,16 +5,26 @@
 The exact limiting distribution of the Dickey-Fuller t-ratio in MATLAB, and the C engine of the R and Python packages.
 
 The programs compute the distribution function, density, quantiles and moments of the limits of the Dickey-Fuller
-t-ratios under local alternatives, phi = 1 + c/n, by the exact representations of
+t-ratios under local alternatives, phi = 1 + c/n, by the exact representations of two papers. The lead paper,
 
-> Bao, Y., Broda, S. A. and Kan, R., "The Exact Limiting Distribution of the Dickey-Fuller t-Ratio and Some Related
-> Statistics", working paper, 2026, available at <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7725619>.
+> Bao, Y., Broda, S. A. and Kan, R., "The Exact Limiting Distribution of the Dickey-Fuller t-Ratio with General
+> Deterministic Terms", working paper, 2026, available at <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7745921>,
 
-for the regression without deterministic terms, with an intercept and with an intercept and a trend; with a zero, a
-fixed or a stationary initial observation; for the t-ratio centred at the unit root or at a local null value c0; and for
+gives the inversion formula on paths around the singularities of the joint moment generating function and with it the
+limit for any piecewise smooth deterministic terms (the general engine, `dfdet_*` and `c/dfl_det_*.c`); its companion,
+
+> Bao, Y., Broda, S. A. and Kan, R., "Low-Rank Representations of the Classical Dickey-Fuller Limits, with an Extension
+> to Predictive Regressions", working paper, 2026, available at <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7725619>,
+
+gives the representations of the classical cases, in which the numerator has rank one or two (the line integral and the
+conditional integral), and the probabilities of regions of the plane of the numerator and the denominator.
+
+The programs cover the regression without deterministic terms, with an intercept and with an intercept and a trend; a
+zero, a fixed or a stationary initial observation; the t-ratio centred at the unit root or at a local null value c0; and
 the GLS-detrended trend case of Elliott, Rothenberg and Stock (1996). They also have the ADFmax test of Leybourne (1995),
 the coefficient statistic, the probabilities of regions {U <= g(V)} of the limit experiment (point-optimal and
-weighted-average-power tests), the distribution of the linear form U - aV and the asymptotic power envelope.
+weighted-average-power tests), the distribution of the linear form U - aV and the asymptotic power envelope, and, by the
+general engine, the same limits for any deterministic terms ("The general engine in MATLAB" below).
 
 ```matlab
 addpath /path/to/dflimit-matlab/matlab
@@ -55,7 +65,7 @@ piecewise smooth deterministic design, given as the break points and the coeffic
 (`dfl_design`, with constructors for polynomial trends, Perron's models with several breaks, designs given by a function
 or by the regressor matrix of a sample, and the statistic that detrends first), with a zero, fixed or stationary start,
 a local null value and GLS detrending, by the inversion formula on paths around the roots of the joint moment generating
-function; and the companions of the paper on general deterministic terms (the point-optimal statistic and its envelope,
+function; and the companions of the lead paper (the point-optimal statistic and its envelope,
 the LM statistic, MZ_alpha, MSB). For the designs whose numerator has rank one or two (polynomial trends of any order, an
 intercept with sines and cosines, the statistic that detrends first for a continuous design that does not vanish at the
 origin; zero or stationary start, least squares detrending) the distribution function, the density and the quantiles of
@@ -83,7 +93,7 @@ integral, which exhausted the memory at c = 16). Every distribution function of 
 ## The general engine in MATLAB
 
 The folder `matlab/` also holds a port of the general engine of DFLimit.jl (`DFLimit.DFDet`, the engine of the
-companion paper on general deterministic terms) to plain MATLAB, the routines `dfdet_*`: the limiting t-ratio, the
+lead paper on general deterministic terms) to plain MATLAB, the routines `dfdet_*`: the limiting t-ratio, the
 coefficient statistic, the linear form U - aV, the denominator V and ADFmax for any deterministic terms, polynomial
 trends of any order, breaks in level and slope at several known dates, smooth functions of t/n, with a zero, fixed or
 stationary start, GLS detrending, a local null value and the statistic that detrends first; and the companions of
@@ -288,12 +298,13 @@ engine is made here, tested here, and then synced into the two packages. The Jul
 port, lives in the Julia package [`DFLimit.jl`](https://github.com/s-broda/DFLimit.jl), which also has the same
 functions with the same names and arguments.
 
-The scripts that reproduce the tables and figures of the paper are in the paper's replication package, which runs
+The scripts that reproduce the tables and figures of the companion paper are in its replication package, which runs
 them on these MATLAB programs and on DFLimit.jl.
 
 ## Licence and citation
 
 MIT (see `LICENSE`); the Faddeeva package in `c/faddeeva/` is by Steven G. Johnson, MIT licence (see the header of
-`c/faddeeva/Faddeeva.cc`). Please cite the paper when using the programs.
+`c/faddeeva/Faddeeva.cc`). Please cite the lead paper when using the programs, and the companion paper as well where
+you use the representations of the classical cases (`CITATION.cff` has both).
 
-The code was developed in the paper's repository up to commit b484d4f (see `NEWS.md`).
+The code was developed in the companion paper's repository up to commit b484d4f (see `NEWS.md`).

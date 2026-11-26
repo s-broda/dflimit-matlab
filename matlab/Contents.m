@@ -4,8 +4,17 @@
 % MATLAB programs accompanying
 %
 %   Bao, Y., Broda, S. A. and Kan, R., "The Exact Limiting Distribution of
-%   the Dickey-Fuller t-Ratio and Some Related Statistics," Purdue University,
-%   Lucerne University of Applied Sciences and University of Toronto.
+%   the Dickey-Fuller t-Ratio with General Deterministic Terms," working
+%   paper, 2026, SSRN https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7745921
+%   (the lead paper: the general engine, dfdet_*, and the inversion formula
+%   on paths), and its companion paper
+%
+%   Bao, Y., Broda, S. A. and Kan, R., "Low-Rank Representations of the
+%   Classical Dickey-Fuller Limits, with an Extension to Predictive
+%   Regressions," working paper, 2026, SSRN
+%   https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7725619
+%   (the classical cases: the line and the conditional integral, regions of
+%   the plane and the applications).
 %
 % Model: y_t = alpha + delta*t + phi*y_{t-1} + sigma*e_t, t = 1..n, e_t i.i.d.
 % N(0,1), no drift, phi = 1 + c/n, and t the least squares t-ratio of the
@@ -95,7 +104,7 @@
 %                   of julia/DFExact.jl; the roots and P(t) from dfx_core)
 %
 % The applications (local power, confidence sets and the weighted-average-power
-% test in the paper; the same functions with the same arguments as in the
+% test in the companion paper; the same functions with the same arguments as in the
 % Julia engine julia/DFExact.jl, with a zero or a stationary start as stated)
 %   adfmax_cdf, adfmax_pdf, adfmax_icdf
 %                 - the ADFmax test of Leybourne (1995), the larger of the
@@ -113,7 +122,7 @@
 %   ltratio_region - the probability of a region {U <= g(V)} of the plane,
 %                   case DK, zero start: a line, the parabola of the t-ratio,
 %                   the boundary of the weighted-average-power test of
-%                   the paper, or any function g
+%                   the companion paper, or any function g
 %   tr_region     - its engine (the conditional integral with the boundary
 %                   a(V) = 1/2 + g(V))
 %   ltratio_lincdf - the distribution of the linear form U - aV, or of V,
@@ -238,7 +247,7 @@
 %                   values of dfx_test; the reference values of dfdet_test (det_ref.jl, det_ref.txt) and the
 %                   timings behind the choice of engine (engine_table_matlab.m, engine_table_matlab.txt)
 %
-% Reproduction of the paper: not part of this package.  The paper's replication
+% Reproduction of the companion paper: not part of this package.  Its replication
 % package has the scripts that recompute its tables, the numbers it quotes and
 % the data of its figures on these programs (ltratio_paper.m, with
 % mackinnon94_p.m) and on the Julia package DFLimit.jl.
@@ -260,4 +269,6 @@
 % Requirements.  Base MATLAB (R2019b or later); runs on GNU Octave (tested
 % with Octave 8), more slowly.
 %
-% License: MIT (see LICENSE).  Please cite the paper when using the programs.
+% License: MIT (see LICENSE).  Please cite the lead paper when using the
+% programs, and the companion paper as well where you use the representations
+% of the classical cases.
