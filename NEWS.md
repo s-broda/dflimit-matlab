@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**The templates of the devices of Bao and Kan are headers.** `c/dfl_kan_jet.inc` and `c/dfl_kan_logcf.inc`, which
+`c/dfl_kan.c` includes several times with different types, are now `c/dfl_kan_jet.h` and `c/dfl_kan_logcf.h`: `R CMD
+check` of the R package, whose `src/` copies them, gave a WARNING for the unlikely file names `.inc` in `src/`, which
+CRAN does not accept. The sources are otherwise unchanged (the C tests pass as before); the R and Python packages
+copy the new names. The README's list of the C tests names `dfl_test_batch`, which the workflow runs.
+
 **The two papers.** The programs cite the lead paper, Bao, Broda and Kan, "The Exact Limiting Distribution of the
 Dickey-Fuller t-Ratio with General Deterministic Terms" (SSRN 7745921), the paper of the general engine and of the
 inversion formula on paths, and, for the classical programs and their representations, its companion, "Low-Rank

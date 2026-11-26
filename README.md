@@ -255,6 +255,7 @@ reference values of the Julia engine in `c/test/`:
 ```sh
 cd c
 for t in prim single gen fixed mom dbl app det kan; do ./dfl_test_$t test/${t}_ref.txt; done
+./dfl_test_batch test/single_ref.txt    # the fixed node layouts against the adaptive rules
 ./dfl_test_vmath
 ./dfl_test_bounds
 ```
