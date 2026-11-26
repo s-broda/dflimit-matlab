@@ -10,7 +10,7 @@ function c0 = predictive_c0(c,rho,b)
 %   intercept (dfdet_trend(0), case 'DU') give the limit of the statistic,
 %   rho tau_c0 + sqrt(1 - rho^2) Z.
 %
-%   Example: ltratio_cdf(1.645, 'DU', 0, struct('rho', -0.95, 'c0', predictive_c0(0, -0.95)))   % 0.5787
+%   Example: ltratio_cdf(1.645, 'DU', 0, struct('rho', -0.95, 'c0', predictive_c0(0, -0.95)))   % 0.5788
 %
 %   See also CADF_C0, DFDET_CDF, LTRATIO_CDF.
 if nargin < 3 || isempty(b), b = 0; end

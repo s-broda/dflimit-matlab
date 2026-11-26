@@ -316,7 +316,7 @@ reference values of the Julia engine in `c/test/`:
 
 ```sh
 cd c
-for t in prim single gen fixed mom dbl app det kan; do ./dfl_test_$t test/${t}_ref.txt; done
+for t in prim single gen fixed mom dbl app det kan ext; do ./dfl_test_$t test/${t}_ref.txt; done
 ./dfl_test_batch test/single_ref.txt    # the fixed node layouts against the adaptive rules
 ./dfl_test_vmath
 ./dfl_test_bounds
@@ -331,7 +331,9 @@ runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on
 The MATLAB programs: `ltratio_test` runs 314 checks in about six minutes and returns the number of failures
 (`ltratio_test(true)` is the quick version, `ltratio_test(false, true)` raises an error on a failure); `dfx_test` checks
 the line integral against stored values of the Julia engine (`matlab/validation/python_exact_reference.json`); `kan_test` checks the devices of Bao and Kan against the values of
-DFLimit.jl in `matlab/validation/kan_ref.txt` (a copy of `c/test/kan_ref.txt`). Start
+DFLimit.jl in `matlab/validation/kan_ref.txt` (a copy of `c/test/kan_ref.txt`); `ext_test` checks the extensions of the
+limit against `matlab/validation/ext_ref.txt` (a copy of `c/test/ext_ref.txt`) and, where it finds the MEX file, against
+the C engine. Start
 MATLAB in a folder other than `matlab/`. With the folder of the MEX file ahead of `matlab/` on the path the same
 `ltratio_test` runs on the C engine, in about 30 seconds, which is the check of a built MEX file.
 
