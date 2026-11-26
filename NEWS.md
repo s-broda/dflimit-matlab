@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**Timings re-measured for 0.5.0** (November 26, 2026, after the thinner rules of one evaluation): the two tables of
+`c/mex/README.md` (the first now written by `c/mex/timing_table.m`, which also runs `timing_fixed.m`), the cost of the
+MATLAB programs in README, the manual and the help of `adfmax_cdf`, `ltratio_region`, `ltratio_lincdf` and
+`power_envelope` (which still gave the times of before the devices of Bao and Kan: 0.5 s and 3 s a value of the
+envelope, now 0.02 s by the default in case DK and 0.14 s in case DG), the line integral against the paths in C
+(`c/test/line_timing.c`: 1.1 to 1.7 times faster per value for -20 <= c <= 0, no longer 2.2 to 3.5, and at c = 2
+slower for the designs with deterministic terms) and in MATLAB, the counts and durations of `ltratio_test` (314
+checks, about six minutes) and `dfdet_test` (1330 checks, about seven minutes). The rules are unchanged.
+
 **The templates of the devices of Bao and Kan are headers.** `c/dfl_kan_jet.inc` and `c/dfl_kan_logcf.inc`, which
 `c/dfl_kan.c` includes several times with different types, are now `c/dfl_kan_jet.h` and `c/dfl_kan_logcf.h`: `R CMD
 check` of the R package, whose `src/` copies them, gave a WARNING for the unlikely file names `.inc` in `src/`, which

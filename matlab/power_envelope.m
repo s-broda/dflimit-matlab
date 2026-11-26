@@ -9,7 +9,8 @@ function [P,err] = power_envelope(c,cas,opts)
 %   'DK' and a = cbar^2/(2 (cbar - 1)) in case 'DG' (where the limit of the invariant statistic of Elliott,
 %   Rothenberg and Stock is cbar^2 V + (1 - cbar) J(1)^2, J(1)^2 = 2U + 1): its critical value is the
 %   alpha-quantile at c = 0 (bisection on [-50, 50] to 1e-9) and the envelope its power at cbar = c; alpha for
-%   c >= 0.  To about 1e-10; 0.5 s per value in case DK, 3 s in case DG.  Near c = 0, where a is small and the
+%   c >= 0.  To about 1e-10; about 0.09 s per value in case DK, 0.14 s in case DG (one thread, November 2026; the
+%   default in case DK, the single inversion of Bao and Kan, 0.02 s).  Near c = 0, where a is small and the
 %   inversion of Gil-Pelaez is not trusted (TR_GILPELAEZ), the critical value and the power come from the
 %   conditional integral (TR_LINEXACT), the critical value by bisection in x = b + 1/2 to 1e-12 of the scale
 %   s = E(U + 1/2) + |a| E V of U + 1/2 - aV (in case DG detrended at cbar = c the law of U + 1/2 shrinks like c^4,

@@ -7,8 +7,9 @@ function [F,info] = adfmax_cdf(x,cas,c,opts)
 %   stationary start ('S', c <= -1e-4).  In the limit both regressions have the denominator V and the numerators U and
 %   -U - 1, so that ADFmax => (|R| - 1/2)/sqrt(V), R = U + 1/2, and {ADFmax <= x} = {|R| <= 1/2 + x sqrt(V)}, a
 %   region between two curves of the plane (the ADFmax test of the companion paper), by the conditional integral (TR_ADFMAX).  x may
-%   be an array; F = 0 at -Inf, 1 at Inf, NaN at NaN.  Accurate to about 1e-11; 0.1 to 0.5 s per value with a zero
-%   start and 1 to 3 s with a stationary start on the MATLAB engines (opts are passed to TR_LIMDIST).  info: the
+%   be an array; F = 0 at -Inf, 1 at Inf, NaN at NaN.  Accurate to about 1e-11; 0.05 to 0.12 s per value with a zero
+%   start and about 0.1 s with a stationary start, where the default takes the general engine (one thread, November
+%   2026; opts are passed to TR_LIMDIST).  info: the
 %   error estimates and statuses of the engine; a nonzero status gives the warning tr_limdist:status.  A port of
 %   adfmax_cdf of julia/DFExact.jl.
 %

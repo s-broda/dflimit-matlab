@@ -9,7 +9,8 @@ function [P,err] = ltratio_lincdf(b,a,cas,c,opts)
 %   cbar U - cbar^2 V/2), in case 'DG', with the data detrended at cbar, with a = cbar^2/(2 (cbar - 1)) (it rejects
 %   for small cbar^2 V + (1 - cbar) J(1)^2, J(1)^2 = 2U + 1); see POWER_ENVELOPE.  a = NaN gives P(V <= b) (case
 %   DK).  By the inversion formula of Gil-Pelaez (TR_GILPELAEZ) where its transform has decayed by the end of its
-%   grid and c <= 0, to about 1e-10, about 0.02 s per call in case DK, 0.1 s in case DG; otherwise (|a| below about
+%   grid and c <= 0, to about 1e-10, about 0.008 s per call in case DK, 0.02 to 0.04 s in case DG (one thread, November
+%   2026; the default, the single inversion of Bao and Kan, 0.004 to 0.007 s in case DK); otherwise (|a| below about
 %   0.3 to 3, depending on c, which includes a = 0, the law of U alone, and c > 0) by a conditional integral: in case
 %   DK that of the region {U <= aV + b} (LTRATIO_REGION), in case DG the conditional integral given U (TR_LINCOND),
 %   to about 1e-10 and in [0, 1].  c must be at least -550; in case DG at most about 3.5, and for a = NaN about 7

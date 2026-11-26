@@ -14,7 +14,7 @@ function [P,info] = ltratio_region(bnd,cas,c,opts)
 %                  (1 + omega^2 V)^(-1/2) erfcx(U/sqrt(2 (V + 1/omega^2))) >= k   (fields k, omega)
 %      'fun'       g a function handle, elementwise in v (field g; the MATLAB engine only)
 %   and optionally v0 (g = +Inf on (0, v0), whose probability P(V < v0) is added) and brks (kinks of g, as
-%   breakpoints of the outer rule).  Accurate to about 1e-11; 0.2 to 1 s per probability on the MATLAB engines.
+%   breakpoints of the outer rule).  Accurate to about 1e-11; 0.01 to 0.02 s per probability (one thread, November 2026).
 %
 %   Example: ltratio_region(struct('type','wap','k',3.6658,'omega',10),'DK',0)   % 0.05 (the weighted-average-power test of the companion paper)
 %
