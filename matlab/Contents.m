@@ -169,6 +169,19 @@
 %   dfdet_ptmethod - the option method of the point-optimal functions
 %   lm_cdf, lm_quantile, lm_power - the LM statistic (Schmidt and Phillips; with breaks, Lee and Strazicich)
 %   mza_cdf, mza_quantile, msb_cdf, msb_quantile - MZ_alpha and MSB of Ng and Perron with GLS detrending
+%
+% The extensions of the limit (the general engine; the options vol and rho of dfdet_cdf, dfdet_pdf, dfdet_icdf,
+% ltratio_cdf, ltratio_pdf, ltratio_icdf)
+%   volpath       - volatility (and persistence) regimes between known dates: opts.vol, with c a number or a
+%                   vector of one value per regime (zero start, least squares, every c in [-480, 0]; the
+%                   inversion on paths of the volatility transform)
+%   cadf_c0, predictive_c0 - the local null values of the covariate-augmented t-ratio of Hansen (1995) and of
+%                   the t-ratio of the slope in a predictive regression, with opts.rho: the limit
+%                   rho tau_c0 + sqrt(1 - rho^2) Z (opts.method 'auto', 'lines' or 'mixture')
+%   hegy_t3_cdf, hegy_t3_pdf, hegy_t3_quantile - the first seasonal t-ratio of Hylleberg, Engle, Granger and
+%                   Yoo at a harmonic frequency, any design (the sum of the residues on the outer contour)
+%   dfdet_vol, dfdet_cov, dfdet_t3, dfdet_ext, ltratio_ext - their engines and dispatch
+%   ext_test      - the extensions against the Julia engine (validation/ext_ref.txt) and the MEX file
 %   dfdet_prep    - the prepared design: the functionals ell, the matrices A, B of U + 1/2 and V - int J^2, the
 %                   roots and their signs (least squares, GLS, the point-optimal and the LM statistics)
 %   dfdet_model, dfdet_startmodel - the design with its start (the shift of the fixed start, the extended

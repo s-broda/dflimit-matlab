@@ -91,6 +91,7 @@ t0 = tic;
 if ~isstruct(opts), error('ltratio:args','ltratio: opts must be a structure.'); end
 engine = 'auto'; if isfield(opts,'engine') && ~isempty(opts.engine), engine = lower(char(opts.engine)); end
 if ~any(strcmp(engine,{'auto','classical','general'})), error('ltratio:args','ltratio: opts.engine must be ''auto'', ''classical'' or ''general''.'); end
+if ltratio_ext('has',c,opts), [F,info] = ltratio_ext('dist',x,cas,c,opts,mode); return, end   % (vol, rho: the general engine)
 ltratio_route('case',cas,opts);                         % (a case string: no opts.start, opts.gls)
 if ltratio_croute('use',cas,opts) || ltratio_croute('usemethod',cas,opts), [F,info] = ltratio_croute('dist',x,cas,c,opts,mode); return, end   % (the C router)
 oc = rmfield_safe(opts,{'engine','start','gls'});

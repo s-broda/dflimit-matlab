@@ -53,7 +53,7 @@ end
 function a = det_args(D,c,opts)
 % the arguments of the call, for the message of LTRATIO_RANGECHECK
 nm = 'a design'; if isstruct(D) && isfield(D,'name') && ~isempty(D.name), nm = ['the design ' char(D.name)]; end
-a = sprintf('%s, c = %g',nm,c);
+if isscalar(c), a = sprintf('%s, c = %g',nm,c); else, a = sprintf('%s, c = %g (the smallest of the regimes)',nm,min(c)); end
 if isfield(opts,'c0') && ~isempty(opts.c0), a = [a sprintf(', c0 = %g',opts.c0)]; end
 if isfield(opts,'start') && ~isempty(opts.start), a = [a ', ' char(opts.start) ' start']; end
 end

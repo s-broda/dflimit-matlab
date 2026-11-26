@@ -65,6 +65,12 @@ switch mode
     case 'refine'
         if nargin < 5, c0s = []; end
         varargout{1} = line_refined(CP,arg,opts,c0s);
+    case 'lines'
+        % [F,f] = dfdet_contour('lines',CP,x,struct('rho',rho,'c0',c0)): a normal component (lines_both of DFDet_cov.jl)
+        [varargout{1:2}] = lines_both(CP,arg,opts.rho,getf(opts,'c0',0));
+    case 't3'
+        % [F,f] = dfdet_contour('t3',CP,x,struct('c0',c0)): the first seasonal t-ratio by the residues (t3_residues)
+        [varargout{1:2}] = t3_residues(CP,arg,getf(opts,'c0',0));
     otherwise
         error('dfdet:args','dfdet_contour: unknown mode %s.',mode);
 end
@@ -1192,4 +1198,167 @@ end
 
 function v = getf(o,f,d)
 if isfield(o,f) && ~isempty(o.(f)), v = o.(f); else, v = d; end
+end
+
+% ---------------------------------------------------------------------------------------------------------------------
+% A normal component (DFDet_cov.jl): the inversion on two lines with the normal component in the kernel.  For T = rho
+% tau_c0 + sqrt(1 - rho^2) Z, 0 < rho < 1, vp = (1 - rho^2)/(2 rho^2) and p = t + c0 s - vp s^2,
+%     P(T > x) = (2 pi i)^-2 int int M(s,t) (2/s) E_1(x s/rho, p) dt ds   (Re s = sigma > 0),
+%     f_T(x)   = (2 pi i)^-2 int int M(s,t) (2/rho) E_2(x s/rho, p) dt ds,   E_m(b, p) = int_0^Inf v^m e^{-b v - p v^2} dv,
+% the first -P(T <= x) for sigma < 0; the outer integral on the engine's outer contour, the inner one on the line
+% Re s = sigma between the origin and the nearest root on the side of the sign of x, its ends turned into the right
+% half-plane.
+function [F,f] = lines_both(CP,x,rho,c0)
+n = 24; tol = 1e-17; frac = 0.5; th = 0.3*pi;
+x = x(:).'; nx = numel(x);
+vp = (1 - rho^2)/(2*rho^2); a = CP.Mo.a; rp = CP.Mo.rp;
+K1 = numel(CP.t);
+GF = zeros(K1,nx); Gf = GF;
+plus = x >= 0; ipos = find(plus); ineg = find(~plus);
+xmp = max([0 abs(x(ipos))]); xmn = max([0 abs(x(ineg))]);
+done = 0;
+while done < K1
+    k1 = done + 1; k2 = min(done + 32,K1);
+    for k = k1:k2
+        t = CP.t(k); dt = CP.dt(k); wk = CP.wt(k); rts = CP.R(:,k); lP = CP.lP(k);
+        for side = [1 -1]
+            if side == 1, idx = ipos; xm = xmp; else, idx = ineg; xm = xmn; end
+            if isempty(idx), continue, end
+            sig = lines_abscissa(side,rts,rp,real(t),c0,vp,frac,a);
+            [S,W] = lines_rule(sig,rts,t,c0,vp,a,xm,rho,n,th);
+            m = exp(logmtilde(rts,rp,lP,S) - a*S).*W;
+            p = t + c0*S - vp*S.*S;
+            if ~all(real(p) > 0 | th < pi/4), error('dfdet:lines','the inversion on two lines: the real part of the kernel''s second argument is not positive on the inner path (node %d)',k); end
+            sp = sqrt(p); ip = 1./p; ip32 = ip./sp;
+            hz = S./(2*rho*sp);
+            mF = 2*m./S.*ip; mf = 2*m/rho.*ip32;
+            for i = 1:numel(idx)
+                [~,h1,h2] = hfull(x(idx(i))*hz);
+                GF(k,idx(i)) = wk*imag(dt*sum(mF.*h1)); Gf(k,idx(i)) = wk*imag(dt*sum(mf.*h2));
+            end
+        end
+    end
+    done = k2;
+    if max([max(max(abs(GF(k1:k2,:)))) max(max(abs(Gf(k1:k2,:))))]) < tol, break, end
+end
+sF = sum(GF(1:done,:),1); sf = sum(Gf(1:done,:),1);
+F = -sF; F(plus) = 1 - sF(plus);
+f = sf;
+end
+
+function [h0,h1,h2] = hfull(z)
+% h_m(z) = int_0^Inf u^m exp(-u^2 - 2 z u) du, m = 0, 1, 2, for any complex z: the engine's h for Re z >= 0, the full-line
+% Gaussian integral minus the reflected function for Re z < 0
+h0 = complex(zeros(size(z))); h1 = h0; h2 = h0;
+pz = real(z) >= 0;
+if any(pz), [h0(pz),h1(pz),h2(pz)] = hfun(z(pz),3); end
+nz = ~pz;
+if any(nz)
+    zn = z(nz); [g0,g1,g2] = hfun(-zn,3);
+    g = sqrt(pi)*exp(zn.*zn);
+    h0(nz) = g - g0; h1(nz) = -zn.*g + g1; h2(nz) = (zn.*zn + 0.5).*g - g2;
+end
+end
+
+function sig = lines_abscissa(side,rts,rp,tr,c0,vp,frac,a)
+% the abscissa of the inner line on the side (+1: between the origin and the positive roots; -1: between the negative
+% roots and the origin): the fraction frac of the way to the nearest root of the side, no farther than the point at which
+% the real part of p at Im s = 0 has fallen to half the real part of t, on the left no farther than -6 frac/a
+if vp > 0, cap = (c0 + side*sqrt(c0^2 + 2*vp*tr))/(2*vp); elseif side*c0 < 0, cap = -tr/(2*c0); else, cap = side*Inf; end
+if side == 1
+    mp = min([Inf; real(rts(1:rp))]);
+    if ~(mp > 0), error('dfdet:lines','the inversion on two lines: a root of the positive group has left the right half-plane at a node of the outer contour'); end
+    sig = min(frac*mp,cap);
+    return
+end
+mm = max([-Inf; real(rts(rp+1:end))]);
+if ~(mm < 0), error('dfdet:lines','the inversion on two lines: a root of the negative group has left the left half-plane at a node of the outer contour'); end
+sig = max([frac*mm,cap,-6*frac/a]);
+end
+
+function [S,W] = lines_rule(sig,rts,t,c0,vp,a,xmax,rho,n,th)
+% the nodes S and weights W of (1/2 pi i) int ds along the inner path: the segment of Re s = sigma with |Im s| <= Y,
+% graded toward the levels of the singular points (the roots, the origin, the two zeros of p), a panel split where it is
+% longer than 4/a or where the phase x^2 s^2/(4 rho^2 p) of the kernel turns by more than 4 radians at x = xmax; from its
+% ends the rays s = sigma +- i Y + r e^{+- i theta}, panels doubling from the scale at their start up to 4/a, as far as
+% r = 40/(a cos theta)
+[z,w] = glrule(n); z = z(:); w = w(:);
+foc = [0 abs(sig)]; Y = 4*abs(sig); dm = 4*abs(sig);
+pts = rts(:);
+if vp > 0, sq = sqrt(complex(c0*c0) + 4*vp*t); pts = [pts; (c0 + sq)/(2*vp); (c0 - sq)/(2*vp)]; end
+for j = 1:numel(pts)
+    d = abs(real(pts(j)) - sig);
+    foc(end+1,:) = [imag(pts(j)) d]; Y = max(Y,abs(imag(pts(j))) + 2*d); dm = min(dm,2*d); %#ok<AGROW>
+end
+cap = 4/a; ph = xmax^2/(4*rho^2);
+phase = @(u) ph*imag((sig + 1i*u).^2./(t + c0*(sig + 1i*u) - vp*(sig + 1i*u).^2));
+pan = graded_panels(-Y,Y,foc);
+Sc = cell(size(pan,1) + 2,1); Wc = Sc;
+for k = 1:size(pan,1)
+    a0 = pan(k,1); b0 = pan(k,2); mid = (a0 + b0)/2;
+    m = max(ceil((b0 - a0)/cap),ceil(max(abs(phase(b0) - phase(mid)),abs(phase(mid) - phase(a0)))/4));
+    m = min(max(m,1),4096);
+    ab = a0 + (b0 - a0)*(0:m)/m; L = diff(ab);
+    Sc{k} = complex(sig,reshape(ab(1:end-1) + L.*z,[],1)); Wc{k} = complex(reshape(L.*w,[],1)/(2*pi));
+end
+rmax = 40/(a*cos(th)); q = size(pan,1);
+for dir = [1 -1]
+    e = exp(1i*dir*th); s0 = complex(sig,dir*Y);
+    r0 = 0; h = min(max(dm,1e-3),cap); rs = []; hs = [];
+    while r0 < rmax, rs(end+1) = r0; hs(end+1) = h; r0 = r0 + h; h = min(2*h,cap); end %#ok<AGROW>
+    q = q + 1;
+    Sc{q} = s0 + reshape(rs + hs.*z,[],1)*e; Wc{q} = dir*e*reshape(hs.*w,[],1)/(2i*pi);
+end
+S = vertcat(Sc{:}); W = vertcat(Wc{:});
+end
+
+% ---------------------------------------------------------------------------------------------------------------------
+% The first seasonal t-ratio (DFDet_seas.jl): with e^{s} E exp(sR + tV) = P(t)^2 prod_+ (s_k - s)^-1 prod_- (s - s_k)^-1
+% and its partial fractions sum_+ w_k/(s_k - s) + sum_- w_k/(s - s_k), the inner integral of the inversion on paths is
+% the sum of the residues: f(x) = (1/2 pi i) int sum_k w_k K^f(s_k, t) dt, P(t3 > x) = P{X(sqrt V) < 0} + (1/2 pi i)
+% int sum_k w_k K^F(s_k, t) dt, X(v) = c0 v^2 + x v + 1, K^f = int 2 v^2 e^{-t v^2 - s X(v)} dv, K^F = (1/s) int 2 v
+% e^{-t v^2 - s X(v)} dv over the part of v > 0 on which X has the sign of the root's group, the first term a single
+% inversion of M_V(t) = P^2 prod_+ (1/s_k) prod_- (-1/s_k).
+function [F,f] = t3_residues(CP,x,c0)
+tol = 1e-17;
+x = x(:).'; nx = numel(x); r = size(CP.R,1); rp = CP.Mo.rp;
+F = zeros(1,nx); f = F;
+PL = cell(1,nx); MI = PL;
+for ix = 1:nx, [PL{ix},MI{ix}] = xpieces(x(ix),c0,1); end
+K1 = numel(CP.t); k = 0;
+while k < K1
+    mx = 0; kend = min(k + 32,K1);
+    for kk = k+1:kend
+        t = CP.t(kk); P2 = exp(2*CP.lP(kk)); R = CP.R(:,kk);
+        sg = [ones(rp,1); -ones(r - rp,1)];
+        MV = P2/prod(sg.*R);
+        wk = complex(zeros(r,1));
+        for j = 1:r
+            d = R - R(j); d(rp+1:end) = -d(rp+1:end); d(j) = 1;
+            wk(j) = P2/prod(d);
+        end
+        for ix = 1:nx
+            gF = 0; gf = 0;
+            for grp = 1:2
+                if grp == 1, js = 1:rp; pc = PL{ix}; else, js = rp+1:r; pc = MI{ix}; end
+                if isempty(js) || isempty(pc), continue, end
+                sj = R(js); sa = sqrt(t + c0*sj);
+                [~,M1,M2] = pmoments(t + 0*sj,sj,sa,1./sa,c0,x(ix),1,pc,true(numel(sj),size(pc,1)),3);
+                gf = gf + sum(wk(js)*2.*M2); gF = gF + sum(wk(js)*2.*M1./sj);
+            end
+            pm = MI{ix};
+            for q = 1:size(pm,1)
+                a = pm(q,1); b = pm(q,2);
+                if isfinite(b), eb = exp(-t*b*b); else, eb = 0; end
+                gF = gF + MV*(exp(-t*a*a) - eb)/t;
+            end
+            tF = CP.wt(kk)*imag(gF*CP.dt(kk)); tf = CP.wt(kk)*imag(gf*CP.dt(kk));
+            F(ix) = F(ix) + tF; f(ix) = f(ix) + tf;
+            mx = max([mx abs(tF) abs(tf)]);
+        end
+    end
+    k = kend;
+    if mx < tol, break, end
+end
+F = 1 - F;
 end

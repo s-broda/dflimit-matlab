@@ -20,6 +20,7 @@ function q = dfdet_icdf(p,D,c,opts)
 %   See also DFDET_CDF, DFDET_PDF, LTRATIO_ICDF.
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
+if isstruct(opts) && dfdet_ext('has',c,opts), q = dfdet_ext('icdf',p,D,c,opts); return, end   % (vol, rho: DFDET_EXT)
 [c,c0,start,g0,gls,o] = dfdet_args(D,c,opts,'the quantiles of the t-ratio (dfdet_icdf)');
 dfdet_method(opts,'dfdet_icdf');
 if ~(isnumeric(p) && isreal(p) && all(p(:) > 0 & p(:) < 1)), error('dfdet:args','dfdet_icdf: p must lie in (0,1).'); end

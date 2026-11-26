@@ -37,7 +37,15 @@ function varargout = ltratio(what,varargin)
 %                                      as a second output; opts.rule the rule of one evaluation of the t-ratio's
 %                                      paths, 'auto' (the default), 'present' (the rule before November 2026), 'thin',
 %                                      'inner', 'outer', 'fine', 'finestep', and opts.hfac, opts.n, opts.ntail, which
-%                                      override it)
+%                                      override it; t3cdf, t3pdf (x c), t3icdf (p c x0 tol): the first seasonal
+%                                      t-ratio of Hylleberg, Engle, Granger and Yoo, any design, with opts.c0, opts.vol)
+%   The extensions of the limit (cdf, pdf, icdf with a case or a design, and 'det'): opts.vol a volatility path, a
+%   structure with the fields breaks (the regime boundaries in (0, 1)) and omega (the standard deviations; VOLPATH of
+%   the MATLAB programs makes one), c then a number or a vector of one value per regime (zero start, least squares
+%   detrending, every c in [-480, 0], opts.method 'auto' or 'paths'); opts.rho a normal component, the limit
+%   rho tau_c0 + sqrt(1 - rho^2) Z of the covariate-augmented t-ratio (c0 = CADF_C0(c, rho, R)) and of the predictive
+%   regression (c0 = PREDICTIVE_C0(c, rho, b)), rho in [-1, 1], opts.method 'auto', 'lines' or 'mixture'; computed by
+%   the general engine for the case or the design (opts.engine = 'classical' refuses them).
 %
 %   The arguments are those of LTRATIO_CDF, LTRATIO_PDF, LTRATIO_ICDF and LTRATIO_MOM of the MATLAB programs: cas is
 %   'DK', 'DU', 'DT', 'SK', 'SU', 'ST' or 'DG' (the GLS-detrended trend case: zero start, the line integral only, no
@@ -148,9 +156,12 @@ end
 if strcmpi(what,'det')                                % a function of the general engine with a design
     if nargin < 3, error('ltratio:args','usage: ltratio(''det'', fn, D, args..., opts)'); end
     fn = lower(char(varargin{1})); D = varargin{2}; args = varargin(3:end);
-    o = NaN(1,10);
-    if ~isempty(args) && isstruct(args{end}), o = detvec(args{end}); args = args(1:end-1); end
-    nexp = struct('cdf',2,'pdf',2,'icdf',4,'coefcdf',2,'coefpdf',2,'coeficdf',4,'mom',2,'lincdf',3,'linpdf',3,'linicdf',5, ...
+    o = NaN(1,10); eo = struct;
+    if ~isempty(args) && isstruct(args{end}), eo = args{end}; o = detvec(eo); args = args(1:end-1); end
+    % (the extensions of the limit: rho and the volatility path after the ten options; c a vector with the path)
+    cv = []; if numel(args) >= 2 && any(strcmp(fn,{'cdf','pdf','icdf','t3cdf','t3pdf','t3icdf'})) && numel(args{2}) > 1, cv = args{2}; args{2} = cv(1); end
+    ev = extvec(eo,cv); if ~isempty(ev), o = [o ev]; end
+    nexp = struct('t3cdf',2,'t3pdf',2,'t3icdf',4,'cdf',2,'pdf',2,'icdf',4,'coefcdf',2,'coefpdf',2,'coeficdf',4,'mom',2,'lincdf',3,'linpdf',3,'linicdf',5, ...
         'adfcdf',2,'adfpdf',2,'adficdf',4,'power',3,'envelope',2,'ptcdf',7,'ptpdf',7,'pticdf',6,'ptpower',7,'ptenvelope',6,'coefgp',6, ...
         'lmcdf',2,'lmicdf',2,'mzacdf',3,'mzaicdf',3,'msbcdf',3,'msbicdf',3);
     if ~isfield(nexp,fn), error('ltratio:args','unknown function %s of the general engine.',fn); end
@@ -175,10 +186,11 @@ if isstruct(varargin{2})                              % a design: the router ove
     st = o(2); if isnan(st), st = 0; end
     g0 = o(3); if isnan(g0), g0 = 0; end
     spec = {D.br, D.C, double(D.loc), double(D.first), st, g0, o(4)};
-    rm = 0; if ~isnan(o(6)), rm = [0 1 4]; rm = rm(o(6) + 1); end   % (the router's codes: 1 the line integral, 4 the general engine's paths)
+    rm = 0; if ~isnan(o(6)), rm = [0 1 4 8 9]; rm = rm(o(6) + 1); end   % (the router's codes: 1 the line integral, 4 the general engine's paths, 8, 9 the methods of rho)
+    ev = extvec(opts,c); if ~isempty(ev), ev = [getf(opts,'verified',0) ev]; c = c(1); end   % (the extensions of the limit)
     switch lower(what)
-        case {'cdf','pdf'}, v = ltratio_mex('route', lower(what), eng, 0, spec{:}, double(x), double(c), double(c0), rm);
-        case 'icdf', tol = getf(opts,'tol',1e-10); v = ltratio_mex('route', 'icdf', eng, 0, spec{:}, double(x), double(c), double(c0), tol, rm);
+        case {'cdf','pdf'}, v = ltratio_mex('route', lower(what), eng, 0, spec{:}, double(x), double(c), double(c0), rm, ev);
+        case 'icdf', tol = getf(opts,'tol',1e-10); v = ltratio_mex('route', 'icdf', eng, 0, spec{:}, double(x), double(c), double(c0), tol, rm, ev);
         case 'mom', [v,E] = ltratio_mex('route', 'mom', eng, 0, spec{:}, double(x), double(c), double(c0), imethod(opts,'mom'), getf(opts,'tol',NaN), getf(opts,'verified',0)); varargout{2} = E;
         otherwise, error('ltratio:args','with a design, what must be cdf, pdf, icdf or mom (the other functions: ltratio(''det'', ...)).');
     end
@@ -197,6 +209,21 @@ c = 0; if nargin > 3 && ~isempty(varargin{3}), c = varargin{3}; end
 opts = struct; if nargin > 4 && ~isempty(varargin{4}), opts = varargin{4}; end
 c0 = 0; if isfield(opts,'c0') && ~isempty(opts.c0), c0 = opts.c0; end
 g0 = 0; if isfield(opts,'g0') && ~isempty(opts.g0), g0 = opts.g0; end
+ev = extvec(opts,c);
+if ~isempty(ev) && any(strcmpi(what,{'cdf','pdf','icdf'}))   % the extensions of the limit: the general engine for the case
+    st = 0; if stat, st = 2; elseif g0 ~= 0, st = 1; end
+    rm = 0; if isfield(opts,'method') && ~isempty(opts.method)
+        k = find(strcmpi(char(opts.method),{'auto','single','line','double','conditional','contour','paths','lines','mixture'}));
+        if isempty(k), error('ltratio:args','opts.method must be ''auto'', ''paths'', ''lines'' or ''mixture'' with opts.vol or opts.rho.'); end
+        rm = [0 1 1 2 2 3 4 8 9]; rm = rm(k);
+    end
+    ev = [getf(opts,'verified',0) ev]; c = c(1);
+    switch lower(what)
+        case {'cdf','pdf'}, v = ltratio_mex('route', lower(what), engcode(opts), [model st g0], double(x), double(c), double(c0), rm, ev);
+        case 'icdf', v = ltratio_mex('route', 'icdf', engcode(opts), [model st g0], double(x), double(c), double(c0), getf(opts,'tol',1e-10), rm, ev);
+    end
+    varargout{1} = reshape(v, size(x)); return
+end
 method = 0;
 if isfield(opts,'method') && ~isempty(opts.method) && ~strcmpi(what,'mom')
     switch lower(char(opts.method))
@@ -269,10 +296,28 @@ if isfield(opts,'rule') && ~isempty(opts.rule)                % (the rule of one
 end
 for f = {'hfac','n','ntail'}, if isfield(opts,f{1}) && ~isempty(opts.(f{1})), o(7 + find(strcmp(f{1},{'hfac','n','ntail'}))) = double(opts.(f{1})); end, end
 end
-function m = gmethod(s)                               % opts.method of the general engine: 0 'auto', 1 'line', 2 'paths'
-k = find(strcmpi(char(s),{'auto','line','paths'}));
-if isempty(k), error('ltratio:args','with a design opts.method must be ''auto'', ''line'' (the line integral with the explicit kernel) or ''paths'' (the inversion on paths around the roots).'); end
+function m = gmethod(s)                               % opts.method of the general engine: 0 'auto', 1 'line', 2 'paths', 3 'lines', 4 'mixture'
+k = find(strcmpi(char(s),{'auto','line','paths','lines','mixture'}));
+if isempty(k), error('ltratio:args','with a design opts.method must be ''auto'', ''line'' (the line integral with the explicit kernel) or ''paths'' (the inversion on paths around the roots), with opts.rho ''lines'' or ''mixture''.'); end
 m = k - 1;
+end
+function v = extvec(opts,c)                            % the extensions of the limit: [rho nreg breaks omega c] or [] without them
+v = [];
+rho = 1; if isfield(opts,'rho') && ~isempty(opts.rho), rho = double(opts.rho); end
+V = []; if isfield(opts,'vol') && ~isempty(opts.vol), V = opts.vol; end
+if isempty(V)
+    if numel(c) > 1, error('ltratio:args','c is a vector (one value per regime): that needs a volatility path, opts.vol.'); end
+    if rho ~= 1, v = rho; end
+    return
+end
+if ~(isstruct(V) && isfield(V,'breaks')), error('ltratio:args','opts.vol must be a volatility path, a structure with the fields breaks and omega (VOLPATH).'); end
+b = double(V.breaks(:).'); om = ones(1,numel(b) + 1); if isfield(V,'omega') && ~isempty(V.omega), om = double(V.omega(:).'); end
+if numel(om) ~= numel(b) + 1, error('ltratio:args','volpath: one standard deviation omega per regime: %d for %d break dates, %d given',numel(b) + 1,numel(b),numel(om)); end
+v = [rho numel(om) b om];
+if numel(c) > 1
+    if numel(c) ~= numel(om), error('ltratio:args','c must be a number or a vector with one value per regime of the volatility path (%d), not %d',numel(om),numel(c)); end
+    v = [v double(c(:).')];
+end
 end
 function e = engcode(opts)                            % opts.engine: 0 auto, 1 classical, 2 general
 e = 0;

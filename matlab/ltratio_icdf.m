@@ -27,6 +27,7 @@ function [q,info] = ltratio_icdf(p,cas,c,opts)
 %   See also LTRATIO_CDF, LTRATIO_PDF, LTRATIO_MOM, DFDET_ICDF.
 if nargin < 3 || isempty(c), c = 0; end
 if nargin < 4 || isempty(opts), opts = struct; end
+if ltratio_ext('has',c,opts), [q,info] = ltratio_ext('icdf',p,cas,c,opts); return, end   % (vol, rho: the general engine)
 ltratio_route('case',cas,opts);
 if ltratio_croute('use',cas,opts,{'tol'}) || ltratio_croute('usemethod',cas,opts,{'tol'})                % (the C router; info, the distribution function at q, only if asked for)
     if nargout > 1, [q,info] = ltratio_croute('icdf',p,cas,c,opts); else, q = ltratio_croute('icdf',p,cas,c,opts); end

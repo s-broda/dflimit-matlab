@@ -22,6 +22,7 @@ function [theta,ld,mu,fx] = dfdet_mgf(Mo,c,t,light)
 %
 %   See also DFDET_MODEL, DFDET_SIGMA, DFDET_DVAL.
 if nargin < 4, light = false; end
+if isfield(Mo,'vm'), [theta,ld,mu] = vol_parts(Mo,t,light); fx = []; return, end
 P = Mo.P;
 theta = sqrt(complex(c*c - 2*t)); gam = (c + theta)/2;
 fx = []; mu = [];
@@ -107,4 +108,19 @@ for i = 1:n
 end
 if mod(odd,2) == 1, sg = -sg; end
 l = sum(log(a)) + log(sg);
+end
+
+function [thl,ld,mu] = vol_parts(VM,t,light)
+% the volatility transform at t (mgfparts of a VolModel): theta_j = sqrt(c_j^2 - 2 t omega_j^2), the tilt Gamma (g_last at
+% J(1), g_j - g_{j+1} at the boundary between pieces j and j + 1, g_j = (c_j + theta_j)/(2 omega_j^2)), log D_V(t) =
+% sum_j (c_j + theta_j) L_j + log det{I - 2 (t B + Gamma) Sigma} and the reciprocal roots mu, the eigenvalues of
+% 2 Dv L' Sigma M0^{-1} L
+[th,gam,ex] = dfdet_vol('tilt',VM,t);
+S = dfdet_sigma(VM,th);
+M0 = eye(VM.Ne) - 2*((t*VM.B + diag(gam))*S);
+ld = ex + ldet(M0); thl = th(end); mu = [];
+if light, return, end
+X = M0\VM.Lx;
+H = 2*(VM.Dv.*(VM.Lx.'*(S*X)));
+mu = eig(H);
 end

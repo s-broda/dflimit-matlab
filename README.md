@@ -155,6 +155,54 @@ thinner rules of the paths), so that it would not be faster for any design. With
 `ltratio_pdf`, `ltratio_icdf`, `ltratio('cdf', x, D, c, struct('method', 'line'))`) take the C engine's line integral,
 `'paths'` the C engine's paths, and `'auto'` the C rule.
 
+## The extensions of the limit
+
+Three extensions of the limit of the t-ratio, ported from the Julia package (`src/DFDet_vol.jl`, `DFDet_cov.jl`,
+`DFDet_seas.jl` of DFLimit.jl) to the C engine (`c/dfl_det_ext.c`, the volatility transform in `c/dfl_det_mgf.c`, its
+paths in `c/dfl_det_path.c`) and to the plain MATLAB programs, with the same names and arguments:
+
+- **Volatility and persistence regimes.** `volpath(breaks, omega)` makes a path: the standard deviation of the
+  innovations piecewise constant between known dates (`breaks`, strictly increasing in (0, 1); `omega` of any positive
+  scale, only the ratios matter). With `opts.vol = volpath(...)`, `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf` and
+  `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf` (a case string or a design) give the limit of the t-ratio when the
+  process is dJ = c(r) J dr + omega(r) dW, with `c` a number or a vector of one value per regime (changing
+  persistence). The transform is the general engine's determinant with a diagonal tilt at the regime boundaries and the
+  covariance of the functionals under the regimes; the outer contour, the inner integrals, the rules of one evaluation,
+  the checked computation and the quantile search are the engine's. Zero start, least squares detrending, the one-step
+  regression, every `c` in [-480, 0], `opts.method` `'auto'` or `'paths'`; one regime with a scalar `c` is the engine
+  itself.
+- **A normal component.** `opts.rho`: the limit rho tau_c0 + sqrt(1 - rho^2) Z, Z standard normal and independent of
+  the t-ratio's limit tau_c0, which is the limit of the covariate-augmented t-ratio of Hansen (1995) at
+  `c0 = cadf_c0(c, rho, R)` and of the t-ratio of the slope in a predictive regression with a regressor local to unity
+  at `c0 = predictive_c0(c, rho, b)`. `rho` in [-1, 1] (1 the t-ratio itself, 0 the normal law, a negative `rho` by the
+  reflection); `opts.method` `'auto'`, `'lines'` (the inversion on two lines with the normal component in the kernel, a
+  zero or stationary start, c <= 0) or `'mixture'` (the normal average of the t-ratio's distribution function, graded
+  toward its kink when c0 > 0); `'auto'` takes the lines for 0.1 <= rho^2 <= 0.99 with a zero or stationary start at
+  c <= 0 and the mixture otherwise. Least squares detrending and the one-step regression; not together with `vol`.
+- **The first seasonal t-ratio** of the regression of Hylleberg, Engle, Granger and Yoo at a harmonic frequency (pi/2
+  for quarterly data, the t-ratio of pi_3; each pair of harmonic frequencies of monthly data), the one of Dickey-Fuller
+  shape: `hegy_t3_cdf`, `hegy_t3_pdf`, `hegy_t3_quantile` for any design (`dfdet_trend(-1)` no seasonal terms,
+  `dfdet_trend(0)` seasonal dummies, `dfdet_trend(1)` seasonal dummies and seasonal trends, breaks), with `opts.c0` and
+  `opts.vol`, c <= 0. The moment generating function of its numerator and denominator has poles in its first argument,
+  and the inner integral of the inversion on paths is the sum of the residues at the roots on the engine's outer
+  contour. The second t-ratio and the F statistic of the regression are in the Julia package only.
+
+```matlab
+V = volpath(0.3, [1 3]);                                        % the standard deviation triples at 30% of the sample
+dfdet_cdf(-2.86, dfdet_trend(0), 0, struct('vol', V))
+dfdet_icdf(0.05, dfdet_trend(1), [-3 0 -10], struct('vol', volpath([0.2 0.7], [2 1 0.5])))
+ltratio_cdf(1.645, 'DU', 0, struct('rho', -0.95, 'c0', predictive_c0(0, -0.95)))   % the predictive regression
+dfdet_cdf(-2.5, dfdet_trend(1), -5, struct('rho', sqrt(0.6), 'c0', cadf_c0(-5, sqrt(0.6), sqrt(0.4))))
+hegy_t3_quantile(0.05, dfdet_trend(0))                          % the 5% critical value with seasonal dummies
+```
+
+The MEX file takes them too: `ltratio('cdf', x, cas, c, opts)` (and `'pdf'`, `'icdf'`) with `opts.vol` (a structure
+with the fields `breaks` and `omega`, as `volpath` makes it) and `opts.rho`, `ltratio('det', 't3cdf', D, x, c, opts)`
+(and `'t3pdf'`, `'t3icdf'`); with its folder ahead on the path the user-level routines hand such a call to the C
+router. `ext_test` checks the MATLAB programs against the reference values of the Julia engine
+(`matlab/validation/ext_ref.txt`) and, where the MEX file is found, against the C engine; `c/dfl_test_ext.c` checks the
+C engine against the same file.
+
 ## The rules of one evaluation
 
 One evaluation (the default, `verified` false) takes thinner rules than before November 2026 where they hold, in C, in

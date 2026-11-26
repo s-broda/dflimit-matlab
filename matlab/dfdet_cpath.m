@@ -86,10 +86,13 @@ while true
     % GLS detrending, c > 0, designs without a proper intercept: far out on a flat hyperbola the positive roots can move
     % into Re s < 0, where the kernels of G+ grow; steepen the hyperbola until the positive group stays right of the
     % origin (on the line Re t = tau it does)
-    if ~(auto && minpos <= 0 && phi < 88*pi/180), break, end
+    % (and while the negative group crosses the imaginary axis to the right: the volatility transform with an intercept and
+    % the standard deviation rising fivefold at a tenth of the sample; the engine's designs keep it left of the origin, where
+    % this condition changes nothing)
+    if ~(auto && (minpos <= 0 || maxneg >= 0) && phi < 88*pi/180), break, end
     phi = min(phi + 5*pi/180,88*pi/180);
 end
-if auto && minpos <= 0
+if auto && (minpos <= 0 || maxneg >= 0)
     CP = linecpath(Mo,c,ts,tau,rmax,24,8,[]);
     return
 end
@@ -97,6 +100,13 @@ wt = repmat(h/pi,K + 1,1); wt(1) = wt(1)/2;
 k = (0:K)';
 CP = struct('c',c,'tau',tau,'tstar',ts,'a',a,'b',b,'h',h,'phi',phi,'t',tt(1:sub:end),'dt',complex(a*sinh(k*h),b*cosh(k*h)), ...
     'R',R,'lP',lP,'minpos',minpos,'maxneg',maxneg,'Mo',Mo,'fx',FX,'wt',wt);
+CP = inner(CP,Mo);
+end
+
+function CP = inner(CP,Mo)
+% the path of a volatility model (DFDET_VOL) holds the inner model, the zero-start model of the refined design whose shift
+% and root counts the inner integrals use, and the model itself in TM (for the variants of the checked computation)
+if isfield(Mo,'vm'), CP.Mo = Mo.Mi; CP.TM = Mo; end
 end
 
 function CP = linecpath(Mo,c,ts,tau,rmax,nq,sub,cuts)
@@ -120,6 +130,7 @@ R = R(:,2:end); lP = lP(2:end); FX = fxsel(FX,2:size(R,2)+1);
 nn = numel(ws);
 CP = struct('c',c,'tau',tau,'tstar',ts,'a',0,'b',1,'h',NaN,'phi',pi/2,'t',complex(tau,ws),'dt',complex(zeros(nn,1),ones(nn,1)), ...
     'R',R,'lP',lP,'minpos',minpos,'maxneg',maxneg,'Mo',Mo,'fx',FX,'wt',wq);
+CP = inner(CP,Mo);
 end
 
 function F = fxsel(F,idx)
@@ -231,7 +242,7 @@ for k = 2:K
     R(:,k) = nw; lP(k) = -Lc/2;
     dprev = imag(Lc) - imag(Lprev); Lprev = Lc;
     mnp = min(mnp,min(real(R(1:rp,k)))); if rm > 0, mxn = max(mxn,max(real(R(rp+1:r,k)))); end
-    if stopneg && mnp <= 0
+    if stopneg && (mnp <= 0 || mxn >= 0)
         R = R(:,1:k); lP = lP(1:k); break
     end
 end
@@ -290,7 +301,7 @@ function CP = table_path(Mo,c)
 % the outer paths of cases DK, DU, DT at c = 0 with a zero start, shipped as tables (dfdet_paths.mat, written by
 % DFDET_MAKE_PATHS from the tables of DFDet.jl); [] for any other model, or when the file is missing
 CP = [];
-if ~(c == 0 && strcmp(Mo.start,'zero') && isnan(Mo.P.cbar)), return, end
+if isfield(Mo,'vm') || ~(c == 0 && strcmp(Mo.start,'zero') && isnan(Mo.P.cbar)), return, end
 if ~isfield(Mo,'key') || isempty(strfind(Mo.key,'|ls|')), return, end   % (the least squares statistic, not the LM one)
 D = Mo.P.D;
 if ~(strcmp(D.detrend,'onestep') && ~D.loc && isequal(D.br,[0 1])), return, end

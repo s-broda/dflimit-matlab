@@ -19,6 +19,7 @@ function [S,h] = dfdet_sigma(P,theta,nq)
 %
 %   See also DFDET_PREP, DFDET_MGF.
 if nargin < 3 || isempty(nq), nq = 24; end
+if isfield(P,'vm'), S = sigma_vol(P,theta,nq); h = []; return, end
 [zq,wq] = glrule(nq);
 N = P.N; p = P.p; nj = P.nj; br = P.br; np = numel(br) - 1; Dg = P.deg;
 Ib = complex(zeros(max(p,1),np));
@@ -167,5 +168,84 @@ if any(lg)
         El(mid,:) = Em;
     end
     E(lg,:) = El;
+end
+end
+
+function S = sigma_vol(VM,th,nq)
+% the covariance (bilinear in theta, no conjugation) of ell under dJ = -theta_j J dr + omega_j dW on piece j of the design
+% refined at the regime boundaries, J(0) = 0, the theta_j in th (sigma_vol! of DFDet_vol.jl): on piece j = (a, b] with
+% y = b - u, F(u)/omega_j = (the part of z inside the piece) + e^{-theta_j y} R_j, R_j the same functionals of the path
+% started at b by a backward recursion over the pieces; the integral over y on the panels of the engine's sigma (which this
+% is with one regime); the entries among J(1) and the J(b) then replaced by their closed forms from the variances at the
+% right ends of the pieces
+[zq,wq] = glrule(nq);
+P = VM.P; N = VM.Ne; p = P.p; nj = P.nj; br = P.br; np = VM.np; Dg = P.deg; iz0 = 1 + nj;
+Ib = complex(zeros(max(p,1),np));
+if p > 0
+    for m = 1:np
+        Lm = VM.L(m);
+        e = ek(th(m)*Lm,Dg);
+        a = taylorc(P.g{m},br(m) - P.off(m));
+        Ib(:,m) = ((Lm.^(1:Dg+1)).*e)*a;
+    end
+end
+Rb = complex(zeros(N,np)); Rb(1,np) = 1;
+for j = np-1:-1:1
+    el = exp(-th(j+1)*VM.L(j+1));
+    Rb(:,j) = el*Rb(:,j+1);
+    if p > 0, Rb(iz0+1:iz0+p,j) = Rb(iz0+1:iz0+p,j) + Ib(:,j+1); end
+    pos = VM.bpos(j); if pos > 0, Rb(pos,j) = 1; end
+end
+Fc = cell(np,1); Wc = cell(np,1);
+for j = 1:np
+    thj = th(j); at = abs(thj); rt = real(thj);
+    if at > 0, h0 = 1/at; else, h0 = Inf; end
+    b = br(j+1); Lj = VM.L(j);
+    pa = zeros(0,1); pb = pa; y0 = 0;
+    while y0 < Lj*(1 - 1e-14)
+        if at*Lj <= 2
+            y1 = Lj;
+        else
+            wdt = max(y0,h0);
+            if 2*rt*y0 < 80, wdt = min(wdt,24*h0); end
+            y1 = min(y0 + wdt,Lj);
+            if (Lj - y1) < 0.5*wdt, y1 = Lj; end
+        end
+        pa(end+1,1) = y0; pb(end+1,1) = y1; %#ok<AGROW>
+        y0 = y1;
+    end
+    y = reshape(pa' + (pb - pa)'.*zq,[],1); w = VM.om2(j)*reshape((pb - pa)'.*wq,[],1);
+    ey = exp(-thj*y);
+    F = ey.*Rb(:,j).';
+    if p > 0
+        E = ek(thj*y,Dg);
+        EY = E.*(y.^(1:Dg+1));
+        a = taylorv(P.g{j},b - y - P.off(j));
+        for i = 1:p
+            F(:,iz0+i) = F(:,iz0+i) + sum(a(:,:,i).*EY,2);
+        end
+    end
+    Fc{j} = F; Wc{j} = w;
+end
+F = vertcat(Fc{:}); w = vertcat(Wc{:});
+S = F.'*(F.*w);
+S = (S + S.')/2;
+% the variances of the path at the right ends of the pieces, and from them the entries among J(1) and the J(b)
+v = complex(zeros(np,1)); acc = 0;
+for j = 1:np
+    acc = VM.om2(j)*VM.L(j)*e0(2*th(j)*VM.L(j)) + exp(-2*th(j)*VM.L(j))*acc;
+    v(j) = acc;
+end
+for j = 1:np
+    if j == np, pj = 1; else, pj = VM.bpos(j); end
+    if pj == 0, continue, end
+    S(pj,pj) = v(j);
+    dec = 1;
+    for k = j+1:np
+        dec = dec*exp(-th(k)*VM.L(k));
+        if k == np, pk = 1; else, pk = VM.bpos(k); end
+        if pk == 0, continue, end
+        S(pj,pk) = v(j)*dec; S(pk,pj) = S(pj,pk);
+    end
 end
 end

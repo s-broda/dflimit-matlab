@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+**Three extensions of the limit** (November 26, 2026), ported from DFLimit.jl to the C engine (`c/dfl_det_ext.c`; the
+volatility transform in `dfl_det_mgf.c`, its paths in `dfl_det_path.c`), the MEX file and the plain MATLAB programs:
+volatility and persistence regimes (`volpath`, the option `vol` of `dfl_det_dist`, `dfl_det_quantile`, `dfdet_cdf`,
+`dfdet_pdf`, `dfdet_icdf`, `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`, with c a vector of one value per regime); a
+normal component (the option `rho`: the covariate-augmented t-ratio and the predictive regression, `cadf_c0`,
+`predictive_c0`; the inversion on two lines and the normal average); and the first seasonal t-ratio of Hylleberg, Engle,
+Granger and Yoo (`dfl_hegy_t3`, `hegy_t3_cdf`, `hegy_t3_pdf`, `hegy_t3_quantile`). The router has `dfl_engine_dist_ext`
+and `dfl_engine_icdf_ext`. The outer contour of the general engine is now steepened while either group of roots leaves
+its side of the imaginary axis (before: the positive group only), as in DFLimit.jl; the volatility transform needs it, and
+for the engine's designs nothing changes (the existing tests give identical results). Calls without the new options are
+unchanged. Tests: `c/dfl_test_ext.c` and `matlab/ext_test.m` against the reference values of the Julia engine
+(`c/test/ext_ref.txt`, `matlab/validation/ext_ref.txt`) and the limiting cases. The second seasonal t-ratio and the F
+statistic are not ported.
+
 **The choice of engine re-derived** (`dfl_autoengine`, `ltratio_engine`, November 26, 2026), after the thinner rules of
 one evaluation, which halved the time of the general engine's paths: from interleaved timings of the two C engines in each
 cell (a cell moved where the other engine was at least 1.5 times faster) and checks of the new choice's one evaluation

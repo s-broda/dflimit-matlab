@@ -12,6 +12,9 @@ method_sweep.m   per-point timings of the two representations in the MATLAB prog
                the logs and compares the rule with the C engine's
 method_sweep_*.log   the run behind the automatic choice (November 2026), read by
                method_sweep_summary.py
+ext_ref.txt    the reference values of the extensions of the limit (volatility regimes, a normal component, the
+               seasonal statistics) of the Julia engine, written by dev/ext_ref.jl of DFLimit.jl (the same file as
+               c/test/ext_ref.txt), read by ../ext_test.m
 python_exact_reference.json   the twelve stored reference values of the Julia engine (computed
                on 31 October 2026), read by ../dfx_test.m
 tratio_legacy/ the limit computations of the earlier, combined version of the finite-sample

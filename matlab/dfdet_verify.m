@@ -51,6 +51,7 @@ function CPv = variant_path(CP,level)
 % the outer contour of a variant rule: level 1 steeper and with a shorter step, level 0 the same with the default
 % angle, level 2 the default angle with half the step; on the vertical line more nodes per panel
 Mo = CP.Mo; c = CP.c;
+if isfield(CP,'TM'), Mo = CP.TM; end      % (the variants of a volatility path: vol_variant of DFDet_vol.jl)
 if CP.phi == pi/2 && isnan(CP.h)
     if level == 2, nq = 48; else, nq = 32; end
     CPv = dfdet_cpath(Mo,c,struct('nq',nq,'ts',CP.tstar,'tau',CP.tau));

@@ -118,7 +118,7 @@ end
 
 function a = cdf_args(cas,c,opts)
 % the arguments of the call, for the message of LTRATIO_RANGECHECK
-if ischar(cas) || isstring(cas), a = sprintf('case %s, c = %g',upper(char(cas)),c); else, a = sprintf('a design, c = %g',c); end
+if ischar(cas) || isstring(cas), a = sprintf('case %s, c = %g',upper(char(cas)),min(c)); else, a = sprintf('a design, c = %g',min(c)); end
 if isfield(opts,'c0') && ~isempty(opts.c0) && opts.c0 ~= 0, a = [a sprintf(', c0 = %g',opts.c0)]; end
 if isfield(opts,'g0') && ~isempty(opts.g0) && opts.g0 ~= 0, a = [a sprintf(', g0 = %g',opts.g0)]; end
 end
