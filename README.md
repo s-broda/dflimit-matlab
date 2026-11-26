@@ -328,7 +328,7 @@ the source: the points of the repairs of 0.5.0, where the line integral exceeds 
 fixed start, climbed, and those of the upper tail above the unit root of November 23, 2026). The workflow "C engine" (`.github/workflows/c.yml`)
 runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on a tag `v*` and by hand.
 
-The MATLAB programs: `ltratio_test` runs 314 checks in about six minutes and returns the number of failures
+The MATLAB programs: `ltratio_test` runs 335 checks in about six minutes and returns the number of failures
 (`ltratio_test(true)` is the quick version, `ltratio_test(false, true)` raises an error on a failure); `dfx_test` checks
 the line integral against stored values of the Julia engine (`matlab/validation/python_exact_reference.json`); `kan_test` checks the devices of Bao and Kan against the values of
 DFLimit.jl in `matlab/validation/kan_ref.txt` (a copy of `c/test/kan_ref.txt`); `ext_test` checks the extensions of the
