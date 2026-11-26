@@ -172,7 +172,28 @@ static void det_design_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *pr
     dfl_design_free(&D);
 }
 /* the options of the general engine: [c0 start g0 gls verified method] (NaN or a shorter vector: the defaults; method 0 auto,
- * 1 the line integral with the explicit kernel, 2 the inversion on paths: dfl_det_dist, dfl_det_quantile) */
+ * 1 the line integral with the explicit kernel, 2 the inversion on paths, 3 the inversion on two lines and 4 the normal
+ * average with rho: dfl_det_dist, dfl_det_quantile), then [rule hfac n ntail], then the extensions of the limit [rho nreg
+ * breaks(nreg - 1) omega(nreg) c(nreg)]: rho the normal component (NaN: 1), nreg the regimes of a volatility path (NaN or
+ * 0: none), their break dates and standard deviations, and the c of the regimes (left out: the c of the call) */
+#define MEX_MAXREG 64
+static double VOLB[MEX_MAXREG], VOLO[MEX_MAXREG], VOLC[MEX_MAXREG];
+static dfl_vol VOLP;
+/* the extensions [rho nreg breaks omega c] from p (m values) into o */
+static void extopts(const double *p, int m, dfl_det_opts *o)
+{
+    if (m > 0 && !isnan(p[0])) o->rho = p[0];
+    if (m > 1 && !isnan(p[1]) && p[1] > 0) {
+        int nreg = (int) p[1], rest = m - 2 - (2 * nreg - 1);
+        const double *q = p + 2;
+        if (nreg != p[1] || nreg > MEX_MAXREG || !(rest == 0 || rest == nreg)) mexErrMsgIdAndTxt("ltratio:args", "the volatility path in the options: [nreg breaks(nreg - 1) omega(nreg) c(nreg)] after rho, nreg at most %d", MEX_MAXREG);
+        for (int i = 0; i < nreg - 1; i++) VOLB[i] = q[i];
+        for (int i = 0; i < nreg; i++) VOLO[i] = q[nreg - 1 + i];
+        for (int i = 0; rest && i < nreg; i++) VOLC[i] = q[2 * nreg - 1 + i];
+        VOLP.nreg = nreg; VOLP.breaks = VOLB; VOLP.omega = VOLO; VOLP.c = rest ? VOLC : NULL;
+        o->vol = &VOLP;
+    }
+}
 static dfl_det_opts detopts(const mxArray *a)
 {
     dfl_det_opts o; dfl_det_defaults(&o); double v[10]; optvec(a, v, 10);
@@ -180,6 +201,8 @@ static dfl_det_opts detopts(const mxArray *a)
     if (!isnan(v[5])) o.method = (int) v[5];
     /* (the rule of one evaluation of the t-ratio's paths, DFL_RULE_*, the factor of the outer step and the inner nodes) */
     if (!isnan(v[6])) o.rule = (int) v[6]; o.hfac = v[7]; if (!isnan(v[8])) o.n = (int) v[8]; if (!isnan(v[9])) o.ntail = (int) v[9];
+    int m = a ? (int) mxGetNumberOfElements(a) : 0;
+    if (m > 10) extopts(mxGetPr(a) + 10, m - 10, &o);
     return o;
 }
 /* v = ltratio_mex('det', what, br, C, loc, first, a1, a2, ..., opts): the general engine (dfl_det_*); what and its arguments
@@ -188,13 +211,15 @@ static dfl_det_opts detopts(const mxArray *a)
  *   'power' cs level statistic (0 t-ratio, 1 coefficient) | 'envelope' cs level | 'ptcdf' 'ptpdf' q cbar c method tol N umax |
  *   'pticdf' p cbar method tol N umax | 'ptpower' cbar c level method tol N umax | 'ptenvelope' cs level method tol N umax |
  *   'coefgp' y c method tol N umax (coef_cdf_gp) | 'lmcdf' x c | 'lmicdf' p c | 'mzacdf' y c gls | 'mzaicdf' p c gls | 'msbcdf' x c
- *   gls | 'msbicdf' p c gls
+ *   gls | 'msbicdf' p c gls | 't3cdf' 't3pdf' x c | 't3icdf' p c x0 tol (the first seasonal t-ratio, dfl_hegy_t3: opts supplies
+ *   c0, verified and the volatility path)
  * (method of the point-optimal functions and coef_cdf_gp: 0 automatic, the single inversion of Bao and Kan up to c = 4 (5 for
  * coef_cdf_gp) and the fixed grid beyond or where N or umax is given; 5 the single inversion, 7 the fixed grid; their second
  * output the error estimates, NaN on the grid)
- * opts = [c0 start g0 gls verified method rule hfac n ntail] after the arguments (start 0 zero, 1 fixed, 2 stationary; rule
- * 0 auto, 1 present, 2 thin, 3 inner, 4 outer, 5 fine, 6 finestep, the rule of one evaluation of the t-ratio's paths; NaN the
- * default); the warnings of the engine (dfl_det_warning) as the warning ltratio:det */
+ * opts = [c0 start g0 gls verified method rule hfac n ntail rho nreg breaks omega c] after the arguments (start 0 zero, 1
+ * fixed, 2 stationary; rule 0 auto, 1 present, 2 thin, 3 inner, 4 outer, 5 fine, 6 finestep, the rule of one evaluation of the
+ * t-ratio's paths; rho and the volatility path as in detopts; NaN the default); the warnings of the engine (dfl_det_warning) as
+ * the warning ltratio:det */
 static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     char what[16], err[512]; int rc = 1;
@@ -253,7 +278,9 @@ static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     else if (!strcmp(what, "msbicdf")) {
         plhs[0] = like(xa); rc = 0;
         for (int k = 0; k < n && !rc; k++) rc = dfl_det_msb_quantile(&D, mxGetPr(xa)[k], SC(1, "c", 0.0), SC(2, "gls", -13.5), mxGetPr(plhs[0]) + k, err, sizeof err);
-    } else mexErrMsgIdAndTxt("ltratio:args", "unknown function %s of the general engine", what);
+    } else if (!strcmp(what, "t3cdf") || !strcmp(what, "t3pdf")) { dfl_det_opts o = OPTS(2); plhs[0] = like(xa); rc = dfl_hegy_t3(what[2] == 'c' ? 2 : 1, &D, n, mxGetPr(xa), SC(1, "c", 0.0), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else if (!strcmp(what, "t3icdf")) { dfl_det_opts o = OPTS(4); plhs[0] = like(xa); rc = dfl_hegy_t3_quantile(&D, n, mxGetPr(xa), SC(1, "c", 0.0), SC(2, "x0", -2.0), SC(3, "tol", 1e-10), &o, mxGetPr(plhs[0]), err, sizeof err); }
+    else mexErrMsgIdAndTxt("ltratio:args", "unknown function %s of the general engine", what);
 #undef OPTS
 #undef SC
     if (rc) mexErrMsgIdAndTxt("ltratio:engine", "%s", err);
@@ -275,7 +302,10 @@ static void det_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
  * the warning ltratio:brittle of a regime in which the classical engine's one evaluation is brittle, where the router
  * takes the classical engine at a point (dfl_brittle, once per message; as the classical entry points give it).  method
  * (optional, 0 by default) as in dfl_engine_dist: 0 automatic, 1 the line integral, 4 (DFL_METHOD_PATHS) the general
- * engine's inversion on paths, 2, 3 the classical engine's conditional and contour integrals */
+ * engine's inversion on paths, 2, 3 the classical engine's conditional and contour integrals, 8, 9 (DFL_METHOD_LINES,
+ * DFL_METHOD_MIXTURE) the methods of rho.  'cdf' and 'pdf' take after method, and 'icdf' after its method, the extensions of
+ * the limit as a vector [verified rho nreg breaks(nreg - 1) omega(nreg) c(nreg)] (dfl_engine_dist_ext, dfl_engine_icdf_ext;
+ * verified 0 or 1, rho NaN or 1 none, nreg NaN or 0 no volatility path, c left out: the c of the call) */
 static int brittle_add(const char **bm, int nb, char store[][320], const char *m)
 {
     if (!m || nb >= 8) return nb;
@@ -306,9 +336,24 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     double g0 = stat ? 0.0 : S.g0, gls = S.model == 4 ? DFL_CBAR_GLS : NAN;
     const char *bm[8]; char bstore[8][320]; int nb = 0;
     mxArray *eo = NULL;     /* (the error estimates, the second output) */
+    int ext = 0, ever = 0; double erho = 1; dfl_vol *evol = NULL;
+    {
+        /* (the extensions of the limit: the vector after the method) */
+        int ke = !strcmp(what, "icdf") ? 5 : 4;
+        if ((!strcmp(what, "cdf") || !strcmp(what, "pdf") || !strcmp(what, "icdf")) && na > ke && mxGetNumberOfElements(a[ke]) > 0) {
+            int m; vecarg(a[ke], "the extensions", &m);
+            const double *ev = mxGetPr(a[ke]);
+            dfl_det_opts eo2; dfl_det_defaults(&eo2);
+            if (m > 1) extopts(ev + 1, m - 1, &eo2);
+            ever = !isnan(ev[0]) && ev[0] != 0; erho = eo2.rho; evol = (dfl_vol *) eo2.vol;
+            ext = evol != NULL || erho != 1;
+        }
+    }
     if (!strcmp(what, "cdf") || !strcmp(what, "pdf")) {
         int kind = what[0] == 'c' ? 2 : 1; const double *x = mxGetPr(xa);
-        plhs[0] = like(xa); rc = dfl_engine_dist(kind, n, x, &S, c, c0, engine, (int) SC(3, "method", 0.0), 0, mxGetPr(plhs[0]), err, sizeof err);
+        plhs[0] = like(xa);
+        if (ext) { rc = dfl_engine_dist_ext(kind, n, x, &S, c, c0, engine, (int) SC(3, "method", 0.0), ever, evol, erho, mxGetPr(plhs[0]), err, sizeof err); cls = 0; }
+        else rc = dfl_engine_dist(kind, n, x, &S, c, c0, engine, (int) SC(3, "method", 0.0), 0, mxGetPr(plhs[0]), err, sizeof err);
         if (!rc && cls) {
             const double *v = mxGetPr(plhs[0]); int any = 0;
             for (int k = 0; k < n && !any; k++) {
@@ -319,7 +364,9 @@ static void route_op(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             if (any) nb = brittle_add(bm, nb, bstore, dfl_brittle(kind, S.model, c, c0, g0, stat, 0));
         }
     } else if (!strcmp(what, "icdf")) {
-        plhs[0] = like(xa); rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, (int) SC(4, "method", 0.0), SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err);
+        plhs[0] = like(xa);
+        if (ext) { rc = dfl_engine_icdf_ext(n, mxGetPr(xa), &S, c, c0, engine, (int) SC(4, "method", 0.0), SC(3, "tol", 1e-10), evol, erho, mxGetPr(plhs[0]), err, sizeof err); cls = 0; }
+        else rc = dfl_engine_icdf(n, mxGetPr(xa), &S, c, c0, engine, (int) SC(4, "method", 0.0), SC(3, "tol", 1e-10), mxGetPr(plhs[0]), err, sizeof err);
         if (!rc && cls && dfl_autoengine(DFL_F_ICDF, S.model, stat, g0, gls, c, c0, 0.0) == DFL_ENGINE_CLASSICAL) nb = brittle_add(bm, nb, bstore, dfl_brittle(2, S.model, c, c0, g0, stat, 0));
     }
     else if (!strcmp(what, "mom")) {
