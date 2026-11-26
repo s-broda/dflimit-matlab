@@ -78,9 +78,9 @@ function [F,info] = ltratio_cdf(x,cas,c,opts)
 %   the panels and steps of the line integral follow c (DFX_CORE: WMAXC,
 %   HUFAC, FILONPANELS, K0EDGE1), and the conditional integral of cases DU,
 %   DT starts at E V e^-3.  With 'auto' the line integral serves alone with a
-%   stationary start for c < -50 and with c0 ~= 0 for c < -100, where the
-%   conditional integral flags most points or is off by 1e-9 without a flag
-%   (LTRATIO_METHOD).  Below c = -550 an error is raised (the moments fail
+%   stationary start for c < -50, with c0 ~= 0 for c < -100 and with c0 > 0
+%   for c < -20, where the conditional integral flags most points or is off
+%   without a flag (LTRATIO_METHOD).  Below c = -550 an error is raised (the moments fail
 %   from about c = -600, the line integral from about c = -650).  With
 %   a fixed start g0 ~= 0 an error is raised outside the region of
 %   LTRATIO_ARGS (case DK c <= 2, |g0| <= 2, |g0| <= 1 for c > 0; case DU

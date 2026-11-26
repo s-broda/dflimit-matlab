@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**`verified = true` with c0 > 0 far from the unit root** (November 26, 2026, as DFLimit.jl). The checked computation took
+the conditional integral for a zero start with c0 != 0 down to c = -100 inclusive; with c0 > 0 far from the unit root
+that integral with its checks was off by 2.4e-6 to 1e-5 in cases DU, DT (in DFLimit.jl), its agreement rule flagged
+most such points but not all, and at c = -100, c0 = 3 the checked value was off by 2.05e-8 in case DU at the 99% point
+in C (2.1e-8 in DU and 4.2e-8 in DT in DFLimit.jl), where the line integral agrees with the general engine to 3e-12.
+Below c = -20 a zero start with c0 > 0 now takes the line integral with `verified = true` as well, without the
+recomputation of the tails (`dfl_autodouble`, `DFL_DOUBLE_C0POS_CMAX`; `ltratio_method`; the default took the line
+integral there already; method 2 or `'double'` still forces the conditional integral). `dfl_automethod_verified` is the
+rule of the checked computation. Tests: the last section of `c/dfl_test_dbl.c`, section 12 of `ltratio_test`.
+
 **No NaN, hang or silently wrong value at a finite point** (November 26, 2026, as DFLimit.jl). Four causes. (1) Where
 0.001 |x| 4^m fell a few ulps short of 1/2, the geometric partitions of the C engine's fixed node layouts left a last
 panel a few ulps long whose nodes lay on the support edge of the kernel, X^{-1/2} = Inf times a vanishing weight: F and

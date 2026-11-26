@@ -131,9 +131,14 @@ static inline double dfl_nosliver(double b, double L) { return (b < L && L - b <
 extern double DFL_FILONW;
 static inline int dfl_filonm(double a, double b, double y, double c) { int m = b <= DFL_FILONW / y ? (int) ceil((b - a) * y / 25) : 1; if (c < -20) { int m2 = (int) ceil((b - a) / (2 * M_PI * (-c))); if (m2 > m) m = m2; } return m; }
 /* method 0 (automatic) uses the double integral at all (for the points of the rule or for the tails) except with a stationary
-   start for c < -50, where the double integral flags most points and costs 10-100 times more, and with c0 != 0 and a zero
-   start for c < -100, where the density of case DK is off by up to 1e-9 at some points without a flag (autodouble in DFExact.jl) */
-static inline bool dfl_autodouble(double c, double c0, double g0, bool stat) { return !(stat && c < -50) && !(c0 != 0 && g0 == 0 && c < -100); }
+   start for c < -50, where the double integral flags most points and costs 10-100 times more, with c0 != 0 and a zero
+   start for c < -100, where the density of case DK is off by up to 1e-9 at some points without a flag, and with c0 > 0 and
+   a zero start for c < DFL_DOUBLE_C0POS_CMAX = -20, where the checked conditional integral was off by up to 1e-5 in cases
+   DU, DT and verified = 1 returned such a value at c = -100, c0 = 3 (2.1e-8 in case DU, 4.2e-8 in case DT; November 26,
+   2026); there the single integral serves alone, with verified = 1 too (autodouble, DOUBLE_C0POS_CMAX in DFExact.jl) */
+#define DFL_DOUBLE_C0POS_CMAX (-20.0)
+static inline bool dfl_autodouble(double c, double c0, double g0, bool stat) { return !(stat && c < -50) && !(c0 != 0 && g0 == 0 && c < -100) &&
+    !(c0 > 0 && g0 == 0 && !stat && c < DFL_DOUBLE_C0POS_CMAX); }
 /* the range of c: below DFL_CMIN the user-level functions (dfl_single, dfl_dist, dfl_icdf, dfl_moments) return an error with
    DFL_CMIN_MSG (the same check and message as ltratio_args in DFExact.jl and LTRATIO_ARGS) */
 #define DFL_CMIN (-550.0)
@@ -397,6 +402,8 @@ int dfl_check_args(int model, double c, double c0, double g0, bool stat, char *e
  * DFL_BOUND_PATH) with a message that names the arguments (dfl_bound_msg; other errors return 1).  With
  * dopt->verified = 1 a point whose fallback is the line integral keeps its flagged value there, with a warning. */
 int dfl_automethod(int model, double c, double c0, double g0, bool stat, double x);
+/* the method of method 0 with verified = 1 (automethod_verified of DFExact.jl): 1, 2 or 3 as above */
+int dfl_automethod_verified(int model, double c, double c0, double g0, bool stat, double x);
 /* the regimes in which the one-evaluation default (verified = 0) is known to be brittle, decided from the parameters alone
  * (no computed diagnostics, so that they cost nothing): a message naming the regime and suggesting verified = true, or NULL;
  * method as in dfl_dist (the method requested, 0 automatic).  The user-level wrappers (R, Python, the MEX file) give it as

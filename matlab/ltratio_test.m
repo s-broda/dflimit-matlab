@@ -512,6 +512,23 @@ check(sprintf('the warnings: once each where they should (%s), none elsewhere (%
 Fa = ltratio_cdf(-8.4075,'DU',2,struct('c0',5,'g0',1.5)); Fv = ltratio_cdf(-8.4075,'DU',2,struct('c0',5,'g0',1.5,'method','double','verified',true));
 check('DU c=2 c0=5 g0=1.5: the default (the conditional integral, not the failing contour) vs verified',abs(Fa - Fv),1e-9);
 
+% verified with c0 > 0 far from the unit root (November 26, 2026; the Julia test of the same name): the checked
+% conditional integral was off by up to 1e-5 there and verified = true returned such a value at c = -100, c0 = 3 (2.1e-8
+% in case DU, 4.2e-8 in case DT); below c = -20 a zero start with c0 > 0 takes the line integral with verified = true too
+for cas = {'DU','DT'}
+    o = struct('c0',3,'engine','classical');
+    xs = ltratio_icdf([0.001 0.01 0.5 0.99],cas{1},-100,o);
+    Fv = ltratio_cdf(xs,cas{1},-100,setfield(o,'verified',true)); %#ok<SFLD>
+    Fs = ltratio_cdf(xs,cas{1},-100,setfield(o,'method','single')); %#ok<SFLD>
+    Fg = dfdet_cdf(xs,dfdet_trend(double(strcmp(cas{1},'DT'))),-100,struct('c0',3,'verified',true));
+    check(sprintf('%s c=-100 c0=3, the 0.1%%, 1%%, 50%%, 99%% points: verified against the line integral',cas{1}),max(abs(Fv - Fs)),1e-11);
+    check(sprintf('%s c=-100 c0=3: verified against the general engine''s checked computation',cas{1}),max(abs(Fv - Fg)),1e-10);
+end
+[d1,t1] = ltratio_method('DU',-100,3,0,-5,true); [d2,t2] = ltratio_method('DT',-21,2,0,-5,true);
+[d3,t3] = ltratio_method('DU',-20,3,0,-5,true); [d4,t4] = ltratio_method('DU',-100,-3,0,-5,true); d5 = ltratio_method('DU',-100,3,0,-5,false);
+check('the verified rule: the line integral alone with c0 > 0 below c = -20, the conditional integral at c = -20 and with c0 < 0', ...
+      double(d1 || t1 || d2 || t2 || ~d3 || ~t3 || ~d4 || ~t4 || d5),0);
+
 fprintf('\n=== 13. the upper tail above the unit root ===\n');
 % (the references: the independent computation by conditioning on J(1); the classical programs before: 0.8415, -1.3674,
 % 1.1422, 0.6076, 1.0479)

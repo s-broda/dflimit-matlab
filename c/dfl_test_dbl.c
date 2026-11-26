@@ -98,5 +98,33 @@ int main(int argc, char **argv)
         if (bad) printf("FAIL the range check of the stationary start\n");
         fails += bad;
     }
+    /* the checked computation with c0 > 0 far from the unit root (November 26, 2026; the Julia test "verified with c0 > 0
+     * far from the unit root"): with verified = 1 a zero start with c0 > 0 took the conditional integral down to c = -100,
+     * which there was off by up to 1e-5 (its agreement rule flagged most such points, not all: at c = -100, c0 = 3 the
+     * checked value was off by 2.1e-8 in case DU and 4.2e-8 in case DT); below c = -20 (DFL_DOUBLE_C0POS_CMAX) it takes the
+     * line integral, with verified = 1 as well.  At the 0.1%, 1%, 50% and 99% points: verified within 1e-11 of the line
+     * integral (method 1) and within 1e-10 of the general engine's checked computation; the rule itself */
+    {
+        int bad = 0; const double ps[4] = {0.001, 0.01, 0.5, 0.99};
+        dfl_double_opts dv; dfl_double_defaults(&dv); dv.verified = 1;
+        for (int model = 2; model <= 3; model++) {
+            double xs[4], Fv[4], Fs[4], Fg[4], ev = 0, eg = 0; int ns;
+            dfl_design D; dfl_det_opts o; dfl_det_defaults(&o); o.c0 = 3; o.verified = 1;
+            int rc = dfl_icdf(4, ps, model, -100, 3, 0, false, 0, 1e-10, NULL, NULL, xs, NULL, NULL, NULL, err, sizeof err)
+                  || dfl_dist(2, 4, xs, model, -100, 3, 0, false, 0, NULL, &dv, Fv, &ns, err, sizeof err)
+                  || dfl_dist(2, 4, xs, model, -100, 3, 0, false, 1, NULL, NULL, Fs, &ns, err, sizeof err)
+                  || dfl_design_trend(model - 2, &D, err, sizeof err) || dfl_det_dist(2, &D, 4, xs, -100, &o, Fg, err, sizeof err);
+            for (int k = 0; k < 4; k++) { ev = fmax(ev, fabs(Fv[k] - Fs[k])); eg = fmax(eg, fabs(Fv[k] - Fg[k])); if (isnan(Fv[k])) ev = eg = NAN; }
+            if (rc || !(ev < 1e-11) || !(eg < 1e-10)) { bad++; printf("FAIL %s c = -100 c0 = 3 verified: rc %d %s, against the line integral %.1e, against the general engine %.1e\n", model == 2 ? "DU" : "DT", rc, rc ? err : "", ev, eg); }
+            else printf("     %s c = -100 c0 = 3, the 0.1%%, 1%%, 50%%, 99%% points: verified against the line integral %.1e, against the general engine's checked computation %.1e\n", model == 2 ? "DU" : "DT", ev, eg);
+            dfl_design_free(&D);
+        }
+        /* (the rule: 1 the line integral, 2 the conditional integral) */
+        if (dfl_automethod_verified(2, -100, 3, 0, false, -5) != 1 || dfl_automethod_verified(3, -21, 2, 0, false, -5) != 1) { bad++; printf("FAIL automethod_verified with c0 > 0 below c = -20: not the line integral\n"); }
+        if (dfl_automethod_verified(2, -20, 3, 0, false, -5) != 2 || dfl_automethod_verified(2, -100, -3, 0, false, -5) != 2) { bad++; printf("FAIL automethod_verified at c = -20, c0 = 3 or at c = -100, c0 = -3: not the conditional integral\n"); }
+        if (dfl_automethod(2, -100, 3, 0, false, -5) != 1) { bad++; printf("FAIL the default rule at c = -100, c0 = 3: not the line integral\n"); }
+        printf("verified with c0 > 0 far from the unit root: %d failed\n", bad);
+        fails += bad;
+    }
     return fails ? 1 : 0;
 }

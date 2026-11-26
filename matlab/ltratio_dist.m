@@ -40,8 +40,8 @@ function [F,info] = ltratio_dist(x,cas,c,opts,mode)
 %   of them; info.err holds the estimates at every point computed by the
 %   conditional integral and NaN elsewhere), so that the relative error stays
 %   near 1e-10 or below (not with a stationary start for c < -50, nor with
-%   c0 ~= 0 and a zero start for c < -100, where LTRATIO_METHOD keeps the
-%   line integral throughout).  With opts.method = 'single' given explicitly, the
+%   c0 ~= 0 and a zero start for c < -100 or c0 > 0 and a zero start for
+%   c < -20, where LTRATIO_METHOD keeps the line integral throughout).  With opts.method = 'single' given explicitly, the
 %   line integral is used throughout.  Far out, below the error of either
 %   method, a computed density can be a tiny negative number; it is returned
 %   as zero.  Non-finite x: F = 0 at -Inf, 1 (cdf) or 0 (pdf) at +Inf, NaN

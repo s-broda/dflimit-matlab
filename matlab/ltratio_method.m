@@ -65,10 +65,13 @@ function [dbl,tails,ctr] = ltratio_method(cas,c,c0,g0,x,verified)
 %   false): with a stationary start for c < -50, where the conditional
 %   integral flags most points (two of five at the mean and 2 and 5 standard
 %   deviations either side at c = -80, all at c = -200) at 10 to 100 times
-%   the cost; and with c0 ~= 0 and a zero start (g0 = 0) for c < -100, where
+%   the cost; with c0 ~= 0 and a zero start (g0 = 0) for c < -100, where
 %   the density of case DK is off by up to 1e-9 at some points without a
-%   flag (at c = c0 = -300 and -480).  The same rule is in the C and Julia
-%   engines (dfl_autodouble, autodouble).
+%   flag (at c = c0 = -300 and -480); and with c0 > 0 and a zero start for
+%   c < -20, where the checked conditional integral was off by up to 1e-5 in
+%   cases DU, DT and verified = true returned such a value at c = -100,
+%   c0 = 3 (2.1e-8 in case DU, 4.2e-8 in case DT, November 26, 2026).  The
+%   same rule is in the C and Julia engines (dfl_autodouble, autodouble).
 %
 %   The rule of the C and Julia engines (dfl_automethod, automethod) is the
 %   one of the first four lines for every start (with a fixed start in case
@@ -94,8 +97,8 @@ if nargin > 5 && ~verified
     end
     if c0 == 0
         dbl(:) = any(strcmp(cas,{'DK','DU'})) && c >= -30 && c <= -5;
-    elseif (cas(1) == 'S' && c < -50) || c < -100
-        % far from the unit root: the line integral
+    elseif (cas(1) == 'S' && c < -50) || c < -100 || (c0 > 0 && cas(1) == 'D' && c < -20)
+        % far from the unit root: the line integral (as dfl_autodouble, autodouble)
     elseif cas(1) == 'S'
         dbl(:) = ~(strcmp(cas,'SK') && c > -0.5);
     elseif strcmp(cas,'DK') && c > -5
@@ -113,7 +116,7 @@ if g0 ~= 0 && any(strcmp(cas,{'DU','DT'}))                % the contour integral
     return
 end
 if g0 ~= 0, dbl = true(size(x)); return; end
-if (cas(1) == 'S' && c < -50) || (c0 ~= 0 && c < -100)    % far from the unit root: the line integral alone
+if (cas(1) == 'S' && c < -50) || (c0 ~= 0 && c < -100) || (c0 > 0 && cas(1) == 'D' && c < -20)   % far from the unit root: the line integral alone
     dbl = false(size(x)); tails = false; return
 end
 if c0 == 0, dbl = false(size(x)); return; end
