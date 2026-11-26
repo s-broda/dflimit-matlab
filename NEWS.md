@@ -12,7 +12,7 @@ c = -100 (2 to 4.4 times faster) and in case DT up to c = 2 (3.6 to 6.8 times); 
 root, 0 < c <= 0.5, by its paths (1.75 to 2.1 times), and in case DT with a zero start below c = -20 (1.6 to 1.9 times);
 with a fixed start in case DK also where |g0| <= 1 with |c g0| <= 50 and c >= -100 (1.8 to 3.9 times; the rule now takes
 the absolute value of g0, which the law depends on); the quantiles of case ST from c = -0.5 on (1.7 times); and the
-parabola of `dfl_engine_region` at c0 = 0 for c >= -20 (3.5 to 45 times). The general engine's method auto takes its
+parabola of `dfl_engine_region` at c0 = 0 for -20 <= c <= 0 (3.5 to 45 times). The general engine's method auto takes its
 paths at c0 = 0 just above the unit root, 0 < c <= 0.5, for designs with deterministic terms (1.5 to 2.3 times faster than
 the line integral). The Julia rule, whose costs differ, moves further in some cells (the paths up to c = 1.5 and 2, case
 DK with c0 < 0 up to c = 2, |g0| <= 1.5, the quantiles of case SU); the C cells whose gains lay between 1.3 and 1.5 were
