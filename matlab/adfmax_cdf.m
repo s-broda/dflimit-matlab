@@ -12,7 +12,7 @@ function [F,info] = adfmax_cdf(x,cas,c,opts)
 %   error estimates and statuses of the engine; a nonzero status gives the warning tr_limdist:status.  A port of
 %   adfmax_cdf of julia/DFExact.jl.
 %
-%   Example: adfmax_cdf(-2.43542,'DU')    % 0.05 (the quantiles of the ADFmax statistic in the companion paper)
+%   Example: adfmax_cdf(-2.43542,'DU')    % 0.05 (the ADFmax quantiles of the companion paper)
 %
 %   See also ADFMAX_PDF, ADFMAX_ICDF, LTRATIO_CDF.
 if nargin < 3 || isempty(c), c = 0; end
