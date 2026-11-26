@@ -12,28 +12,29 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %   engines on the cells of its table and on further cells at the boundaries
 %   (validation/engine_table_matlab.txt, the script
 %   validation/engine_table_matlab.m): the faster engine where the two agree
-%   to 1e-10, the more accurate one where they do not.  The general engine is
-%   taken for the t-ratio
-%     zero start, c0 = 0: cases DU, DT for c <= 1 (1.4 to 6 times faster),
-%       case DK for c <= -50 (1.6 to 1.9 times; for -30 <= c <= 1 the
-%       classical line integral is 1.3 to 2.2 times faster);
-%     stationary start, c0 = 0, c <= -1 (1.5 to 4.4 times);
-%     zero start, c0 < 0: case DU for -10 <= c <= 0, cases DK, DT for
-%       -5 <= c <= 0 (1.2 to 2.8 times; from c = -10 in case DK, -20 in cases DU,
-%       DT the classical conditional integral is 1.4 to 3 times faster);
-%     zero start, c0 > 0, c <= 1 (2 to 6 times; in case DK just above the
-%       tangency x* = -sqrt(2 c0) the classical line integral, the more
+%   to 1e-10, the more accurate one where they do not.  Since November 26,
+%   2026 the cells that the rules of Julia and C moved (re-measured after the
+%   thinner rules of one evaluation) are moved here too, as in the C rule
+%   (dfl_autoengine).  The general engine is taken for the t-ratio
+%     zero start, c0 = 0: cases DU, DT for c <= 1, case DK for c <= -50;
+%     stationary start, c0 = 0, c <= -1;
+%     zero start, c0 < 0: case DK for -5 <= c <= 0, case DT for c <= 0, case DU
+%       for -10 <= c <= 0 (at x = 0, the points of COEF_CDF, the classical
+%       programs in case DU);
+%     zero start, c0 > 0, c <= 1 and in case DT c <= 2 (in case DK just above
+%       the tangency x* = -sqrt(2 c0) the classical line integral, the more
 %       accurate there; at x = 0, the points of COEF_CDF and COEF_ICDF, the
-%       classical line integral for c > -100 in cases DK, DU, DT, 3 to 8 times
-%       faster there), and c0 ~= 0 for c < -100 (3.7 to 8 times);
-%     stationary start, c0 ~= 0, c <= -3e-3 (2.4 to 70 times; nearer zero the
-%       general engine is off by 1e-10 to 1e-7, as in the Julia package);
+%       classical line integral for c > -100 in cases DK, DU, DT), and c0 ~= 0
+%       for c < -100;
+%     stationary start, c0 ~= 0, c <= -3e-3 (nearer zero the general engine is
+%       off by 1e-10 to 1e-7, as in the Julia package);
 %     fixed start, case DK: c < -10 (the classical conditional integral is off
 %       by 1.8e-7 at c = -20, g0 = 2, the general engine within 3e-14 of the
-%       Julia engine) and, with c0 = 0, -1 <= c <= 0 with |g0| <= 1 (1.3 times;
-%       with c0 < 0 near the unit root, c > -1, the classical programs, as in the
-%       Julia and the C rule since November 2026: there the outer hyperbola of the
-%       general engine does not resolve the upper tail);
+%       Julia engine), and for c <= 1 where (c g0)^2/2 <= 400 or |g0| <= 1
+%       with |c g0| <= 50 and c >= -100, as the C rule, and with c0 = 0 for
+%       -1 <= c <= 0, |g0| <= 1; with c0 < 0 near the unit root, c > -1, the
+%       classical programs (there the outer hyperbola of the general engine does
+%       not resolve the upper tail);
 %     fixed start, cases DU, DT far from the unit root: with c0 > 0 below c = -20
 %       (below c = -10 where |c g0| > 20) and with any c0 below c = -20 where
 %       |c g0| > 60, as the Julia and the C rule (November 2026): there the
@@ -42,23 +43,22 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %       distribution function by 3.9e-5 (c0 = -2), its checked computation in the
 %       density by up to 8.4e-6, and the general engine's density is the
 %       derivative of the distribution function on which the engines agree;
-%   the classical programs elsewhere (the cells with -100 <= c < -60, where
-%   the general engine was off by up to 1.4e-9 on the 45-degree hyperbola,
-%   took the classical programs until November 2026; its rules far from the
-%   unit root now start at c = -60, within 5e-13 there): case DG, above the unit root (c > 1, and
-%   c >= 4 with c0 < 0, where the general engine is the less accurate), a fixed
-%   start in cases DU, DT otherwise (within 15% of each other).  Quantiles: the general
-%   search at c0 = 0 except in case DG and for c > 1 (1.6 to 10 times faster,
-%   with a fixed start too).  Moments: the classical programs (1.1 to 360
-%   times faster).  The linear form: the general engine for the law of V
-%   (a = NaN, 4 to 350 times faster, and the more accurate for c >= 5), in
-%   case DK for c <= 0 with |a| <= 0.1 (where the classical programs take a
-%   conditional integral; 1.9 to 3.4 times) and in case DG for c > 3.5, where
-%   the classical inversion refuses.  The envelope: the general engine in
-%   case DK for -1 < c < 0 (4 times faster), the classical programs otherwise
-%   (4 to 28 times faster).  ADFmax: the general engine with a stationary
-%   start for c <= -0.1 (as the Julia package) and with a zero start for
-%   c <= -10 (4 times faster).  Regions: the classical programs.  With the
+%   the classical programs elsewhere: case DG, above the unit root otherwise
+%   (and c >= 4 with c0 < 0 in cases DU, DT), a fixed start in cases DU, DT
+%   otherwise.  Quantiles: the general search at c0 = 0 except in case DG, with
+%   a zero or fixed start up to c = 2, with a stationary start for c <= -1 and
+%   in case ST from c = -0.5 on (nearer zero the general search is off, by up
+%   to 2.6e-7 in case ST at c = -1e-3), as the C rule.  Moments: the
+%   classical programs (1.1 to 360 times faster).  The linear form: the general
+%   engine for the law of V (a = NaN, 4 to 350 times faster, and the more
+%   accurate for c >= 5), in case DK for c <= 0 with |a| <= 0.1 (where the
+%   classical programs take a conditional integral; 1.9 to 3.4 times) and in
+%   case DG for c > 3.5, where the classical inversion refuses.  The envelope:
+%   the general engine in case DK for -1 < c < 0 (4 times faster), the
+%   classical programs otherwise (4 to 28 times faster).  ADFmax: the general
+%   engine with a stationary start for c <= -0.1 (as the Julia package) and
+%   with a zero start for c <= -10 (4 times faster).  Regions: the classical
+%   programs.  With the
 %   folder of the MEX file of the C engine ahead of these programs on the
 %   path (LTRATIO_CROUTE('on'): LTRATIO_MEX and its drop-ins, which carry the
 %   classical programs at 20 to 50 times their speed) the user-level routines
@@ -81,7 +81,7 @@ switch f
         if fixed && strcmp(cas,'DK') && c < -10, gen(:) = true; return, end
         if fixed && any(strcmp(cas,{'DU','DT'})) && c < -10 && ((c0 > 0 && (c < -20 || abs(c)*ac > 20)) || (c < -20 && abs(c)*ac > 60)), gen(:) = true; return, end
         if stat && c0 ~= 0 && c <= -3e-3, gen(:) = true; return, end
-        if ~fixed && ~stat && c0 > 0 && c <= 1
+        if ~fixed && ~stat && c0 > 0 && (c <= 1 || (strcmp(cas,'DT') && c <= 2))
             gen(:) = true;
             if strcmp(cas,'DK')
                 % (just above the tangency x* = -sqrt(2 c0) of case DK the classical line integral is the more accurate)
@@ -94,12 +94,24 @@ switch f
             return
         end
         if ~fixed && ~stat && c0 ~= 0 && c < -100, gen(:) = true; return, end
-        if ~fixed && ~stat && c0 < 0 && c <= 0 && ((strcmp(cas,'DU') && c >= -10) || (any(strcmp(cas,{'DK','DT'})) && c >= -5)), gen(:) = true; return, end
+        % (c0 < 0 with a zero start: case DK for -5 <= c <= 0, case DT for c <= 0 (as the C rule since November 26, 2026), case
+        % DU for -10 <= c <= 0, at x = 0 in case DU the classical programs, as the C rule)
+        if ~fixed && ~stat && c0 < 0 && ((strcmp(cas,'DK') && c >= -5 && c <= 0) || (strcmp(cas,'DT') && c <= 0) || (strcmp(cas,'DU') && c >= -10 && c <= 0))
+            gen(:) = true;
+            if strcmp(cas,'DU') && c > -100, gen(x == 0) = false; end
+            return
+        end
         if ~fixed && ~stat && c0 == 0 && ((any(strcmp(cas,{'DU','DT'})) && c <= 1) || (strcmp(cas,'DK') && c <= -50)), gen(:) = true; return, end
         if stat && c0 == 0 && c <= -1, gen(:) = true; return, end
+        % (the fixed start of case DK: (c g0)^2/2 <= 400, or |g0| <= 1 with |c g0| <= 50 and c >= -100, for c <= 1 except
+        % c0 < 0 with c > -1, as the C rule since November 26, 2026; and c0 = 0 with -1 <= c <= 0, |g0| <= 1)
+        if fixed && strcmp(cas,'DK') && c <= 1 && ~(c0 < 0 && c > -1) && ((c*ac)^2/2 <= 400 || (c >= -100 && ac <= 1 && abs(c)*ac <= 50)), gen(:) = true; return, end
         if fixed && strcmp(cas,'DK') && c0 == 0 && -1 <= c && c <= 0 && ac <= 1, gen(:) = true; return, end
     case 'icdf'
-        gen = c0 == 0 && ~strcmp(cas,'DG') && c <= 1;
+        % (c0 = 0: the general search except in case DG; a zero or fixed start up to c = 2, as the C rule since November 26,
+        % 2026; a stationary start for c <= -1, in case ST from c = -0.5 on, where nearer zero the general search is off, as
+        % the C rule)
+        gen = c0 == 0 && ~strcmp(cas,'DG') && ((~stat && c <= 2) || (stat && (c <= -1 || (strcmp(cas,'ST') && c <= -0.5))));
     case 'mom'
         gen = false;
     case 'lincdf'

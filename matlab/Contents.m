@@ -182,6 +182,7 @@
 %                   rule on the line
 %   dfdet_verify  - the checked computation (opts.verified)
 %   dfdet_rules   - the rules of one evaluation of the inversion on paths by regions (opts.rule; November 2026)
+%   dfdet_farwarn - the warning of the brittle region far above the unit root (c > 5.5)
 %   dfdet_dist, dfdet_stat, dfdet_args, dfdet_xspec, dfdet_qgrid, dfdet_ptf, dfdet_lmpath, dfdet_newton,
 %   dfdet_cache, dfdet_key, dfdet_peval, dfdet_msg - dispatch, argument checks, parabola terms, the grid of the
 %                   point-optimal statistic and its inversion at a point, the path of the LM statistic's V, the

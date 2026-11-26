@@ -286,6 +286,32 @@ lastwarn(''); ws2 = warning('on','ltratio:brittle'); ltratio_cdf(-5,'DT',-30,str
 check('ltratio_brittle: case DT with a fixed start at c = -30, g0 = 2.5 (|c g0| > 60)',double(~(strcmp(id,'ltratio:brittle') && contains(w,'with |c g0| > 60: the contour integral by one evaluation may be off by more than 1e-5'))),0);
 check('ltratio_engine: the fixed start of case DU at c = -60, g0 = 1.5, c0 = 2 takes the general engine, case DT at c = -60, g0 = 1, c0 = -2 the classical',double(~(ltratio_engine('dist',ltratio_spec('DU',struct('g0',1.5)),-60,2,-9) && ~ltratio_engine('dist',ltratio_spec('DT',struct('g0',1)),-60,-2,-6)) && ~ltratio_croute('on')),0);
 
+% the brittle region far above the unit root (DFDET_FARWARN): the warning fires at c = 6 and not at c = 5, for Perron's model C
+% and for the linear trend with a fixed start
+fw = zeros(1,4);
+for k = 1:4
+    lastwarn(''); ws2 = warning('on','dfdet:brittle');
+    switch k
+        case 1, dfdet_cdf(0,dfdet_perron('C',0.3),6); case 2, dfdet_cdf(0,dfdet_perron('C',0.3),5);
+        case 3, dfdet_cdf(5,dfdet_trend(1),6,struct('start','fixed','g0',1)); case 4, dfdet_cdf(5,dfdet_trend(1),5,struct('start','fixed','g0',1));
+    end
+    warning(ws2); [~,id] = lastwarn; fw(k) = strcmp(id,'dfdet:brittle');
+end
+check('dfdet_farwarn: the warning far above the unit root fires at c = 6 and not at c = 5 (Perron C; the trend with a fixed start)',sum(fw ~= [1 0 1 0]),0);
+
+% the rule of November 26, 2026 (as the C rule, dfl_autoengine): the moved cells on both sides of each new border
+if ~ltratio_croute('on')
+    E = @(f,cas,o,c,c0,x) double(ltratio_engine(f,ltratio_spec(cas,o),c,c0,x));
+    rule = [E('dist','DU',struct(),-100,3,-3) E('dist','DT',struct(),2,1,-2) E('dist','DT',struct(),2.5,1,-2) ...
+            E('dist','DK',struct(),0,-2,1) E('dist','DK',struct(),0.5,-2,1) E('dist','DK',struct(),-6,-2,1) ...
+            E('dist','DT',struct(),-50,-50,1) E('dist','DT',struct(),-300,-300,1) E('dist','DU',struct(),-10,-2,0) E('dist','DU',struct(),1,0,-1) E('dist','DU',struct(),1.1,0,-1) ...
+            E('dist','DK',struct('g0',1),-50,2,-1) E('dist','DK',struct('g0',1),0.5,-2,1) E('dist','DK',struct('g0',1),-0.5,0,-1) ...
+            E('icdf','DT',struct(),2,0,0) E('icdf','DT',struct(),2.5,0,0) E('icdf','ST',struct(),-0.5,0,0) E('icdf','ST',struct(),-0.4,0,0) ...
+            E('icdf','SU',struct(),-0.5,0,0) E('icdf','SK',struct(),-0.5,0,0)];
+    want = [1 1 0  1 0 0  1 1 0 1 0  1 0 1  1 0 1 0  0 0];
+    check('ltratio_engine: the rule of November 26, 2026 on both sides of its new borders (as the C rule)',sum(rule ~= want),0);
+end
+
 fprintf('\nlargest deviation by group (number of comparisons):\n');
 fn = keys(G);
 for k = 1:numel(fn), gv = G(fn{k}); fprintf('  %-78s %5d  %.2e\n',fn{k},gv(1),gv(2)); end

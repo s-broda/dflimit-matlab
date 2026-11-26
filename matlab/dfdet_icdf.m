@@ -37,6 +37,7 @@ Mo = dfdet_startmodel(D,c,start,g0,gls);
 % (the rule of one evaluation and its outer contour, DFDET_RULES)
 [hf,n,nt,rl] = dfdet_rules('rule',getf(o,'rule','auto'),false,Mo,c,c0,o);
 CP = dfdet_rules('path',Mo,c,getf(o,'phi',[]),hf,rl,c0);
+dfdet_farwarn('dfdet_icdf',D,c,start,g0,gls);
 co = struct('c0',c0,'n',n,'ntail',nt);
 for f = {'alpha','filon','warn'}, if isfield(o,f{1}), co.(f{1}) = o.(f{1}); end, end
 FF = @(x) ev(CP,x,co);

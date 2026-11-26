@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+**The choice of engine re-derived** (`dfl_autoengine`, `ltratio_engine`, November 26, 2026), after the thinner rules of
+one evaluation, which halved the time of the general engine's paths: from interleaved timings of the two C engines in each
+cell (a cell moved where the other engine was at least 1.5 times faster) and checks of the new choice's one evaluation
+against the other engine's checked computation from the 0.01% to the 99.99% point (within 1e-7; measured in Julia, whose
+general engine the C engine ports to 1e-12). The C router takes the general engine also with a zero start and c0 > 0 at
+c = -100 (2 to 4.4 times faster) and in case DT up to c = 2 (3.6 to 6.8 times); with c0 < 0 in case DK for -5 < c <= 0
+(6.7 to 8.7 times) and in case DT at every c <= 0 (1.7 to 3.5 times); at c0 = 0 in cases DU, DT just above the unit
+root, 0 < c <= 0.5, by its paths (1.75 to 2.1 times), and in case DT with a zero start below c = -20 (1.6 to 1.9 times);
+with a fixed start in case DK also where |g0| <= 1 with |c g0| <= 50 and c >= -100 (1.8 to 3.9 times; the rule now takes
+the absolute value of g0, which the law depends on); the quantiles of case ST from c = -0.5 on (1.7 times); and the
+parabola of `dfl_engine_region` at c0 = 0 for c >= -20 (3.5 to 45 times). The general engine's method auto takes its
+paths at c0 = 0 just above the unit root, 0 < c <= 0.5, for designs with deterministic terms (1.5 to 2.3 times faster than
+the line integral). The Julia rule, whose costs differ, moves further in some cells (the paths up to c = 1.5 and 2, case
+DK with c0 < 0 up to c = 2, |g0| <= 1.5, the quantiles of case SU); the C cells whose gains lay between 1.3 and 1.5 were
+left alone. The MATLAB rule (`ltratio_engine`) follows the C rule in these cells (c0 > 0 in case DT up to c = 2, c0 < 0
+in case DT at every c <= 0, the fixed start of case DK, the quantiles with a zero start up to c = 2 and of case ST from
+c = -0.5 on, where nearer zero the general search is off) and keeps its own cells elsewhere; its regions stay with the
+classical programs. Where the rule now takes the other engine, values move by less than 1e-7.
+
+**The general engine with c0 > 0 on the vertical line** (C, the MEX file): where the outer contour of the paths is the
+vertical line (above the unit root, beyond the hyperbolas) the paths do not resolve the two roots of the parabola of a
+point x < 0, and one evaluation was off by up to 1e-3 in the lower tail, below zero (refused by the range check) or NaN,
+with the line's warning (an intercept with a sine and a cosine at c = 5, c0 = 2: F(-26.7) = 1.3e-3 for 6.9e-14). Method
+auto now takes the line integral at these points where it covers the design (`det_line_vline`; the points x >= 0 and the
+quantiles keep the paths, where the line integral grows slow far out); the MATLAB programs, which have no line integral
+for general designs, keep the warning.
+
+**A warning far above the unit root.** For c > 5.5 the inversion on paths by one evaluation was off by more than 1e-5 in
+the upper tail for designs beyond the classical cases and for a fixed start with deterministic terms (Perron's model C at
+c = 7 by 1.5e-5 in F, at c = 8 by 6.3e-5; a linear trend with a fixed start at c = 7 by 8.7e-5), without a warning. The
+general engine now warns there where the paths compute (C `dfl_det_warning`, `far_above_warn` of `c/dfl_det_api.c`;
+MATLAB `dfdet:brittle`, `dfdet_farwarn`); `verified` checks the values.
+
 **Timings re-measured for 0.5.0** (November 26, 2026, after the thinner rules of one evaluation): the two tables of
 `c/mex/README.md` (the first now written by `c/mex/timing_table.m`, which also runs `timing_fixed.m`), the cost of the
 MATLAB programs in README, the manual and the help of `adfmax_cdf`, `ltratio_region`, `ltratio_lincdf` and

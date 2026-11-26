@@ -34,6 +34,7 @@ verified = logical(getf(o,'verified',false));
 % (the rule of one evaluation and its outer contour, DFDET_RULES; verified: the present rule)
 [hf,n,nt,rl] = dfdet_rules('rule',getf(o,'rule','auto'),verified,Mo,c,c0,o);
 CP = dfdet_rules('path',Mo,c,getf(o,'phi',[]),hf,rl,c0);
+if ~verified, dfdet_farwarn(sprintf('dfdet_%s',mode),D,c,start,g0,gls); end
 xf = x(fin); xf = xf(:).';
 switch mode, case 'cdf', which = 1; case 'pdf', which = 2; otherwise, which = 3; end
 co = struct('c0',c0,'n',n,'ntail',nt);

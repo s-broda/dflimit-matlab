@@ -72,17 +72,27 @@ intercept with sines and cosines, the statistic that detrends first for a contin
 origin; zero or stationary start, least squares detrending) the distribution function, the density and the quantiles of
 the t-ratio also come from the line integral with the explicit kernel: the classical line integral with P(t) and the two
 roots supplied by the general engine's transform (`c/dfl_det_line.c`), which `dfl_det_opts.method` chooses
-(`DFL_DET_AUTO`: the line integral at c0 = 0 for c >= -20, where it was 2.2 to 3.5 times faster than the paths per value
-and 1.8 to 2.7 times per quantile when the rule was set; since the thinner rules of the paths, `c/test/line_timing.c` on
-one thread, November 26, 2026, 1.1 to 1.7 times per value and 0.9 to 1.3 times per quantile for -20 <= c <= 0, and at
-c = 2 slower for the designs with deterministic terms, the paths 1.35 to 2.1 times faster; the paths otherwise; `DFL_DET_LINE`, `DFL_DET_PATHS`). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
-the automatic choice of the Julia package (`dfl_autoengine`). It agrees with the Julia engine to 1e-9 in distribution
+(`DFL_DET_AUTO`: the line integral at c0 = 0 for c >= -20, except just above the unit root with deterministic terms, 0 <
+c <= 0.5, where the paths are 1.5 to 2.3 times faster, and with c0 > 0 at the points x < 0 where the outer contour of the
+paths is the vertical line, where the paths do not resolve the two roots of the parabola of such a point and their one
+evaluation was off by up to 1e-3 in the lower tail (the quantiles keep the paths there); the paths otherwise; `DFL_DET_LINE`, `DFL_DET_PATHS`). Measured on one thread and on
+four (`c/test/line_timing.c` and interleaved timings, November 26, 2026): below the unit root the line integral is 1.1 to
+1.7 times faster per value for -20 <= c <= 0; above it the paths are 1.3 to 2.2 times faster up to c = 2 for some designs
+with deterministic terms, but below 1.5 for others beyond c = 0.5 (the Julia rule, whose costs differ, takes the paths up
+to c = 1.5 with one regressor and c = 2 with more). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
+the automatic choice of the Julia package (`dfl_autoengine`), re-derived on November 26, 2026 from interleaved timings of
+the two C engines (a cell moved where the other engine was at least 1.5 times faster) and differing from the Julia rule
+where the C costs differ (the comments of `dfl_autoengine` and NEWS list the cells). It agrees with the Julia engine to 1e-9 in distribution
 functions and densities and to 1e-7 in quantiles (`c/dfl_test_det`); in MATLAB the MEX file reaches it through designs
 (`ltratio('design', ...)`, `c/mex/README.md`). Above the unit root the general engine computes up to c = 16 with
 deterministic terms (10 with them and a fixed start) and c = 20 without them (`DFL_DET_CMAX`, `DFL_DET_CMAX_FIXED`,
 `DFL_DET_CMAX0`, `dfl_det_cmax`): beyond, one root of its
 transform is of the order 2c e^{-2c} and the others are no longer resolved in double precision, and every function of the
-general engine stops with an error that names the statistic, while `dfl_autoengine` takes the classical engine.
+general engine stops with an error that names the statistic, while `dfl_autoengine` takes the classical engine. Far
+above the unit root, for c > 5.5, the inversion on paths by one evaluation may be off by more than 1e-5 in the upper tail
+for a design beyond the classical cases and for a fixed start with deterministic terms (Perron's model C at c = 7 by 1.5e-5
+in F, a linear trend with a fixed start at c = 7 by 8.7e-5), and the general engine warns there (`dfl_det_warning`; the
+MATLAB programs `dfdet:brittle`; `verified` checks it).
 
 Above the unit root the t-ratio with c0 != c has its upper tail at x of the order (c - c0) e^c/(2c). There the classical
 engine takes the conditional integral (beyond the line integral's bound, from x ~ 700, in case DK the checked value
@@ -120,7 +130,7 @@ The user-level routines of the classical programs (`ltratio_cdf`, `ltratio_pdf`,
 `coef_cdf`, `coef_icdf`, `adfmax_*`, `ltratio_lincdf`, `power_envelope`, `ltratio_region`) take `opts.engine`:
 `'classical'` (the programs above), `'general'`, or `'auto'` (the default), which takes in each cell the engine of
 `ltratio_engine`, the rule of the Julia package set by the timings of the two MATLAB engines
-(`matlab/validation/engine_table_matlab.txt`); they also take a design in place of the case, a classical design being
+(`matlab/validation/engine_table_matlab.txt`), with the cells that the C rule moved on November 26, 2026 moved as in C; they also take a design in place of the case, a classical design being
 its case and any other going to the general engine. With the folder of the MEX file ahead of `matlab/` on the path
 these routines hand a call with a design or a case string, without options of the MATLAB
 engines (at most `c0`, `g0`, `start`, `gls`, `engine` `'auto'` or `'general'`, `method` `'auto'`, `verified` false,

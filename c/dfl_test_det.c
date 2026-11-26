@@ -102,17 +102,20 @@ static double num(char **p)
 static int inum(char **p) { return (int) num(p); }
 
 /* the cells in which the C rule was moved from the Julia rule by the timings of the C engines (dfl_autoengine; the
- * measurements in test/engine_table_c.txt): there the two rules may differ, elsewhere they must agree */
+ * measurements in test/engine_table_c.txt and, since November 26, 2026, the interleaved timings of the rule's
+ * re-derivation): there the two rules may differ, elsewhere they must agree */
 static int moved(int f, int model, int stat, double g0, double gls, double c, double c0, double x)
 {
     int fixed = g0 != 0 && !stat, DU = model == 2 && !stat, DT = model == 3 && !stat, DG = model == 4;
     (void) gls;
     switch (f) {
-    case DFL_F_DIST: return !fixed && !stat && c0 < 0 && ((DT && c >= -30 && c <= 0) || (DU && c >= -10 && c <= 0));
-    case DFL_F_ICDF: return c0 == 0 && !fixed && !DG && ((!stat && c <= 2) || (stat && c <= -1));
+    case DFL_F_DIST: return (!fixed && !stat && ((c0 < 0 && ((DT && c <= 0) || (DU && c >= -10 && c <= 0) || (model == 1 && c > 0 && c <= 2)))
+                                                 || (c0 == 0 && (DU || DT) && c > 0.5 && c <= 2) || (c0 == 0 && DT && c < -20 && c >= -480)))
+                            || (fixed && model == 1 && fabs(g0) > 1 && fabs(g0) <= 1.5);
+    case DFL_F_ICDF: return c0 == 0 && !fixed && !DG && ((!stat && c <= 2) || (stat && c <= -0.5));
     case DFL_F_MOM: return c0 != 0;
     case DFL_F_LINCDF: return DG && x != 0;
-    case DFL_F_ENVELOPE: return 1;
+    case DFL_F_ENVELOPE: return !DG;      /* (case DK: the classical engine in C at every c; case DG: both rules classical) */
     default: return 0;
     }
 }
@@ -360,18 +363,19 @@ static void selftest_nonfinite(void)
 /* the rules far from the unit root from c = -60 on (DET_FAR_CMIN; until November 2026 from c = -100): on -100 <= c < -60
  * the general engine was off by up to 1.4e-9 against the line integral (the 45-degree hyperbola), now within 1e-10 */
 /* method auto of the general engine takes the faster method's values bit for bit (det_line_auto: the line integral at c0 = 0
- * for c >= -20, the inversion on paths otherwise), the quantiles too, and the cache of the providers is bounded and emptied */
+ * for c >= -20 except 0 < c <= 0.5 with deterministic terms, the inversion on paths otherwise), the quantiles too, and the cache of the providers is bounded and emptied */
 static void selftest_line_auto(void)
 {
     group_t *g = grp("line-auto");
     dfl_design D; char err[512];
     if (dfl_design_trend(2, &D, err, sizeof err)) { g->fail++; return; }
-    double xs[3] = {-3.5, -2.5, -1.5}, cs[4] = {0, -13.5, -20, -50}, c0s[2] = {0, -3};
-    for (int i = 0; i < 4; i++) for (int j = 0; j < 2; j++) for (int st = 0; st <= 2; st += 2) {
+    double xs[3] = {-3.5, -2.5, -1.5}, cs[7] = {0, -13.5, -20, -50, 0.5, 2, 3}, c0s[2] = {0, -3};
+    for (int i = 0; i < 7; i++) for (int j = 0; j < 2; j++) for (int st = 0; st <= 2; st += 2) {
         if (st == 2 && cs[i] >= 0) continue;
         dfl_det_opts oa, om; dfl_det_defaults(&oa); dfl_det_defaults(&om);
         oa.c0 = om.c0 = c0s[j]; oa.start = om.start = st;
-        int line = c0s[j] == 0 && cs[i] >= -20;
+        /* (just above the unit root, 0 < c <= 0.5, the paths: DET_LINE_PATHS_CMAX) */
+        int line = c0s[j] == 0 && cs[i] >= -20 && !(cs[i] > 0 && cs[i] <= 0.5);
         om.method = line ? DFL_DET_LINE : DFL_DET_PATHS;
         double va[3], vm[3], qa, qm, p = 0.05;
         int rc = dfl_det_dist(2, &D, 3, xs, cs[i], &oa, va, err, sizeof err) || dfl_det_dist(2, &D, 3, xs, cs[i], &om, vm, err, sizeof err)
@@ -379,10 +383,52 @@ static void selftest_line_auto(void)
         g->n++;
         if (rc || memcmp(va, vm, sizeof va) || qa != qm) { g->fail++; printf("FAIL line-auto c %g c0 %g start %d: auto is not the %s method%s%s\n", cs[i], c0s[j], st, line ? "line" : "paths", rc ? ": " : "", rc ? err : ""); }
     }
+    /* (c0 > 0 on the vertical line, above the unit root: the line integral, det_line_vline; the paths' one evaluation was
+     * 6.7e-5 at x = -8.19 and 1.3e-3 at -26.7 for values below 1e-12, the intercept with a sine and a cosine at c = 5, c0 = 2;
+     * on a hyperbola, c = 3, the paths) */
+    {
+        dfl_design T; double xv[3] = {-26.68, -8.1877, 1.0}, va[3], vl[3], vp1, v3a, v3p, x3 = -3.0;
+        if (dfl_design_fdesign(f_trig, NULL, 3, 0, NULL, 0, 0, 0, &T, err, sizeof err)) { g->fail++; printf("FAIL line-auto: %s\n", err); }
+        else {
+            dfl_det_opts oa, ol, op; dfl_det_defaults(&oa); dfl_det_defaults(&ol); dfl_det_defaults(&op);
+            oa.c0 = ol.c0 = op.c0 = 2; ol.method = DFL_DET_LINE; op.method = DFL_DET_PATHS;
+            /* (x < 0 by the line integral, x >= 0 by the paths, as before) */
+            int rc = dfl_det_dist(2, &T, 3, xv, 5.0, &oa, va, err, sizeof err) || dfl_det_dist(2, &T, 3, xv, 5.0, &ol, vl, err, sizeof err)
+                  || dfl_det_dist(2, &T, 1, xv + 2, 5.0, &op, &vp1, err, sizeof err)
+                  || dfl_det_dist(2, &T, 1, &x3, 3.0, &oa, &v3a, err, sizeof err) || dfl_det_dist(2, &T, 1, &x3, 3.0, &op, &v3p, err, sizeof err);
+            g->n++;
+            if (rc || memcmp(va, vl, 2 * sizeof(double)) || va[2] != vp1 || !(va[0] < 1e-10 && va[1] < 1e-10) || v3a != v3p) {
+                g->fail++; printf("FAIL line-auto: c0 > 0 on the vertical line (trig, c = 5, c0 = 2): auto %g %g %g, line %g %g %g; at c = 3 auto %g paths %g%s%s\n",
+                                  va[0], va[1], va[2], vl[0], vl[1], vl[2], v3a, v3p, rc ? ": " : "", rc ? err : "");
+            }
+            dfl_design_free(&T);
+        }
+    }
     g->n++; if (det_line_cache_size() == 0) { g->fail++; printf("FAIL line-auto: no provider cached\n"); }
     dfl_det_empty_caches();
     g->n++; if (det_line_cache_size() != 0) { g->fail++; printf("FAIL line-auto: dfl_det_empty_caches kept the providers\n"); }
     dfl_design_free(&D);
+}
+/* the brittle region far above the unit root (far_above_warn of dfl_det_api.c): the warning fires at c = 6 and not at c = 5,
+ * for Perron's model C and for the linear trend with a fixed start, where the paths compute; not for trend(2) at c0 = 0 (the
+ * line integral computes) */
+static void selftest_far_above(void)
+{
+    group_t *g = grp("far-above");
+    char err[512]; dfl_design P, T, Q; double lam = 0.3, x0 = 0.0, x5 = 5.0, v;
+    if (dfl_design_perron('C', 1, &lam, &P, err, sizeof err) || dfl_design_trend(1, &T, err, sizeof err) || dfl_design_trend(2, &Q, err, sizeof err)) { g->fail++; printf("FAIL far-above: %s\n", err); return; }
+    dfl_det_opts oz, of; dfl_det_defaults(&oz); dfl_det_defaults(&of); of.start = DFL_START_FIXED; of.gamma0 = 1.0;
+    struct { const dfl_design *D; const dfl_det_opts *o; double c, x; int warn; const char *what; } C[5] = {
+        {&P, &oz, 6.0, x0, 1, "Perron C at c = 6"}, {&P, &oz, 5.0, x0, 0, "Perron C at c = 5"}, {&T, &of, 6.0, x5, 1, "the trend with a fixed start at c = 6"},
+        {&T, &of, 5.0, x5, 0, "the trend with a fixed start at c = 5"}, {&Q, &oz, 6.0, x0, 0, "the quadratic trend at c = 6, c0 = 0 (the line integral)"} };
+    for (int i = 0; i < 5; i++) {
+        int rc = dfl_det_dist(2, C[i].D, 1, &C[i].x, C[i].c, C[i].o, &v, err, sizeof err);
+        const char *w = dfl_det_warning(); int has = w && strstr(w, "far above the unit root") != NULL;
+        g->n++;
+        if (rc || has != C[i].warn) { g->fail++; printf("FAIL far-above: %s: the warning %s%s%s\n", C[i].what, C[i].warn ? "does not fire" : "fires", rc ? ": " : "", rc ? err : ""); }
+    }
+    dfl_design_free(&P); dfl_design_free(&T); dfl_design_free(&Q);
+    dfl_det_empty_caches();
 }
 static void selftest_far(void)
 {
@@ -786,6 +832,7 @@ int main(int argc, char **argv)
     selftest_warnings();
     selftest_nonfinite();
     selftest_far();
+    selftest_far_above();
     selftest_line_auto();
     selftest_above();
     selftest_rules();
