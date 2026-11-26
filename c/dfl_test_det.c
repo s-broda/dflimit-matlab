@@ -284,6 +284,75 @@ static void selftest_guard(void)
     dfl_design_free(&T1);
     dfl_det_empty_caches();
 }
+/* the LM statistic needs the constant in the span of the design (November 26, 2026; span_has_constant of DFDet.jl): the
+ * limit -1/(2 sqrt V) holds only then, and r alone, r with e^r, a level dummy with r gave the limit of the linear trend.
+ * Each function of the statistic refuses e^r alone, r with e^r, r alone, a level dummy with r, no deterministic terms and
+ * e^r with e^-r; the span contains the constant for polynomial trends, breaks, the Legendre basis, functions of which only
+ * a combination is constant, a design from a matrix; and then the statistic is that of the span (the values of Julia's
+ * test "the LM statistic" in test/general/paper2.jl) */
+static void f_r_expr(double r, double *o, void *c) { (void) c; o[0] = r; o[1] = exp(r); }
+static void f_dum_r(double r, double *o, void *c) { (void) c; o[0] = r > 0.4 ? 1.0 : 0.0; o[1] = r; }
+static void f_exp_pm(double r, double *o, void *c) { (void) c; o[0] = exp(r); o[1] = exp(-r); }
+static void f_sc2r(double r, double *o, void *c) { (void) c; o[0] = pow(sin(M_PI * r), 2); o[1] = pow(cos(M_PI * r), 2); o[2] = r; }
+static void f_1pr_r(double r, double *o, void *c) { (void) c; o[0] = 1 + r; o[1] = r; }
+static void f_sc4(double r, double *o, void *c) { (void) c; o[0] = pow(sin(4 * M_PI * r), 2); o[1] = pow(cos(4 * M_PI * r), 2); }
+static void selftest_lmspan(void)
+{
+    char err[512], what[160]; double v[2], crit, x = -2.0, cs = -5.0, b04 = 0.4;
+    typedef void (*fd_t)(double, double *, void *);
+    struct { const char *name; fd_t f; int K, nb; } refused[] = {
+        {"e^r", f_expr, 1, 0}, {"r, e^r", f_r_expr, 2, 0}, {"r", f_rlin, 1, 0}, {"a level dummy and r", f_dum_r, 2, 1},
+        {"no deterministic terms", NULL, 0, 0}, {"e^r, e^-r", f_exp_pm, 2, 0}};
+    for (int i = 0; i < 6; i++) {
+        dfl_design D; int rc = refused[i].f ? dfl_design_fdesign(refused[i].f, NULL, refused[i].K, refused[i].nb, &b04, 0, 0, 0, &D, err, sizeof err)
+                                            : dfl_design_trend(-1, &D, err, sizeof err);
+        if (rc) { grp("lmspan")->fail++; printf("FAIL lmspan design %s: %s\n", refused[i].name, err); continue; }
+        snprintf(what, sizeof what, "%s: span_has_constant false", refused[i].name);
+        check("lmspan", det_span_has_constant(&D, 1e-6), 0, 0, what);
+        for (int f = 0; f < 3; f++) {
+            err[0] = 0;
+            rc = f == 0 ? dfl_det_lm_cdf(&D, 1, &x, 0.0, v, err, sizeof err) : f == 1 ? dfl_det_lm_quantile(&D, 0.05, 0.0, v, err, sizeof err)
+                                                                                   : dfl_det_lm_power(&D, 1, &cs, 0.05, &crit, v, err, sizeof err);
+            snprintf(what, sizeof what, "%s: %s refused (span contains the constant)", refused[i].name, f == 0 ? "lm_cdf" : f == 1 ? "lm_quantile" : "lm_power");
+            check("lmspan", rc && strstr(err, "span contains the constant") && strstr(err, "the design does not contain it") ? 0 : 1, 0, 0, what);
+        }
+        dfl_design_free(&D);
+    }
+    struct { const char *name; fd_t f; int K; } accepted_f[] = {
+        {"sin^2, cos^2, r", f_sc2r, 3}, {"1 + r, r", f_1pr_r, 2}, {"an intercept with a sine and a cosine", f_trig, 3}, {"sin^2, cos^2 of 4 pi r", f_sc4, 2}};
+    for (int i = 0; i < 4; i++) {
+        dfl_design D;
+        if (dfl_design_fdesign(accepted_f[i].f, NULL, accepted_f[i].K, 0, NULL, 0, 0, 0, &D, err, sizeof err)) { grp("lmspan")->fail++; printf("FAIL lmspan design %s: %s\n", accepted_f[i].name, err); continue; }
+        snprintf(what, sizeof what, "%s: span_has_constant true", accepted_f[i].name);
+        check("lmspan", det_span_has_constant(&D, 1e-6), 1, 0, what);
+        dfl_design_free(&D);
+    }
+    for (int i = 0; i < 8; i++) {
+        dfl_design D; int rc; double lams[2] = {0.3, 0.7}, half = 0.5;
+        if (i < 4) rc = dfl_design_trend(i, &D, err, sizeof err);
+        else if (i == 4) rc = dfl_design_perron('A', 1, &half, &D, err, sizeof err);
+        else if (i == 5) rc = dfl_design_perron('C', 2, lams, &D, err, sizeof err);
+        else if (i == 6) rc = dfl_design_ltrend(4, &D, err, sizeof err);
+        else {
+            int n = 200; double *X = malloc(3 * n * sizeof(double));
+            for (int t = 1; t <= n; t++) { X[t - 1] = 1; X[n + t - 1] = (double) t / n; X[2 * n + t - 1] = pow((double) t / n, 2); }
+            rc = dfl_design_from_matrix(n, 3, X, 0, NULL, 0, 0, 0, &D, err, sizeof err); free(X);
+        }
+        const char *nm[] = {"trend(0)", "trend(1)", "trend(2)", "trend(3)", "Perron A at 0.5", "Perron C at (0.3, 0.7)", "ltrend(4)", "the matrix [1, t/n, (t/n)^2], n = 200"};
+        if (rc) { grp("lmspan")->fail++; printf("FAIL lmspan design %s: %s\n", nm[i], err); continue; }
+        snprintf(what, sizeof what, "%s: span_has_constant true", nm[i]);
+        check("lmspan", det_span_has_constant(&D, 1e-6), 1, 0, what);
+        dfl_design_free(&D);
+    }
+    /* (and then the statistic is that of the span: {1 + r, r} gives the 5% point of the linear trend) */
+    dfl_design A, T; double q5 = -3.0230, Fa = NAN, Ft = NAN;
+    dfl_design_fdesign(f_1pr_r, NULL, 2, 0, NULL, 0, 0, 0, &A, err, sizeof err); dfl_design_trend(1, &T, err, sizeof err);
+    int ra = dfl_det_lm_cdf(&A, 1, &q5, 0.0, &Fa, err, sizeof err), rt = dfl_det_lm_cdf(&T, 1, &q5, 0.0, &Ft, err, sizeof err);
+    check("lmspan", ra || rt ? NAN : Fa, Ft, 1e-10, "lm_cdf({1 + r, r}, -3.0230) against lm_cdf(trend(1), -3.0230)");
+    check("lmspan", rt ? NAN : Ft, 0.05, 1e-4, "lm_cdf(trend(1), -3.0230) = 0.05");
+    dfl_design_free(&A); dfl_design_free(&T);
+    dfl_det_empty_caches();
+}
 /* the public functions at non-finite arguments (November 2026): a limit where there is one, else an error that names the
  * argument; none of them may hang (coef_cdf_gp at y = +-Inf, the searches from x0 = +-Inf, the point-optimal statistic at
  * c = +-Inf and cbar = -Inf did not return) */
@@ -572,6 +641,7 @@ int main(int argc, char **argv)
 
     double t0 = dfl_wtime();
     selftest_guard();
+    selftest_lmspan();
     while (fgets(line, sizeof line, f)) {
 
         char tag[32]; int nc = 0;

@@ -3,7 +3,8 @@ function [q,P] = lm_power(c,D,opts)
 %
 %   [q,P] = LM_POWER(c,D,opts): q the critical value of the level-alpha test
 %   (opts.alpha, 0.05; LM_QUANTILE) and P its limiting power at each c in the
-%   array c.
+%   array c.  An error for a design whose span does not contain the constant
+%   (LM_CDF).
 %
 %   Example: [q,P] = lm_power([-5 -10 -15 -20], dfdet_trend(1))   % P = 0.1059 0.2656 0.5149 0.7599
 %

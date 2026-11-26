@@ -597,7 +597,10 @@ int dfl_det_region(const dfl_design *D, int type, const double *par, double c, c
 /* the companions: the point-optimal statistic against cbar and its envelope (pt_cdf, pt_pdf, pt_quantile, pt_power,
  * pt_envelope; zero start; by default the single inversion of Bao and Kan up to c = DFL_PT_INV_CMAX, the inversion of
  * Gil-Pelaez on a grid of N steps to umax beyond or where N or umax is given (0 for 60000, 4000)), the LM statistic (lm_cdf,
- * lm_quantile, lm_power), MZ_alpha and MSB with the data GLS-detrended at gls (mza_cdf, mza_quantile, msb_cdf, msb_quantile) */
+ * lm_quantile, lm_power: for trend functions whose span contains the constant and a linear trend, an error otherwise; the
+ * span is decided on the values of the piecewise polynomial design, exactly for polynomial trends, breaks and dummies, to
+ * 1e-6 for the interpolants of a function design and a design from a matrix), MZ_alpha and MSB with the data GLS-detrended
+ * at gls (mza_cdf, mza_quantile, msb_cdf, msb_quantile) */
 int dfl_det_pt(int kind, const dfl_design *D, int n, const double *q, double cbar, double c, int N, double umax, double *out, char *err, size_t errlen);
 int dfl_det_pt_quantile(const dfl_design *D, double p, double cbar, int N, double umax, double *q, char *err, size_t errlen);
 int dfl_det_pt_power(const dfl_design *D, double cbar, double c, double level, int N, double umax, double *b, double *power, char *err, size_t errlen);

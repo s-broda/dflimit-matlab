@@ -163,6 +163,35 @@ for k = 1:numel(R)
     try, R{k}{1}(); catch ME, msg = ME.message; end
     check(sprintf('refused: %s (%.60s)',func2str(R{k}{1}),msg),double(~contains(msg,R{k}{2})),0);
 end
+% the LM statistic needs the constant in the span of the design (November 26, 2026; span_has_constant of DFDet.jl): its
+% limit -1/(2 sqrt V) holds only then, and r alone, r with e^r, a level dummy with r gave the limit of the linear trend.
+% Each function of the statistic refuses e^r alone, r with e^r, r alone, a level dummy with r, no deterministic terms and
+% e^r with e^-r; polynomial trends, breaks, the Legendre basis, functions of which only a combination is constant and a
+% design from a matrix are accepted, and then the statistic is that of the span
+LR = {dfdet_fdesign(@(r) exp(r),[],struct('name','e^r')), dfdet_fdesign(@(r) [r, exp(r)],[],struct('name','r, e^r')), ...
+      dfdet_fdesign(@(r) r,[],struct('name','r')), dfdet_fdesign(@(r) [double(r > 0.4), r],0.4,struct('name','a level dummy and r')), ...
+      dfdet_trend(-1), dfdet_fdesign(@(r) [exp(r), exp(-r)],[],struct('name','e^r, e^-r'))};
+for k = 1:numel(LR)
+    LF = {@() lm_cdf(-2,LR{k}), @() lm_quantile(0.05,LR{k}), @() lm_power(-5,LR{k})};
+    for j = 1:3
+        msg = 'no error';
+        try, LF{j}(); catch ME, msg = ME.message; end
+        check(sprintf('LM refused for %s: %s (%.50s)',LR{k}.name,func2str(LF{j}),msg), ...
+              double(~(contains(msg,'span contains the constant') && contains(msg,['the design ' LR{k}.name ' does not contain it']))),0);
+    end
+end
+n2 = 200; tt = (1:n2)'/n2;
+LA = {dfdet_trend(0), dfdet_trend(1), dfdet_trend(3), dfdet_perron('A',0.5), dfdet_perron('C',[0.3 0.7]), dfdet_ltrend(4), ...
+      dfdet_fdesign(@(r) [sin(pi*r)^2, cos(pi*r)^2, r],[],struct('name','sin^2, cos^2, r')), dfdet_fdesign(@(r) [1 + r, r],[],struct('name','1 + r, r')), ...
+      dfdet_fdesign(@(r) [1, sin(2*pi*r), cos(2*pi*r)],[],struct('name','an intercept with a sine and a cosine')), ...
+      dfdet_fdesign(@(r) [sin(4*pi*r)^2, cos(4*pi*r)^2],[],struct('name','sin^2, cos^2 of 4 pi r')), ...
+      dfdet_design_from_matrix([ones(n2,1), tt, tt.^2])};
+for k = 1:numel(LA)
+    msg = 'accepted';
+    try, lm_cdf(-2,LA{k}); catch ME, if contains(ME.message,'span contains the constant'), msg = ME.message; end, end
+    check(sprintf('LM accepts %s (%.40s)',LA{k}.name,msg),double(~strcmp(msg,'accepted')),0);
+end
+check('lm_cdf({1 + r, r}, -3.0230) against lm_cdf(trend(1), -3.0230) (1e-10)',abs(lm_cdf(-3.0230,LA{8}) - lm_cdf(-3.0230,dfdet_trend(1))),1e-10);
 % the guard on the nodes of the U-shapes before the outer sum (USHAPE_GUARD of DFDET_CONTOUR): the design (1 + r,
 % 1{r < 0.4}), whose positive root runs off on the vertical line, and d(r) = 1 + r with a fixed start are refused before
 % any inner integral (the guard in the U-shapes refused after 11 s; the time is now that of the outer path, about 1 s)

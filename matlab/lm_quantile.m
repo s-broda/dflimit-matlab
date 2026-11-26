@@ -3,7 +3,8 @@ function q = lm_quantile(p,D,c)
 %
 %   q = LM_QUANTILE(p,D,c): the p-quantile of the limit of the LM statistic
 %   (LM_CDF; the critical value of the level-p test, which rejects for small
-%   values), from the quantile of V by bisection in log V (70 steps).
+%   values), from the quantile of V by bisection in log V (70 steps).  An
+%   error for a design whose span does not contain the constant (LM_CDF).
 %
 %   Example: lm_quantile([0.01 0.05 0.10], dfdet_trend(1))   % -3.5617 -3.0230 -2.7501
 %

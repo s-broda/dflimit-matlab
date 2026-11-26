@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**The LM statistic only for a design whose span contains the constant** (November 26, 2026, as DFLimit.jl). `lm_cdf`,
+`lm_quantile`, `lm_power` (`dfl_det_lm_cdf`, `dfl_det_lm_quantile`, `dfl_det_lm_power` in C) computed the limit
+-1/(2 sqrt V) for any design with a linear trend in its span; that limit holds only when the span also contains the
+constant (the LM regression estimates the level from the first observation). They now refuse such a design with an error
+(r alone, r and e^r, a level dummy with r gave the limit of the linear trend): the span is decided on the values of the
+piecewise polynomial design at Chebyshev points of each piece, by a least-squares fit of the constant (`det_span_has_constant`
+in C, a subfunction of `dfdet_lmpath` in MATLAB; exactly for polynomial trends, breaks and dummies, to 1e-6 for the
+interpolants of a function design and a design from a matrix). Tests: the group `lmspan` of `c/dfl_test_det.c` and the
+checks "LM refused" and "LM accepts" of `dfdet_test`.
+
 **Three extensions of the limit** (November 26, 2026), ported from DFLimit.jl to the C engine (`c/dfl_det_ext.c`; the
 volatility transform in `dfl_det_mgf.c`, its paths in `dfl_det_path.c`), the MEX file and the plain MATLAB programs:
 volatility and persistence regimes (`volpath`, the option `vol` of `dfl_det_dist`, `dfl_det_quantile`, `dfdet_cdf`,
