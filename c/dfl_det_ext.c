@@ -295,7 +295,159 @@ int det_cov_quantile(const dfl_design *D, int n, const double *p, double c, doub
     return rc;
 }
 
-int dfl_hegy_t3(int kind, const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o, double *out, char *err, size_t errlen)
-{ (void) kind; (void) D; (void) n; (void) x; (void) c; (void) o; (void) out; snprintf(err, errlen, "t3: not yet"); return 1; }
-int dfl_hegy_t3_quantile(const dfl_design *D, int n, const double *p, double c, double x0, double tol, const dfl_det_opts *o, double *q, char *err, size_t errlen)
-{ (void) D; (void) n; (void) p; (void) c; (void) x0; (void) tol; (void) o; (void) q; snprintf(err, errlen, "t3: not yet"); return 1; }
+/* ---------- the first seasonal t-ratio of the regression of Hylleberg, Engle, Granger and Yoo (src/DFDet_seas.jl) ---------- */
+/* the smallest distance of two roots of one group along the path, relative to their size (the residues divide by it) */
+static double t3_gap(const det_path *CP)
+{
+    int r = CP->r, rp = CP->Mo->rp; double g = INFINITY;
+    for (int k = 0; k < CP->K; k++) {
+        const cdouble *R = CP->R + (size_t) k * r;
+        for (int grp = 0; grp < 2; grp++) {
+            int lo = grp ? rp : 0, hi = grp ? r : rp;
+            for (int i = lo; i < hi; i++) for (int j = i + 1; j < hi; j++) g = dmin(g, cfabs(csub(R[i], R[j])) / dmax(cfabs(R[i]), cfabs(R[j])));
+        }
+    }
+    return g;
+}
+/* the relative distance of two roots of a group below which the doubled transform on the paths computes */
+#define T3_GAP 1e-4
+/* the transform e^{-s}/D(s,t) in the form the engine's inversion on paths integrates (t3_doubled): every root of the design
+ * twice, log P twice, the shift a = 1; the path and its model in one block (free) */
+typedef struct { det_path CP; det_model Mo; } t3dbl_t;
+static t3dbl_t *t3_doubled(const det_path *CP)
+{
+    int r = CP->r, rp = CP->Mo->rp, K = CP->K;
+    t3dbl_t *T = calloc(1, sizeof *T);
+    T->Mo = *CP->Mo; T->Mo.r = 2 * r; T->Mo.rp = 2 * rp; T->Mo.rm = 2 * CP->Mo->rm; T->Mo.a = 1.0; T->Mo.kappa = 0.5; T->Mo.own = 0;
+    T->CP = *CP; T->CP.r = 2 * r; T->CP.Mo = &T->Mo; T->CP.fx = NULL; T->CP.mref = NULL; T->CP.vm = NULL; T->CP.refs = 1;
+    T->CP.R = malloc((size_t) 2 * r * imax(K, 1) * sizeof(cdouble)); T->CP.lP = malloc(imax(K, 1) * sizeof(cdouble));
+    for (int k = 0; k < K; k++) {
+        const cdouble *R = CP->R + (size_t) k * r; cdouble *R2 = T->CP.R + (size_t) k * 2 * r;
+        for (int j = 0; j < rp; j++) { R2[2 * j] = R[j]; R2[2 * j + 1] = R[j]; }
+        for (int j = rp; j < r; j++) { R2[2 * j] = R[j]; R2[2 * j + 1] = R[j]; }
+        T->CP.lP[k] = cscale(2, CP->lP[k]);
+    }
+    return T;
+}
+static void t3_doubled_free(t3dbl_t *T) { if (!T) return; free(T->CP.R); free(T->CP.lP); free(T); }
+/* F and f of t3 at the finite points x on the path: the residues, or where two roots of a group come within T3_GAP the
+ * engine's inversion on paths of the doubled transform (with n, ntail > 0 its inner nodes) */
+static int t3_eval(const det_path *CP, int gap, int nx, const double *x, double c0, int n, int ntail, double *F, double *f, char *err, size_t errlen)
+{
+    if (!gap && n <= 0) return det_t3_residues(CP, nx, x, c0, F, f, err, errlen);
+    t3dbl_t *T = t3_doubled(CP);
+    det_eval_opts o; det_eval_defaults(&T->CP, &o);
+    if (n > 0) o.n = n;
+    if (ntail > 0) o.ntail = ntail;
+    int rc = det_contour_eval(&T->CP, nx, x, c0, 2, &o, F, f, NULL, NULL, err, errlen);
+    t3_doubled_free(T);
+    return rc;
+}
+/* the outer contour of t3 (t3_path): the engine's (the present rule) for the design at c with a zero start, or the
+ * volatility path */
+static det_path *t3_path(const char *fn, const dfl_design *D, double c, const dfl_det_opts *o, char *err, size_t errlen)
+{
+    if (o->vol) {
+        dfl_det_opts ov; dfl_det_defaults(&ov); ov.vol = o->vol;
+        det_vmodel *VM; double c1 = c;
+        if (det_vol_args(fn, D, c, &ov, &VM, &c1, err, errlen)) return NULL;
+        if (VM) { det_path *CP = det_vol_path(VM, NAN, 1.0, err, errlen); det_vol_release(VM); return CP; }
+        c = c1;
+    }
+    if (!isfinite(c)) { snprintf(err, errlen, "%s: c must be a finite real scalar", fn); return NULL; }
+    if (!(c <= 0)) { snprintf(err, errlen, "%s: c must be at most 0 (the seasonal statistics are implemented below and at the unit root)", fn); return NULL; }
+    if (!(c >= -480)) { snprintf(err, errlen, "%s: c must be at least -480 (the range in which the computation is checked)", fn); return NULL; }
+    det_path *CP = det_path_cached(D, NAN, DFL_START_ZERO, 0.0, c, NAN, 1.0, err, errlen);
+    if (CP && isnan(CP->h)) {
+        det_path_release(CP);
+        snprintf(err, errlen, "%s: the outer contour of this design is the vertical line (no hyperbola keeps its positive roots right of the origin); the seasonal statistics are not implemented there", fn);
+        return NULL;
+    }
+    return CP;
+}
+static int t3_opts(const char *fn, const dfl_design *D, const dfl_det_opts *o, char *err, size_t errlen)
+{
+    if (!D) { snprintf(err, errlen, "no design"); return 1; }
+    if (!isfinite(o->c0)) { snprintf(err, errlen, "%s: c0 must be a finite real scalar", fn); return 1; }
+    if (o->start != DFL_START_ZERO || !isnan(o->gls) || o->rho != 1) { snprintf(err, errlen, "%s: the seasonal t-ratio has the zero start, least squares detrending and no normal component (start, gls and rho at their defaults)", fn); return 1; }
+    return 0;
+}
+int dfl_hegy_t3(int kind, const dfl_design *D, int n, const double *x, double c, const dfl_det_opts *o0, double *out, char *err, size_t errlen)
+{
+    dfl_det_opts od; const dfl_det_opts *o = o0; if (!o) { dfl_det_defaults(&od); o = &od; }
+    const char *fn = kind == 2 ? "hegy_t3_cdf" : "hegy_t3_pdf";
+    det_warn_clear();
+    if (kind != 1 && kind != 2) { snprintf(err, errlen, "kind must be 1 (density) or 2 (distribution function)"); return 1; }
+    if (t3_opts(fn, D, o, err, errlen)) return 1;
+    det_path *CP = t3_path(fn, D, c, o, err, errlen);
+    if (!CP) return 1;
+    double *xf = malloc((n + 1) * sizeof(double)), *F = malloc((n + 1) * sizeof(double)), *f = malloc((n + 1) * sizeof(double));
+    int *ix = malloc((n + 1) * sizeof(int)), m = 0, rc = 0;
+    for (int k = 0; k < n; k++) {
+        if (isfinite(x[k])) { xf[m] = x[k]; ix[m++] = k; }
+        else out[k] = isnan(x[k]) ? NAN : x[k] > 0 ? (kind == 2 ? 1.0 : 0.0) : 0.0;
+    }
+    if (m > 0) {
+        int gap = t3_gap(CP) < T3_GAP;
+        rc = t3_eval(CP, gap, m, xf, o->c0, 0, 0, F, f, err, errlen);
+        if (!rc && o->verified) {
+            /* the residues against the inversion on paths of the doubled transform with 40/64 nodes; the latter where they differ */
+            double *F2 = malloc((m + 1) * sizeof(double)), *f2 = malloc((m + 1) * sizeof(double)), d = 0;
+            rc = t3_eval(CP, 1, m, xf, o->c0, 40, 64, F2, f2, err, errlen);
+            for (int j = 0; j < m && !rc; j++) d = dmax(d, fabs(kind == 2 ? F[j] - F2[j] : f[j] - f2[j]));
+            if (!rc && !(d <= o->vtol)) {
+                det_warn("verified: the residues and the inversion on paths of the doubled transform differ by %.2g (above %g); the latter is returned (c = %g, c0 = %g)", d, o->vtol, c, o->c0);
+                memcpy(F, F2, m * sizeof(double)); memcpy(f, f2, m * sizeof(double));
+            }
+            free(F2); free(f2);
+        }
+        if (!rc) for (int j = 0; j < m; j++) out[ix[j]] = kind == 2 ? F[j] : f[j];
+        if (!rc && kind == 2) {
+            char args[200];
+            snprintf(args, sizeof args, "the first seasonal t-ratio, a design of %d regressors on %d pieces, c = %g, c0 = %g", D->K, D->np, o->vol ? CP->c : c, o->c0);
+            double *vf = malloc((m + 1) * sizeof(double));
+            for (int j = 0; j < m; j++) vf[j] = F[j];
+            rc = dfl_cdf_range_check(fn, args, "x", m, xf, vf, err, errlen);
+            free(vf);
+        }
+    }
+    free(xf); free(F); free(f); free(ix); det_path_release(CP);
+    return rc;
+}
+typedef struct { const det_path *CP; int gap; double c0; } t3q_ctx;
+static int t3q_ff(double y, void *v, double *F, double *f, char *err, size_t errlen)
+{
+    t3q_ctx *q = v;
+    return t3_eval(q->CP, q->gap, 1, &y, q->c0, 0, 0, F, f, err, errlen);
+}
+int dfl_hegy_t3_quantile(const dfl_design *D, int n, const double *p, double c, double x0, double tol, const dfl_det_opts *o0, double *q, char *err, size_t errlen)
+{
+    dfl_det_opts od; const dfl_det_opts *o = o0; if (!o) { dfl_det_defaults(&od); o = &od; }
+    const char *fn = "hegy_t3_quantile";
+    det_warn_clear();
+    for (int k = 0; k < n; k++) if (!(p[k] > 0 && p[k] < 1)) { snprintf(err, errlen, "%s: p must lie in (0, 1)", fn); return 1; }
+    if (isnan(x0)) x0 = -2.0;
+    if (!isfinite(x0)) { snprintf(err, errlen, "%s: x0 must be a finite real scalar (NaN: the default)", fn); return 1; }
+    if (tol == INFINITY) { snprintf(err, errlen, "%s: tol must be a positive finite number (NaN: the default)", fn); return 1; }
+    if (!(tol > 0)) tol = 1e-10;
+    if (t3_opts(fn, D, o, err, errlen)) return 1;
+    det_path *CP = t3_path(fn, D, c, o, err, errlen);
+    if (!CP) return 1;
+    t3q_ctx qc = {CP, t3_gap(CP) < T3_GAP, o->c0};
+    int rc = 0;
+    for (int k = 0; k < n && !rc; k++) {
+        double x = x0, F, f; int done = 0;
+        for (int it = 0; it < 30 && !rc; it++) {
+            rc = t3q_ff(x, &qc, &F, &f, err, errlen);
+            if (rc) break;
+            double dx = dclamp((F - p[k]) / f, -1.0, 1.0);
+            if ((F - p[k]) / f != (F - p[k]) / f) dx = NAN;
+            if (!isfinite(dx)) break;
+            x -= dx;
+            if (fabs(dx) < tol) { q[k] = x; done = 1; break; }
+        }
+        if (!rc && !done) rc = det_newton_safe(t3q_ff, &qc, p[k], x0, 1.0, tol, &q[k], err, errlen);
+    }
+    det_path_release(CP);
+    return rc;
+}

@@ -1258,3 +1258,62 @@ int det_graded_panels(double A, double B, int nf, const double *pos, const doubl
     free(pv.v);
     return pv.n;
 }
+
+/* =====================================================================================================================
+ * The first seasonal t-ratio (src/DFDet_seas.jl): t3 = (R - c0 V)/sqrt(V), (R, V) the sum of two independent copies of the
+ * lead paper's (U, V), so that e^{s} E exp(sR + tV) = P(t)^2 prod_+ (s_k - s)^{-1} prod_- (s - s_k)^{-1}, whose partial
+ * fractions sum_+ w_k/(s_k - s) + sum_- w_k/(s - s_k) make the inner integral of the inversion on paths a sum of residues:
+ *     f(x)      = (1/2 pi i) int sum_k w_k(t) K^f(s_k(t), t) dt,
+ *     P(t3 > x) = P{X(sqrt V) < 0} + (1/2 pi i) int sum_k w_k(t) K^F(s_k(t), t) dt,
+ * X(v) = c0 v^2 + x v + 1, K^f = int 2 v^2 e^{-t v^2 - s X(v)} dv, K^F = (1/s) int 2 v e^{-t v^2 - s X(v)} dv over the part
+ * of v > 0 on which X has the sign of the root's group; the first term of the second line a single inversion of M_V(t) =
+ * P^2 prod_+ (1/s_k) prod_- (-1/s_k) (t3_residues).  The nodes serially in chunks of 32 until a chunk whose terms all stay
+ * below 1e-17.
+ * ===================================================================================================================== */
+int det_t3_residues(const det_path *CP, int nx, const double *x, double c0, double *F, double *f, char *err, size_t errlen)
+{
+    const double tol = 1e-17;
+    int r = CP->r, rp = CP->Mo->rp, K1 = CP->K;
+    pcs_t *PL = malloc((nx + 1) * sizeof(pcs_t)), *MI = malloc((nx + 1) * sizeof(pcs_t));
+    cdouble *wk = malloc((r + 1) * sizeof(cdouble));
+    if (!PL || !MI || !wk) { free(PL); free(MI); free(wk); snprintf(err, errlen, "out of memory"); return 1; }
+    for (int i = 0; i < nx; i++) { xpieces(x[i], c0, 1.0, &PL[i], &MI[i]); F[i] = 0; f[i] = 0; }
+    int k = 0;
+    while (k < K1) {
+        double mx = 0; int kend = imin(k + 32, K1);
+        for (int kk = k; kk < kend; kk++) {
+            cdouble t = CP->t[kk], P2 = cexp(cscale(2, CP->lP[kk]));
+            const cdouble *R = CP->R + (size_t) kk * r;
+            cdouble MV = P2;
+            for (int j = 0; j < r; j++) MV = cdiv(MV, j < rp ? R[j] : cneg(R[j]));
+            for (int j = 0; j < r; j++) {
+                cdouble w = P2, sj = R[j];
+                for (int i = 0; i < r; i++) { if (i == j) continue; w = cdiv(w, i < rp ? csub(R[i], sj) : csub(sj, R[i])); }
+                wk[j] = w;
+            }
+            for (int ix = 0; ix < nx; ix++) {
+                cdouble gF = DZERO, gf = DZERO, M[3];
+                for (int j = 0; j < r; j++) {
+                    const pcs_t *pc = j < rp ? &PL[ix] : &MI[ix];
+                    if (pc->n == 0) continue;
+                    cdouble sj = R[j];
+                    ctr_moments(t, sj, c0, x[ix], 1.0, pc, M);
+                    gf = cadd(gf, cmul(cscale(2, wk[j]), M[2])); gF = cadd(gF, cdiv(cmul(cscale(2, wk[j]), M[1]), sj));
+                }
+                for (int i = 0; i < MI[ix].n; i++) {
+                    double a = MI[ix].a[i], b = MI[ix].b[i];
+                    cdouble ea = cexp(cscale(-a * a, t)), eb = isfinite(b) ? cexp(cscale(-b * b, t)) : DZERO;
+                    gF = cadd(gF, cdiv(cmul(MV, csub(ea, eb)), t));
+                }
+                double tF = CP->wt[kk] * cimag(cmul(gF, CP->dt[kk])), tf = CP->wt[kk] * cimag(cmul(gf, CP->dt[kk]));
+                F[ix] += tF; f[ix] += tf;
+                mx = dmax(mx, dmax(fabs(tF), fabs(tf)));
+            }
+        }
+        k = kend;
+        if (mx < tol) break;
+    }
+    for (int i = 0; i < nx; i++) F[i] = 1 - F[i];
+    free(PL); free(MI); free(wk);
+    return 0;
+}

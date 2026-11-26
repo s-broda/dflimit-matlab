@@ -406,6 +406,11 @@ int main(int argc, char **argv)
         dfl_det_opts o; dfl_det_defaults(&o);
         int rc = dfl_hegy_t3(2, &DS[3], 3, xs, -2.0, &o, a, err, sizeof err); o.verified = 1; rc |= dfl_hegy_t3(2, &DS[3], 3, xs, -2.0, &o, b, err, sizeof err);
         for (int i = 0; i < 3; i++) { snprintf(what, sizeof what, "t3 trend(1), c -2: the residues against verified at x = %g", xs[i]); check("t3verified", rc ? NAN : a[i], b[i], 1e-9, what); }
+        /* (vtol = 0: the doubled transform on the paths with 40/64 nodes returned, against the residues) */
+        o.vtol = 0; rc = dfl_hegy_t3(2, &DS[3], 3, xs, -2.0, &o, b, err, sizeof err);
+        for (int i = 0; i < 3; i++) { snprintf(what, sizeof what, "t3 trend(1), c -2: the residues against the doubled transform at x = %g", xs[i]); check("t3doubled", rc ? NAN : a[i], b[i], 1e-9, what); }
+        dfl_det_defaults(&o); rc = dfl_hegy_t3(1, &DS[5], 3, xs, 0.0, &o, a, err, sizeof err); o.verified = 1; o.vtol = 0; rc |= dfl_hegy_t3(1, &DS[5], 3, xs, 0.0, &o, b, err, sizeof err);
+        for (int i = 0; i < 3; i++) { snprintf(what, sizeof what, "t3 density, model C at 0.4: the residues against the doubled transform at x = %g", xs[i]); check("t3doubled", rc ? NAN : a[i], b[i], 1e-9, what); }
         double h = 1e-3, xx[2] = {-2 - h, -2 + h}, F[2], fd, xm = -2;
         dfl_det_defaults(&o);
         rc = dfl_hegy_t3(2, &DS[2], 2, xx, 0.0, &o, F, err, sizeof err) | dfl_hegy_t3(1, &DS[2], 1, &xm, 0.0, &o, &fd, err, sizeof err);
