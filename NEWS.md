@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+**No NaN, hang or silently wrong value at a finite point** (November 26, 2026, as DFLimit.jl). Four causes. (1) Where
+0.001 |x| 4^m fell a few ulps short of 1/2, the geometric partitions of the C engine's fixed node layouts left a last
+panel a few ulps long whose nodes lay on the support edge of the kernel, X^{-1/2} = Inf times a vanishing weight: F and
+f were NaN at the one to four ulps above x = -500/4^k in every case at every c <= 0 (x = -7.8124999999999991 in case DK
+at c = 0 among them); now no panel ends within 1e-9 of the end of its partition (`dfl_nosliver`, in the layouts, the
+rays, the edge segments and the smooth parts; the same in `dfx_core.m`). (2) For 0 < |x| below about 1e-162 the
+Gaussian factor of the ray of the distribution function, e^{-|t| r^2/q^2}, underflowed to 0/0: F was NaN in the C engine
+and in `dfx_core.m` (cases DK, DU, DT, ...); now in (r/q)^2. (3) Far in the tails the C engine's fixed layouts lost
+accuracy (case DK at c = 0: F = 1 + 1.3e-6 at x = 31.25 and 1 + 2.1e-3 at 125, refused by the range check, F = -2.5e-3
+at x = -500; at c = -480 F = -2.9e-7 at x = -100; case DU at c = -10 F = 4.9e-7 at x = -250, returned): they now serve
+-50 <= x <= 15 (`DFL_BATCH_QMIN`, `DFL_BATCH_QMAX`), the adaptive rules beyond (the MATLAB programs have no fixed layouts).
+(4) The general engine's paths at a tiny x < 0, whose parabola has its root at -1/(2x): the asymptotic series of the
+incomplete Gaussian integrals never ended beyond |z| ~ 1e102 in C (the call hung: Perron's model C at c = -5,
+x = -1e-200; case DU at c = 1, x = -1e-100 by the paths), now with `<=` in its tests (also in the classical engine's copy,
+`dfl_gen.c`, and in `tr_contour.m`), and the density was NaN where an end's exponential underflowed (0 times Inf; in C and
+in `dfdet_contour.m`), now such an end contributes nothing but its flag. Elsewhere the values are unchanged (the existing
+tests pass unchanged). Tests: section 5 of `c/dfl_test_bounds.c`, section 14 of `ltratio_test`, and the checks of the
+paths at a tiny x in `dfdet_test`.
+
 **The LM statistic only for a design whose span contains the constant** (November 26, 2026, as DFLimit.jl). `lm_cdf`,
 `lm_quantile`, `lm_power` (`dfl_det_lm_cdf`, `dfl_det_lm_quantile`, `dfl_det_lm_power` in C) computed the limit
 -1/(2 sqrt V) for any design with a linear trend in its span; that limit holds only when the span also contains the

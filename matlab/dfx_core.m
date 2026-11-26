@@ -577,12 +577,13 @@ n = max(n, 16 * ceil(ceil(m) / 16));
 end
 
 function acc = rayint(f, R, l, n1, n2, p, osc)
-% the Gaussian ray from r = 0: a first piece on the scale l, then geometric panels of ratio 4
+% the Gaussian ray from r = 0: a first piece on the scale l, then geometric panels of ratio 4 (no panel a few ulps long at
+% R: NOSLIVER)
 if nargin < 7, osc = 0; end
-a = min(R, 8 * l);
+a = nosliver(min(R, 8 * l), R);
 [y, wt] = glnodes(0, a, n1, p);
 while a < R && a > 0
-    b = min(R, 4 * a);
+    b = nosliver(min(R, 4 * a), R);
     [y2, w2] = glnodes(a, b, nodes(n2, osc, b - a), 1);
     y = [y; y2]; wt = [wt; w2]; %#ok<AGROW>
     a = b;
@@ -672,7 +673,7 @@ pathd = @(d) pathd_f(d, vs, H, sg, q, tj, kern, s1, s2);
 chi = @(d) (1 + erfz(kap * (vs / 2 - d - 1i * H * cap((vs - d) / H) .* cap(d / H) * sg))) / 2;
 if part ~= 2
     fs = @(r) pathd(vs - r) .* (1 - chi(vs - r));
-    if w > 0, r1 = min(vs, sqrt(EXPO / (1.9 * w))); else, r1 = vs; end
+    if w > 0, r1 = nosliver(min(vs, sqrt(EXPO / (1.9 * w))), vs); else, r1 = vs; end
     Is = glsum(fs, 0, r1, 64, 1);
     if r1 < vs, Is = Is + glsum(fs, r1, vs, 48, 1); end
 end
@@ -729,7 +730,9 @@ if q > 0 || 3 * real(tj) * vs2 / 16 > 40
     if q < 0 || ray_ok(sd, e, q, at)
         if q > 0, R = abs(q) * sqrt(EXPO / at); else, R = min(0.5, abs(q) * sqrt(EXPO / at)); end
         sq = sign(q);
-        f = @(r) phi_pos(kern, 0.5 + sq * r * e, s1, s2) .* exp(-at * r .* r / (q * q)) * sq * e;
+        % (the Gaussian factor e^{-|t| (r/q)^2} with r/q of order one: for |q| below about 1e-154, where the nodes r are of
+        % the order of q, r^2 and q^2 underflowed, to 0/0 = NaN below 1e-162)
+        f = @(r) phi_pos(kern, 0.5 + sq * r * e, s1, s2) .* exp(-at * (r / q).^2) * sq * e;
         Is = Is + rayint(f, R, lA, 48, 32, 1, abs(imag(sd * e)));
         return
     end
@@ -743,7 +746,7 @@ pth = @(Xr) pth_f(Xr, H, sg, q, tj, kern, s1, s2);
 chi = @(Xr) (1 + erfz(kap * (0.25 - Xr - 1i * H * cap(Xr / H) .* cap((0.5 - Xr) / H) * sg))) / 2;
 if part ~= 2
     fs = @(y) pth(0.5 - y) .* (1 - chi(0.5 - y));
-    if w > 0, ep = min(0.5, abs(q) * sqrt(EXPO / (1.9 * w))); else, ep = 0.5; end
+    if w > 0, ep = nosliver(min(0.5, abs(q) * sqrt(EXPO / (1.9 * w))), 0.5); else, ep = 0.5; end
     Is = Is + glsum(fs, 0, ep, 64, 1);
     if ep < 0.5, Is = Is + glsum(fs, ep, 0.5, 48, 1); end
 end
@@ -843,8 +846,16 @@ function acc = edgehead(f, a, e1)
 if ~(e1 < a), acc = glsum(f, 0, a, 48, 4); return; end
 acc = glsum(f, 0, e1, 48, 4); lo = e1;
 while lo < a
-    hi = min(a, 4 * lo); acc = acc + glsum(f, lo, hi, 48, 1); lo = hi;
+    hi = nosliver(min(a, 4 * lo), a); acc = acc + glsum(f, lo, hi, 48, 1); lo = hi;
 end
+end
+
+function b = nosliver(b, L)
+% b, or L where b falls short of L by at most 1e-9 L: the end of a panel in the geometric partitions (RAYINT, EDGEHEAD, the
+% two pieces of the smooth parts of INNER_CDF and INNER_DENSITY), so that no panel a few ulps long is left at L, whose
+% nodes round to L itself (at the support edge X = 0 of the kernel, where X^(-1/2) is infinite, NaN; nosliver of
+% DFExact.jl, where the fixed node layouts met it at x = -7.8124999999999991 in case DK)
+if b < L && L - b <= 1e-9 * L, b = L; end
 end
 
 function val = outer(model, c, q, tau, inner, weight, o, stat)

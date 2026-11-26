@@ -120,6 +120,11 @@ double dfl_prov_tau(void);
 static inline int dfl_kern(int model, bool stat) { return model == DFL_MODEL_PROV ? dfl_prov_kern() : ((model == 1 || model == 4) && !stat) ? 1 : 2; }
 static inline double dfl_wmaxc_m(int model, double c) { return model == DFL_MODEL_PROV ? dfl_prov_wend() : dfl_wmaxc(c); }
 static inline double dfl_hufac(double c) { return c >= -20 ? 1.0 : 20 / (-c); }
+/* b, or L where b falls short of L by at most 1e-9 L: the end of a panel in the geometric partitions of the line integral
+   (geopanels of the fixed layouts, rayint, edgehead, the two pieces of the smooth parts of inner_cdf and inner_density), so
+   that no panel a few ulps long is left at L, whose nodes round to L itself (at the support edge X = 0 of the kernel, where
+   X^{-1/2} is infinite, NaN: case DK at c = 0, x = -7.8124999999999991; nosliver of DFExact.jl) */
+static inline double dfl_nosliver(double b, double L) { return (b < L && L - b <= 1e-9 * L) ? L : b; }
 /* the number of Filon panels on [a, b], a panel of the geometric partition of an edge part with the frequency y: panels of at
    most 25/y up to w = DFL_FILONW/y; for c < -20 at most half the period 4 pi |c| of the factor e^{i w E V}, E V ~ 1/(2|c|), of the
    edge integrand, which panels of 25/y ~ 50|c| span several times (unchanged on [-20, inf); filonpanels in DFExact.jl) */
@@ -161,6 +166,11 @@ void dfl_batch_release(const dfl_batch *B);
 void dfl_batch_empty_cache(void);
 void dfl_batch_values(const dfl_batch *B, int part, int n, const cdouble *t, const cdouble *s1, const cdouble *s2, const cdouble *M0, cdouble *out);
 int dfl_usebatch(int batched, double c, double q, double tau);
+/* the range of x that the fixed layouts serve (BATCH_QMIN, BATCH_QMAX of DFExact.jl): far in the tails they lose accuracy
+   (case DK at c = 0: F = 1 + 1.3e-6 at x = 31.25, 1 + 2.1e-3 at 125, -2.5e-3 at -500; case DU at c = -10: 4.9e-7 at -250),
+   where the adaptive rules hold */
+#define DFL_BATCH_QMIN (-50.0)
+#define DFL_BATCH_QMAX 15.0
 extern int DFL_BATCHK0;
 /* the caps (e1, r1) of the first pieces of the K_0 kernel's edge segment and ray X < 0 (k0first of DFExact.jl): for c < -20,
  * and for a provider wherever |s_1(tau)| exceeds DFL_K0FIRST_S1, 1/b and 1e-2/|s_1| (b = (s_2 - s_1)/2, s_1 at tau);

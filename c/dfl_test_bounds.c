@@ -17,7 +17,10 @@
  *      to 2.4: values outside [0, 1]); above c = 14 such points are refused; the general engine's line cut to the rate of the
  *      stationary value with c0 (before, off by 1.1e-3 at c = 10, c0 = 9); the final check of a distribution function.
  *      The references: an independent computation, the law of V given J(1) by Girsanov's theorem inverted and integrated
- *      over J(1), within 1e-12 of both engines where they agree. */
+ *      over J(1), within 1e-12 of both engines where they agree;
+ *   5. the line integral at every finite point (November 26, 2026): no NaN at the ulps above x = -500/4^k (a panel a few ulps
+ *      long at the end of a geometric partition) and at tiny |x| (the Gaussian factor of the ray), no hang of the general
+ *      engine's paths at a tiny x < 0, and the fixed layouts not far in the tails (against the values of the Julia test). */
 #include "dflimit.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,6 +52,34 @@ static void refused(const char *lbl, int kind, int model, double c, double c0, d
     nchk++;
     if (rc != 10 + bound || !strstr(err, want1) || (want2 && !strstr(err, want2))) { nfail++; printf("FAIL %s: rc %d, message \"%s\"\n", lbl, rc, err); }
     else printf("ok   %s: \"%s\"\n", lbl, err);
+}
+
+/* one value of the t-ratio at x: eng 0 the router with engine auto (dfl_engine_dist; ltratio_cdf of Julia), 1 the classical
+ * engine (dfl_dist), method 0, one evaluation; NaN with the message printed on an error */
+static double rdist(int eng, int kind, int model, bool stat, double c, double x)
+{
+    double v = NAN; char err[1024] = ""; int rc;
+    if (eng == 0) { dfl_spec S = {NULL, model, stat ? DFL_START_STAT : DFL_START_ZERO, 0, NAN}; rc = dfl_engine_dist(kind, 1, &x, &S, c, 0, DFL_ENGINE_AUTO, 0, 0, &v, err, sizeof err); }
+    else rc = dfl_dist(kind, 1, &x, model, c, 0, 0, stat, 0, NULL, NULL, &v, NULL, err, sizeof err);
+    if (rc) { printf("     (model %d stat %d c %g x %.17g: rc %d, %s)\n", model, stat, c, x, rc, err); return NAN; }
+    return v;
+}
+/* the same by the router at a case (dfl_engine_dist): method 0 with engine auto, DFL_METHOD_PATHS with engine general */
+static double rpaths(int method, int kind, int model, double c, double x)
+{
+    double v = NAN; char err[1024] = ""; dfl_spec S = {NULL, model, DFL_START_ZERO, 0, NAN};
+    int rc = dfl_engine_dist(kind, 1, &x, &S, c, 0, method ? DFL_ENGINE_GENERAL : DFL_ENGINE_AUTO, method, 0, &v, err, sizeof err);
+    if (rc) { printf("     (model %d c %g x %.17g method %d: rc %d, %s)\n", model, c, x, method, rc, err); return NAN; }
+    return v;
+}
+/* the larger of two deviations, NaN if either is NaN (fmax ignores a NaN) */
+static double nmax(double a, double b) { return (isnan(a) || isnan(b)) ? NAN : fmax(a, b); }
+/* a deviation e (NaN: a value was NaN or an error) within tol */
+static void agree(const char *lbl, double e, double tol)
+{
+    nchk++;
+    if (!(e <= tol)) { nfail++; printf("FAIL %s: %.2e (tol %.0e)\n", lbl, e, tol); }
+    else printf("ok   %s: %.2e\n", lbl, e);
 }
 
 int main(void)
@@ -139,6 +170,92 @@ int main(void)
         if (rc || !(e < 1e-10)) { nfail++; printf("FAIL the general engine, DK c = 10 c0 = 9: rc %d (%s), worst difference %.1e\n", rc, err, e); }
         else printf("ok   the general engine, DK c = 10 c0 = 9, x = 1e3, 3e3, 1e4: worst difference %.1e\n", e);
         dfl_design_free(&D);
+    }
+    /* 5. the line integral at every finite point (November 26, 2026; the Julia test "the line integral at every finite
+     * point"): (a) no panel a few ulps long at the end of a geometric partition (dfl_nosliver: at the points one to four ulps
+     * above -500/4^k the last panel of the fixed layouts put its nodes on the support edge of the kernel and F was NaN, case
+     * DK at c = 0, x = -7.8124999999999991 among them, in every case and at every c <= 0); (b) the Gaussian factor of the
+     * ray in (r/q)^2 (below |x| ~ 1e-154 r^2 and q^2 underflowed, NaN in cases DK, DU); (c) the general engine's paths at a
+     * tiny x < 0 (the asymptotic series of the incomplete Gaussian integrals never ended beyond |z| ~ 1e102: the call hung;
+     * the density was NaN where an end's exponential underflowed); (d) the fixed layouts far in the tails (they serve
+     * -50 <= x <= 15, the adaptive rules beyond; F = 1 + 1.3e-6 at x = 31.25 and 1 + 2.1e-3 at 125 in case DK at c = 0,
+     * -2.9e-7 at -100 at c = -480, 4.9e-7 at -250 in case DU at c = -10).  By the router with engine auto (ltratio_cdf of
+     * Julia) and, for (a) and (b), by the classical engine itself (dfl_dist, method 0) */
+    {
+        const struct { const char *cas; int model; bool stat; double c; } A[4] = {{"DK", 1, false, 0}, {"DU", 2, false, 0}, {"DT", 3, false, -5}, {"SU", 2, true, -5}};
+        for (int i = 0; i < 4; i++) for (int k = 2; k <= 5; k++) for (int eng = 0; eng < 2; eng++) {
+            double x = -500 / pow(4.0, k), F0 = rdist(eng, 2, A[i].model, A[i].stat, A[i].c, x), f0 = rdist(eng, 1, A[i].model, A[i].stat, A[i].c, x), e = 0;
+            char lbl[160];
+            for (int j = 1; j <= 4; j++) {
+                x = nextafter(x, INFINITY);
+                double F = rdist(eng, 2, A[i].model, A[i].stat, A[i].c, x), f = rdist(eng, 1, A[i].model, A[i].stat, A[i].c, x);
+                e = nmax(e, nmax(fabs(F - F0), fabs(f - f0) / fmax(1.0, f0)));
+            }
+            snprintf(lbl, sizeof lbl, "%s c = %g, the four ulps above x = -500/4^%d (%s): F and f against their values there", A[i].cas, A[i].c, k, eng ? "classical" : "router");
+            agree(lbl, e, 1e-12);
+        }
+        {   /* (the general engine's line integral at the same ulps) */
+            dfl_design D; char err[1024] = ""; double xs[2] = {nextafter(-7.8125, INFINITY), nextafter(nextafter(-7.8125, INFINITY), INFINITY)}, v[2] = {NAN, NAN};
+            dfl_det_opts o; dfl_det_defaults(&o);
+            int rc = dfl_design_trend(-1, &D, err, sizeof err) || dfl_det_dist(2, &D, 2, xs, 0, &o, v, err, sizeof err);
+            nchk++;
+            if (rc || !isfinite(v[0]) || !isfinite(v[1])) { nfail++; printf("FAIL the general engine, trend(-1), c = 0, two ulps above -7.8125: rc %d (%s), F %g %g\n", rc, err, v[0], v[1]); }
+            else printf("ok   the general engine, trend(-1), c = 0, two ulps above -7.8125: F %.3e %.3e\n", v[0], v[1]);
+            dfl_design_free(&D);
+        }
+        val("DK c = 0 x = -7.8124999999999991 F (was NaN; the line integral's absolute floor)", 2, 1, 0, 0, 0, false, 0, -7.8124999999999991, 1.372e-13, 2e-13, 0, 0);
+        {   double v = rdist(0, 2, 1, false, 0, -7.8125); nchk++;
+            if (!(v < 2e-13)) { nfail++; printf("FAIL DK c = 0 x = -7.8125: F %.3e, not below 2e-13\n", v); } else printf("ok   DK c = 0 x = -7.8125: F %.3e (below 2e-13)\n", v); }
+        const struct { const char *cas; int model; double c; } B[4] = {{"DK", 1, 0}, {"DU", 2, 0}, {"DT", 3, -5}, {"DK", 1, 1}};
+        const double tiny[6] = {1e-140, 1e-160, 1e-200, 5e-324, -1e-200, -5e-324};
+        for (int i = 0; i < 4; i++) for (int eng = 0; eng < 2; eng++) {
+            double F0 = rdist(eng, 2, B[i].model, false, B[i].c, 0), f0 = rdist(eng, 1, B[i].model, false, B[i].c, 0), e = 0; char lbl[160];
+            for (int j = 0; j < 6; j++) {
+                double F = rdist(eng, 2, B[i].model, false, B[i].c, tiny[j]), f = rdist(eng, 1, B[i].model, false, B[i].c, tiny[j]);
+                e = nmax(e, nmax(fabs(F - F0), fabs(f - f0)));
+            }
+            snprintf(lbl, sizeof lbl, "%s c = %g, x = 1e-140, 1e-160, 1e-200, 5e-324, -1e-200, -5e-324 (%s): F and f against x = 0", B[i].cas, B[i].c, eng ? "classical" : "router");
+            agree(lbl, e, 1e-12);
+        }
+        val("DK c = 0 x = 1e-160 F (was NaN)", 2, 1, 0, 0, 0, false, 0, 1e-160, 0.682689492137086, 1e-12, 0, 0);
+        val("DU c = 0 x = 1e-160 F (was NaN)", 2, 2, 0, 0, 0, false, 0, 1e-160, 0.9575655898802359, 1e-12, 0, 0);
+        {   dfl_design D; char err[1024] = ""; double x = 1e-160, v = NAN; dfl_det_opts o; dfl_det_defaults(&o);
+            int rc = dfl_design_trend(0, &D, err, sizeof err) || dfl_det_dist(2, &D, 1, &x, 0, &o, &v, err, sizeof err);
+            agree("the general engine, trend(0), c = 0, x = 1e-160: F against case DU at x = 0", rc ? NAN : fabs(v - rdist(0, 2, 2, false, 0, 0)), 1e-12);
+            dfl_design_free(&D); }
+        /* (the general engine's paths, forced: the rule of the C router takes them in cases DU, DT for 0 < c <= 0.5 only, the
+         * Julia rule up to c = 1.5 in case DU; the values of the Julia test at x = -1e-20; the call at x = -1e-100 hung) */
+        const struct { const char *cas; int model; double c, F, f; } P[2] = {{"DU", 2, 1, 0.8462108511942119, 0.20557434022509852}, {"DT", 3, 2, 0.9305287727116419, 0.1031078416797035}};
+        const double xneg[3] = {-1e-100, -1e-200, -5e-324};
+        for (int i = 0; i < 2; i++) for (int eng = 0; eng < 2; eng++) {
+            int m = eng == 0 ? DFL_METHOD_PATHS : 0;      /* eng 0: the paths (engine general), 1: the router with engine auto */
+            double F0 = rpaths(m, 2, P[i].model, P[i].c, -1e-20), f0 = rpaths(m, 1, P[i].model, P[i].c, -1e-20), e = 0; char lbl[200];
+            if (m) { snprintf(lbl, sizeof lbl, "%s c = %g x = -1e-20 (the general engine's paths): F and f against Julia", P[i].cas, P[i].c);
+                     agree(lbl, nmax(fabs(F0 - P[i].F), fabs(f0 - P[i].f)), 1e-12); }
+            double t1 = dfl_wtime();
+            for (int j = 0; j < 3; j++) {
+                double F = rpaths(m, 2, P[i].model, P[i].c, xneg[j]), f = rpaths(m, 1, P[i].model, P[i].c, xneg[j]);
+                e = nmax(e, nmax(fabs(F - F0), fabs(f - f0)));
+            }
+            double dt = dfl_wtime() - t1;
+            snprintf(lbl, sizeof lbl, "%s c = %g, x = -1e-100, -1e-200, -5e-324 (%s): F and f against x = -1e-20", P[i].cas, P[i].c, m ? "the paths; the call hung" : "the router");
+            agree(lbl, e, 1e-12);
+            snprintf(lbl, sizeof lbl, "%s c = %g, x = -1e-100, -1e-200, -5e-324 (%s): returned within 60 s (the deviation: the time beyond)", P[i].cas, P[i].c, m ? "the paths" : "the router");
+            agree(lbl, fmax(0, dt - 60), 0);
+        }
+        {   dfl_design D; char err[1024] = ""; double lam = 0.3, xs[2] = {-1e-200, 1e-200}, v[2] = {NAN, NAN}; dfl_det_opts o; dfl_det_defaults(&o);
+            int rc = dfl_design_perron('C', 1, &lam, &D, err, sizeof err) || dfl_det_dist(1, &D, 2, xs, -5, &o, v, err, sizeof err);
+            nchk++;
+            if (rc || !isfinite(v[0]) || !isfinite(v[1])) { nfail++; printf("FAIL Perron C at 0.3, c = -5, f(+-1e-200): rc %d (%s), %g %g\n", rc, err, v[0], v[1]); }
+            else printf("ok   Perron C at 0.3, c = -5, f(+-1e-200): %.15g %.15g\n", v[0], v[1]);
+            dfl_design_free(&D); }
+        agree("DK c = 0 x = 31.25: |F - 1| (was refused, 1 + 1.3e-6)", fabs(rdist(0, 2, 1, false, 0, 31.25) - 1), 1e-12);
+        agree("DK c = 0 x = 125: |F - 1| (was refused, 1 + 2.1e-3)", fabs(rdist(0, 2, 1, false, 0, 125) - 1), 1e-10);
+        agree("DK c = -480 x = -100: |F| (was refused, -2.9e-7)", fabs(rdist(0, 2, 1, false, -480, -100)), 1e-12);
+        agree("DU c = -10 x = -250: |F| (was 4.9e-7)", fabs(rdist(0, 2, 2, false, -10, -250)), 1e-11);
+        agree("DK c = 0 x = -500: |F| (was refused, -2.5e-3)", fabs(rdist(0, 2, 1, false, 0, -500)), 1e-12);
+        val("DK c = 0 x = 31.25 F", 2, 1, 0, 0, 0, false, 0, 31.25, 1.0000000000000016, 1e-12, 0, 0);
+        val("DU c = -10 x = -250 F", 2, 2, -10, 0, 0, false, 0, -250, 2.6e-12, 1e-12, 0, 0);
     }
     {   /* the final check of a distribution function */
         double x[2] = {0.5, 1.0}, F1[2] = {0.3, 1 + 5e-9}, F2[2] = {0.3, 1 + 2e-8}; char err[1024] = "";

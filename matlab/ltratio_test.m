@@ -52,7 +52,12 @@ function nfail = ltratio_test(quick,strict)
 %       general engine's line cut to the rate with c0, and the final check of
 %       a distribution function (LTRATIO_RANGECHECK), against an independent
 %       computation (the law of V given J(1) by Girsanov's theorem, inverted
-%       and integrated over J(1)).
+%       and integrated over J(1));
+%   14. the line integral at every finite point (November 26, 2026): F and f
+%       at the ulps above x = -500/4^k and at tiny |x| (the Gaussian factor of
+%       the ray underflowed: NaN), and far in the tails (where the fixed node
+%       layouts of the C engine lost up to 2e-3), against the values of the
+%       Julia test.
 %
 %   See also LTRATIO_CDF, LTRATIO_PDF, LTRATIO_ICDF, LTRATIO_MOM, ADFMAX_CDF,
 %   COEF_CDF, LTRATIO_REGION, POWER_ENVELOPE.
@@ -546,6 +551,37 @@ catch ME
 end
 ok = ok && isequal(ltratio_rangecheck('ltratio_cdf','case DK, c = 1','x',[0.5 1],[0.3 1 + 5e-9]),[0.3 1 + 5e-9]);
 check('LTRATIO_RANGECHECK: an error outside [0, 1] by more than 1e-8, the values otherwise',double(~ok),0);
+
+fprintf('\n=== 14. the line integral at every finite point ===\n');
+% (November 26, 2026, the Julia test "the line integral at every finite point": the fixed node layouts of the C and Julia
+% engines left a panel a few ulps long at the end of a geometric partition, NaN at the ulps above x = -500/4^k; the
+% Gaussian factor of the ray underflowed to 0/0 below |x| ~ 1e-162, NaN in these programs too; far in the tails the
+% layouts lost up to 2e-3, which these programs, without layouts, never had)
+nu = @(x) typecast(typecast(x,'uint64') - uint64(1),'double');     % the next double toward zero (x < 0)
+UA = {'DK',0; 'DU',0; 'DT',-5; 'SU',-5}; ks = 2:5; if quick, ks = 3; end
+for i = 1:size(UA,1)
+    w = 0;
+    for k = ks
+        xs = -500/4^k; for j = 1:4, xs(end+1) = nu(xs(end)); end %#ok<AGROW>
+        F = ltratio_cdf(xs,UA{i,1},UA{i,2}); f = ltratio_pdf(xs,UA{i,1},UA{i,2});
+        w = max([w, abs(F(2:end) - F(1)), abs(f(2:end) - f(1))/max(1,f(1))]);
+    end
+    check(sprintf('%s c=%g: F, f at the four ulps above x = -500/4^k, k = %s, against x = -500/4^k',UA{i,1},UA{i,2},num2str(ks)),w,1e-12);
+end
+TA = {'DK',0; 'DU',0; 'DT',-5; 'DK',1}; tiny = [1e-140 1e-160 1e-200 5e-324 -1e-200 -5e-324];
+for i = 1:size(TA,1)
+    F = ltratio_cdf([0 tiny],TA{i,1},TA{i,2}); f = ltratio_pdf([0 tiny],TA{i,1},TA{i,2});
+    check(sprintf('%s c=%g: F, f at x = 1e-140, 1e-160, 1e-200, 5e-324, -1e-200, -5e-324 against x = 0',TA{i,1},TA{i,2}), ...
+          max([abs(F(2:end) - F(1)), abs(f(2:end) - f(1))]),1e-12);
+end
+check('DK c=0 x=1e-160: F against Julia (0.682689492137086)',abs(ltratio_cdf(1e-160,'DK',0) - 0.682689492137086),1e-12);
+check('DU c=0 x=1e-160: F against Julia (0.9575655898802359)',abs(ltratio_cdf(1e-160,'DU',0) - 0.9575655898802359),1e-12);
+check('DK c=0 x=-7.8125 and the ulp above: F below 2e-13 (the line integral''s absolute floor)',max(ltratio_cdf([-7.8125 nu(-7.8125)],'DK',0)),2e-13);
+check('DK c=0 x=31.25: |F - 1| (the fixed layouts: 1 + 1.3e-6, refused)',abs(ltratio_cdf(31.25,'DK',0) - 1),1e-12);
+check('DK c=0 x=125: |F - 1| (the fixed layouts: 1 + 2.1e-3, refused)',abs(ltratio_cdf(125,'DK',0) - 1),1e-10);
+check('DK c=-480 x=-100: |F| (the fixed layouts: -2.9e-7, refused)',abs(ltratio_cdf(-100,'DK',-480)),1e-12);
+check('DU c=-10 x=-250: |F| (the fixed layouts: 4.9e-7)',abs(ltratio_cdf(-250,'DU',-10)),1e-11);
+check('DK c=0 x=-500: |F| (the fixed layouts: -2.5e-3, refused)',abs(ltratio_cdf(-500,'DK',0)),1e-12);
 
 fprintf('\n%d of %d checks failed (%.0f s).\n',nfail,ntest,toc(t00));
 if strict && nfail > 0, error('ltratio_test:fail','%d check(s) failed.',nfail); end

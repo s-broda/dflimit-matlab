@@ -304,7 +304,7 @@ if any(lg(:))
         a0 = a0.*r0; a1 = a1.*r1; a2 = a2.*r2;
         s0 = s0 + a0; s1 = s1 + a1; s2 = s2 + a2;
         j = j + 1;
-        cv = abs(a0) < 1e-17*abs(s0) & abs(a2) < 1e-17*abs(s2);
+        cv = abs(a0) <= 1e-17*abs(s0) & abs(a2) <= 1e-17*abs(s2);   % (<=: beyond |z| ~ 1e102 a2 and s2 underflow to 0)
         if any(cv)
             h0(pos(cv)) = s0(cv); h1(pos(cv)) = s1(cv); h2(pos(cv)) = s2(cv);
             k = ~cv; pos = pos(k); w2 = w2(k);

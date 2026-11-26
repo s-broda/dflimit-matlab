@@ -192,6 +192,21 @@ for k = 1:numel(LA)
     check(sprintf('LM accepts %s (%.40s)',LA{k}.name,msg),double(~strcmp(msg,'accepted')),0);
 end
 check('lm_cdf({1 + r, r}, -3.0230) against lm_cdf(trend(1), -3.0230) (1e-10)',abs(lm_cdf(-3.0230,LA{8}) - lm_cdf(-3.0230,dfdet_trend(1))),1e-10);
+% the paths at a tiny x < 0 (November 26, 2026; the Julia test "the line integral at every finite point"): the parabola
+% X(v) = x v + A has its root at -A/x, an end of the pieces of v, where e^{-t v^2 - s X(v)} underflows to zero and v^2 is
+% infinite: the density was NaN (0 times Inf in the terms of the end); the values of Julia at x = -1e-20
+PJ = {0,1,0.8462108511942119,0.20557434022509852; 1,2,0.9305287727116419,0.1031078416797035};
+for k = 1:size(PJ,1)
+    xs = [-1e-20 -1e-100 -1e-200 -5e-324];
+    F = dfdet_cdf(xs,dfdet_trend(PJ{k,1}),PJ{k,2}); f = dfdet_pdf(xs,dfdet_trend(PJ{k,1}),PJ{k,2});
+    check(sprintf('trend(%d) c=%g x=-1e-20 by the paths: F, f against Julia',PJ{k,1},PJ{k,2}),max(abs([F(1) - PJ{k,3}, f(1) - PJ{k,4}])),1e-12);
+    check(sprintf('trend(%d) c=%g x=-1e-100, -1e-200, -5e-324 by the paths: F, f against x = -1e-20',PJ{k,1},PJ{k,2}),max(abs([F(2:end) - F(1), f(2:end) - f(1)])),1e-12);
+end
+f = dfdet_pdf([-1e-200 1e-200],dfdet_perron('C',0.3),-5);
+check('Perron C at 0.3, c=-5: f(-1e-200), f(1e-200) finite (and equal to 1e-12)',abs(f(1) - f(2)),1e-12);
+check('trend(0), c=0, x=1e-160 against case DU at x = 0',abs(dfdet_cdf(1e-160,dfdet_trend(0),0) - dfdet_cdf(0,dfdet_trend(0),0)),1e-12);
+xs = typecast(typecast(-7.8125,'uint64') - uint64([1 2]),'double');
+check('trend(-1), c=0: F at the two ulps above -7.8125 finite',double(~all(isfinite(dfdet_cdf(xs,dfdet_trend(-1),0)))),0);
 % the guard on the nodes of the U-shapes before the outer sum (USHAPE_GUARD of DFDET_CONTOUR): the design (1 + r,
 % 1{r < 0.4}), whose positive root runs off on the vertical line, and d(r) = 1 + r with a fixed start are refused before
 % any inner integral (the guard in the U-shapes refused after 11 s; the time is now that of the outer path, about 1 s)

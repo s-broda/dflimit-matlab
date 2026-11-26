@@ -834,6 +834,9 @@ if nk == 4
 else
     R3 = complex(zeros(size(z)));
 end
+% (an end so far out that Ea underflows to zero, the root a = -1/(2x) of X at a tiny x < 0, contributes nothing but its
+% flag: a^2 = Inf times Ea = 0 gave NaN in the density; ctr_rend of DFDet.jl)
+if ~all(nz), R0(~nz) = 0; R1(~nz) = 0; R2(~nz) = 0; R3(~nz) = 0; end
 end
 
 function [e0,e1,e2,e3] = rend_part(v,sa,i1,beta,E,nk)

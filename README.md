@@ -111,7 +111,7 @@ coefficient statistic, the linear form U - aV, the denominator V and ADFmax for 
 trends of any order, breaks in level and slope at several known dates, smooth functions of t/n, with a zero, fixed or
 stationary start, GLS detrending, a local null value and the statistic that detrends first; and the companions of
 that paper, the point-optimal statistic and the Gaussian power envelope for any design (`pt_*`), the LM statistic
-(`lm_*`), MZ_alpha and MSB (`mza_*`, `msb_*`). A design is built by a constructor (`dfdet_trend`, `dfdet_perron`,
+(`lm_*`; for trend functions whose span contains the constant and a linear trend, an error otherwise), MZ_alpha and MSB (`mza_*`, `msb_*`). A design is built by a constructor (`dfdet_trend`, `dfdet_perron`,
 `dfdet_fdesign`, `dfdet_ltrend`, `dfdet_design_from_matrix`, `dfdet_detrend_first`, `dfdet_determ`); the joint moment
 generating function of the numerator and the denominator is a small determinant, its roots are followed along an
 outer contour, and the distribution function and the density are the inversion on paths around the roots, a double
