@@ -322,6 +322,9 @@ int det_newton_safe(det_ff_t ff, void *ctx, double p, double x0, double step, do
 /* the inversion on two lines with the normal component in the kernel (lines_both) on the outer contour CP of the design
  * with its start (zero or stationary): F and f of rho tau_c0 + sqrt(1 - rho^2) Z, 0 < rho < 1, at the finite points x */
 int det_lines_both(const det_path *CP, int nx, const double *x, double rho, double c0, double *F, double *f, char *err, size_t errlen);
+/* the panels of [A, B] graded toward the points pos[i] with the smallest panels h[i] (graded_panels): *ab two ends per panel
+ * (malloc'd), the number of panels returned */
+int det_graded_panels(double A, double B, int nf, const double *pos, const double *h, double **ab);
 /* the first seasonal t-ratio by the sum of the residues (t3_residues) on the outer contour CP (zero start) */
 int det_t3_residues(const det_path *CP, int nx, const double *x, double c0, double *F, double *f, char *err, size_t errlen);
 
