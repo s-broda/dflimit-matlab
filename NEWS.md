@@ -505,8 +505,8 @@ checks, about six minutes) and `dfdet_test` (1330 checks, about seven minutes). 
 `dfl_autoengine` with x = 0 for every region and labelled the parabola of case DK at c0 = 0, c = -7 classical, where the
 router (x = 1 and the parabola's c0) takes the general engine; the committed table's row is relabelled without re-timing.
 
-**The two papers.** The programs cite the lead paper, Bao, Broda and Kan, "The Exact Limiting Distribution of the
-Dickey-Fuller t-Ratio with General Deterministic Terms" (SSRN 7745921), the paper of the general engine and of the
+**The two papers.** The programs cite the lead paper, Bao, Broda and Kan, "Exact Limiting Distributions of Unit Root
+t-Ratios" (SSRN 7745921), the paper of the general engine and of the
 inversion formula on paths, and, for the classical programs and their representations, its companion, "Low-Rank
 Representations of the Classical Dickey-Fuller Limits, with an Extension to Predictive Regressions" (SSRN 7725619,
 the posting that carried the former title "... and Some Related Statistics"): README, `Contents.m`, the help of the
