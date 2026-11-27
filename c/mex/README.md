@@ -7,7 +7,7 @@ DFLimit.jl, checked against its values by the tests in `c/test/`).  It needs not
 - **Under the MATLAB programs**: `dfx_core.m`, `tr_limdist.m`, `tr_contour.m` and `tr_limmom.m` have the names and
   signatures of the engines in `matlab/`; with this folder ahead of `matlab/` on the path, `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`,
   `ltratio_mom`, `ltratio_test` and the companion paper's replication script `ltratio_paper` (in its replication package) run unchanged on the C engine (`ltratio_test` passes all 335
-  checks in about 30 s instead of about five minutes, when started from a folder other than `matlab/`: the current folder
+  checks in about 35 s instead of about seven minutes, when started from a folder other than `matlab/`: the current folder
   comes first on MATLAB's path).  In the repository this folder also has `tr_adfmax.m`, `tr_region.m` and
   `tr_gilpelaez.m`, the replacements of the engines of the applications in `matlab/`: `adfmax_cdf`, `adfmax_pdf`,
   `adfmax_icdf` (the ADFmax test), `ltratio_region` (the regions {U <= g(V)} of case DK, for the boundary types
@@ -100,23 +100,23 @@ the level of the inner rules at each point; `ltratio_mex('rule', ...)` gives the
 integrals).
 
 Seconds per value of the distribution function by one evaluation, MATLAB R2026b on an M4 laptop (ten cores, on
-battery power), `timeit` medians of warm calls, November 26, 2026 (version 0.5.0, the thinner rules of one evaluation
-included; the script `timing_table.m` gives the first table and runs `timing_fixed.m`, which gives
-the second):
+mains power with nothing else running), the smallest of 7 warm calls (3 from 1 s on), November 27, 2026 (version 0.5.0,
+the thinner rules of one evaluation included; the script `timing_table.m` gives the first table and runs
+`timing_fixed.m`, which gives the second):
 
 | case c c0 x | MATLAB programs (1 thread) single / double | C MEX 1 thread single / double | C MEX 10 threads single / double |
 |---|---|---|---|
-| DK 0 0 -1.94 | 0.034 / 0.018 | 0.0010 / 0.0018 | 0.0005 / 0.0008 |
-| DU 0 0 -2.86 | 0.066 / 0.075 | 0.0061 / 0.016 | 0.0015 / 0.0084 |
-| DT 0 0 -3.41 | 0.058 / 0.110 | 0.0055 / 0.020 | 0.0014 / 0.010 |
-| DU -5 0 -2.86 | 0.067 / 0.052 | 0.0058 / 0.012 | 0.0015 / 0.0079 |
-| DU 10 0 20 | 0.107 / 0.106 | 0.027 / 0.039 | 0.0052 / 0.011 |
-| DU 0 1 -1 | 0.191 / 0.049 | 0.040 / 0.017 | 0.0073 / 0.0084 |
-| DT -2.5 -5 -1.1 | 0.184 / 0.099 | 0.037 / 0.013 | 0.0069 / 0.0069 |
-| DK 2 2 0 | 0.0054 / 0.042 | 0.0006 / 0.0053 | 0.0002 / 0.0015 |
-| DU 5 -5 126.85 | 1.11 / 0.105 | 0.369 / 0.025 | 0.063 / 0.0094 |
-| SU -5 0 -2 | 0.083 / 0.376 | 0.0073 / 0.020 | 0.0019 / 0.0055 |
-| ST -10 0 -3 | 0.066 / 0.460 | 0.0058 / 0.021 | 0.0016 / 0.0057 |
+| DK 0 0 -1.94 | 0.035 / 0.015 | 0.0006 / 0.0018 | 0.0004 / 0.0009 |
+| DU 0 0 -2.86 | 0.068 / 0.070 | 0.0062 / 0.016 | 0.0015 / 0.0083 |
+| DT 0 0 -3.41 | 0.059 / 0.111 | 0.0055 / 0.020 | 0.0015 / 0.0098 |
+| DU -5 0 -2.86 | 0.068 / 0.055 | 0.0058 / 0.012 | 0.0015 / 0.0081 |
+| DU 10 0 20 | 0.106 / 0.113 | 0.027 / 0.039 | 0.0053 / 0.011 |
+| DU 0 1 -1 | 0.191 / 0.055 | 0.040 / 0.017 | 0.0073 / 0.0082 |
+| DT -2.5 -5 -1.1 | 0.184 / 0.102 | 0.037 / 0.013 | 0.0069 / 0.0068 |
+| DK 2 2 0 | 0.0056 / 0.044 | 0.0006 / 0.0053 | 0.0002 / 0.0014 |
+| DU 5 -5 126.85 | 1.11 / 0.106 | 0.368 / 0.025 | 0.062 / 0.0089 |
+| SU -5 0 -2 | 0.084 / 0.352 | 0.0073 / 0.021 | 0.0018 / 0.0055 |
+| ST -10 0 -3 | 0.067 / 0.443 | 0.0058 / 0.021 | 0.0016 / 0.0057 |
 
 With a fixed start the MATLAB programs have the conditional integral and, in cases DU, DT, the contour integral (on one
 thread, as in the first table); the line integral uses the noncentral kernel, written in C to be vectorized, and
@@ -124,15 +124,15 @@ thread, as in the first table); the line integral uses the noncentral kernel, wr
 
 | case c c0 x, g0 | MATLAB programs (1 thread) double / contour | C MEX 1 thread single / double / contour | C MEX 10 threads single / double / contour |
 |---|---|---|---|
-| DK -5 0 -2, g0 = 1 | 0.066 / -- | 0.042 / 0.0098 / -- | 0.0071 / 0.0044 / -- |
-| DK 2 0 1, g0 = 1 | 0.100 / -- | 0.0039 / 0.022 / -- | 0.0008 / 0.0098 / -- |
-| DU -5 0 -2.86, g0 = 1 | 1.52 / 0.071 | 0.323 / 0.731 / 0.016 | 0.075 / 0.235 / 0.0033 |
-| DU -5 0 0.5, g0 = 1 | 1.35 / 0.025 | 0.032 / 0.665 / 0.0078 | 0.0077 / 0.238 / 0.0018 |
-| DU 2 0 -3, g0 = 1 | 1.53 / 0.090 | 0.331 / 0.864 / 0.028 | 0.079 / 0.246 / 0.0058 |
-| DT -5 0 -3, g0 = 2 | 1.85 / 0.055 | 0.300 / 0.767 / 0.017 | 0.071 / 0.242 / 0.0035 |
-| DT 2 0 -2, g0 = 1 | 2.28 / 0.080 | 0.363 / 0.808 / 0.026 | 0.087 / 0.247 / 0.0053 |
-| DU -5 -5 -2, g0 = 1 | 1.77 / 0.043 | 0.319 / 0.716 / 0.014 | 0.074 / 0.225 / 0.0029 |
-| DT -2.5 -5 -1.1, g0 = 1 | 1.80 / 0.038 | 0.347 / 0.755 / 0.012 | 0.083 / 0.269 / 0.0026 |
+| DK -5 0 -2, g0 = 1 | 0.063 / -- | 0.041 / 0.0098 / -- | 0.0070 / 0.0044 / -- |
+| DK 2 0 1, g0 = 1 | 0.099 / -- | 0.0040 / 0.021 / -- | 0.0008 / 0.0097 / -- |
+| DU -5 0 -2.86, g0 = 1 | 1.51 / 0.066 | 0.324 / 0.729 / 0.016 | 0.074 / 0.234 / 0.0033 |
+| DU -5 0 0.5, g0 = 1 | 1.32 / 0.025 | 0.032 / 0.663 / 0.0078 | 0.0078 / 0.237 / 0.0018 |
+| DU 2 0 -3, g0 = 1 | 1.30 / 0.090 | 0.331 / 0.861 / 0.028 | 0.079 / 0.246 / 0.0057 |
+| DT -5 0 -3, g0 = 2 | 1.61 / 0.054 | 0.299 / 0.761 / 0.017 | 0.070 / 0.241 / 0.0034 |
+| DT 2 0 -2, g0 = 1 | 2.00 / 0.082 | 0.362 / 0.800 / 0.025 | 0.086 / 0.246 / 0.0052 |
+| DU -5 -5 -2, g0 = 1 | 1.50 / 0.045 | 0.318 / 0.709 / 0.014 | 0.073 / 0.225 / 0.0029 |
+| DT -2.5 -5 -1.1, g0 = 1 | 1.75 / 0.038 | 0.348 / 0.745 / 0.012 | 0.083 / 0.250 / 0.0025 |
 
 ## Downloading a built MEX file
 

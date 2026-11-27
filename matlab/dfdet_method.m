@@ -9,9 +9,10 @@ function dfdet_method(opts,fn)
 %   the statistic that detrends first; the C engine, the Julia, R and Python
 %   packages, where opts.method = 'auto' takes it at c0 = 0), is not
 %   available in the MATLAB programs: their line integral (DFX_CORE, without
-%   the fixed node layouts of the C and Julia engines) is 1.4 to 4.5 times
+%   the fixed node layouts of the C and Julia engines) is 2.8 to 9 times
 %   slower than their inversion on paths in the rank-two cases DU and DT
-%   at c0 = 0 even with its closed forms (validation/engine_table_matlab.txt),
+%   at c0 = 0 even with its closed forms (validation/engine_table_matlab.txt,
+%   c = 0, -10, -50; November 27, 2026),
 %   so that it would not be faster for any design.  With the folder of the
 %   MEX file (c/mex) ahead on the path, LTRATIO_CDF, LTRATIO_PDF and
 %   LTRATIO_ICDF with a design and opts.method = 'line' take the C engine's

@@ -3,9 +3,9 @@ function nfail = ltratio_test(quick,strict)
 %
 %   nfail = LTRATIO_TEST runs the checks below, prints each comparison with
 %   its tolerance and a PASS/FAIL mark, and returns the number of failures.
-%   LTRATIO_TEST(true) runs the quick version (fewer points; about a minute
-%   in MATLAB), LTRATIO_TEST(quick,true) raises an error at the end when a
-%   check has failed, for use in scripts.
+%   LTRATIO_TEST(true) runs the quick version (fewer points; about five and a
+%   half minutes in MATLAB), LTRATIO_TEST(quick,true) raises an error at the
+%   end when a check has failed, for use in scripts.
 %
 %    1. the two representations against each other: the line integral
 %       (DFX_CORE) and the conditional integral (TR_LIMDIST), distribution function

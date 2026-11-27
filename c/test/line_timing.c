@@ -1,6 +1,6 @@
 /* line_timing.c: the measurements behind the rule of method auto of the general engine (det_line_auto, dfl_det_line.c): the
  * line integral with the explicit kernel (method line) against the inversion on paths around the roots (method paths) for
- * designs whose numerator has rank one or two, warm calls (the minimum of 3 after one call; the outer path, the provider and
+ * designs whose numerator has rank one or two, warm calls (the minimum of 7 after one call; the outer path, the provider and
  * the layouts cached): per value (F and f at x = mean + (-2, -1, 0, 1, 2) sd, ten values) and per quantile (p = 0.05 from the
  * normal approximation; each repetition at a new p, 0.05 + 0.001 k, so that the points of the search are new), 1 and 4
  * threads; and the largest difference of the two methods' values.
@@ -42,12 +42,12 @@ int main(int argc, char **argv)
         for (int nth = 1; nth <= 4; nth += 3) {
             dfl_set_nworkers(nth);
             double tl = INFINITY, tp = INFINITY, ql = INFINITY, qp = INFINITY, q;
-            for (int r = 0; r < 3; r++) {
+            for (int r = 0; r < 7; r++) {
                 double t = dfl_wtime(); vals(&D, c, &ol, xs, vl); t = dfl_wtime() - t; if (t < tl) tl = t;
                 t = dfl_wtime(); vals(&D, c, &op, xs, vp); t = dfl_wtime() - t; if (t < tp) tp = t;
             }
             double p0 = 0.049; dfl_det_quantile(&D, 1, &p0, c, x0, 1e-10, &ol, &q, E, sizeof E); dfl_det_quantile(&D, 1, &p0, c, x0, 1e-10, &op, &q, E, sizeof E);
-            for (int r = 0; r < 3; r++) {
+            for (int r = 0; r < 7; r++) {
                 double p = 0.05 + 0.001 * r + 0.0001 * nth;
                 double t = dfl_wtime(); dfl_det_quantile(&D, 1, &p, c, x0, 1e-10, &ol, &q, E, sizeof E); t = dfl_wtime() - t; if (t < ql) ql = t;
                 t = dfl_wtime(); dfl_det_quantile(&D, 1, &p, c, x0, 1e-10, &op, &q, E, sizeof E); t = dfl_wtime() - t; if (t < qp) qp = t;

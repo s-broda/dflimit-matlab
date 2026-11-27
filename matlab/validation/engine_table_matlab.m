@@ -6,16 +6,17 @@ function engine_table_matlab(outfile,jfile,sel,autoonly)
 %   (opts.engine = 'general'), on the cells of the table of the Julia package
 %   (dev/engine_table.txt of DFLimit.jl, jfile, whose times it prints beside):
 %   the warm time of one call (after a call that builds the outer paths and
-%   fills the caches; the smaller of two timed calls when one takes less than
-%   2 s, one call otherwise; a call of more than 60 s is timed once, without
+%   fills the caches; the smallest of seven timed calls when one takes less
+%   than 1 s, of three otherwise; a call of more than 60 s is timed once, without
 %   the warm-up, marked *), the largest difference of the two engines, the
 %   ratio of the times, the ratio of the Julia engines, and the engine of the
 %   MATLAB rule (LTRATIO_ENGINE) and of the Julia rule in the cell.  A cell
 %   outside the checks of the classical programs (LTRATIO_ARGS) is marked
 %   n/a.  Writes outfile (default engine_table_matlab.txt beside this file).
-%   sel: the numbers of the rows to run (default all).  About two hours (the
-%   row of case DU at c = 10 in the bulk is not timed: the general engine takes
-%   26 s per value there, the classical programs 1.7 s).  autoonly (false):
+%   sel: the numbers of the rows to run (default all).  About half an hour
+%   (November 27, 2026; the row of case DU at c = 10 in the bulk takes one call
+%   of the general engine, 196 s for F and f at its three points, the
+%   classical programs 5.8 s).  autoonly (false):
 %   only the engine of the MATLAB rule per row, without timings.
 %
 %   See also LTRATIO_ENGINE.
@@ -28,7 +29,8 @@ if nargin < 4, autoonly = false; end
 J = jtable(jfile);
 fid = fopen(outfile,'w'); cl = onCleanup(@() fclose(fid));
 pr = @(varargin) fprintf_both(fid,varargin{:});
-pr('The choice of engine of the MATLAB programs: warm times in ms of the two MATLAB engines (the classical programs,\n');
+pr('The choice of engine of the MATLAB programs: warm times in ms (the smallest of 7 timed calls after a\n');
+pr('warm-up, 3 from 1 s on) of the two MATLAB engines (the classical programs,\n');
 pr('engine = ''classical'', and the general engine, engine = ''general''), MATLAB %s with its default threads; diff the largest difference of\n',version);
 pr('the two; g/c the ratio of the times; Julia g/c the ratio of the engines of DFLimit.jl (dev/engine_table.txt); auto the engine of\n');
 pr('the MATLAB rule (LTRATIO_ENGINE) and of the Julia rule (DFLimit.autoengine) in the cell.  * a single call of more than 60 s;\n');
@@ -74,7 +76,8 @@ catch ME
 end
 if t1 > 60, t = t1; mark = '*'; return, end
 t0 = tic; v = f(); t = toc(t0);
-if t < 2, t0 = tic; f(); t = min(t,toc(t0)); end
+n = 7; if t >= 1, n = 3; end
+for k = 2:n, t0 = tic; f(); t = min(t,toc(t0)); end
 end
 
 function d = maxdiff(a,b,rel)

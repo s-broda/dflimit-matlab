@@ -1,6 +1,7 @@
 /* engine_table.c: the measurements behind the choice of engine of the C router (dfl_autoengine): the cells of
  * dev/engine_table.jl of DFLimit.jl, each computed by the classical C engine and by the general C engine (dfl_det_*), the
- * warm time of one call (the minimum of 2 after a warm-up; the general engine's outer path cached), the largest difference of
+ * warm time of one call (the minimum of 7 timed calls after a warm-up, of 3 where a call takes 1 s or more, the first call
+ * alone, marked *, where it takes more than 60 s; the general engine's outer path cached), the largest difference of
  * the two, and the engine of dfl_autoengine in the cell.  Writes the table to stdout (c/test/engine_table_c.txt).
  *   cc -std=c11 -O2 -I c -c c/test/engine_table.c ... (link with the objects of c/build.sh); DFL_NTHREADS=4 ./engine_table */
 #include "dflimit.h"
@@ -43,7 +44,17 @@ static void row(const char *label, const cell_t *e)
     if (e->type == T_LIN) k += snprintf(lab + k, sizeof lab - k, ", a = %g%s", e->a, e->model == 4 ? "" : "");
     if (e->type == T_LIN && e->model == 4) k += snprintf(lab + k, sizeof lab - k, ", cbar = %g", e->cbar);
     snprintf(lab + k, sizeof lab - k, ")");
-    int rcc = run(e, DFL_ENGINE_CLASSICAL, vc, &nc), rcg = run(e, DFL_ENGINE_GENERAL, vg, &ng);
+    double t0c = dfl_wtime(); int rcc = run(e, DFL_ENGINE_CLASSICAL, vc, &nc); t0c = dfl_wtime() - t0c;
+    /* (DFL_TABLE_SKIP_GENERAL: the general engine is not run in the cells whose label contains this text; the clean pass of
+     * November 26, 2026 skipped the bulk of case DU at c = 10, where one call of the general engine had not finished after
+     * 16 minutes, single-threaded in its line integral's provider, against 23 s in the table of November 22) */
+    const char *skg = getenv("DFL_TABLE_SKIP_GENERAL");
+    if (skg && *skg && strstr(lab, skg)) {
+        double tc = INFINITY;
+        for (int r = 0, nr = 7; r < nr; r++) { t = dfl_wtime(); run(e, DFL_ENGINE_CLASSICAL, vc, &nc); t = dfl_wtime() - t; if (t < tc) tc = t; if (t >= 1) nr = 3; }
+        printf("  %-66s classical %9.2f  general   skipped (DFL_TABLE_SKIP_GENERAL)\n", lab, 1e3 * tc); fflush(stdout); (void) rcc; return;
+    }
+    double t0g = dfl_wtime(); int rcg = run(e, DFL_ENGINE_GENERAL, vg, &ng); t0g = dfl_wtime() - t0g;
     if (rcc || rcg) { printf("  %-66s error: %s\n", lab, ERR); fflush(stdout); return; }
     double d = 0;
     for (int i = 0; i < nc; i++) {
@@ -51,15 +62,16 @@ static void row(const char *label, const cell_t *e)
         if (e->type == T_MOM) di = fabs(vg[i] / vc[i] - 1);
         if (!(di <= d)) d = di;
     }
+    /* (a call of more than 60 s is timed once, by the first call, and marked *, as in engine_table_matlab.m) */
     double tc = INFINITY, tg = INFINITY;
-    for (int r = 0; r < 2; r++) { t = dfl_wtime(); run(e, DFL_ENGINE_CLASSICAL, vc, &nc); t = dfl_wtime() - t; if (t < tc) tc = t; }
-    for (int r = 0; r < 2; r++) { t = dfl_wtime(); run(e, DFL_ENGINE_GENERAL, vg, &ng); t = dfl_wtime() - t; if (t < tg) tg = t; }
+    if (t0c > 60) tc = t0c; else for (int r = 0, nr = 7; r < nr; r++) { t = dfl_wtime(); run(e, DFL_ENGINE_CLASSICAL, vc, &nc); t = dfl_wtime() - t; if (t < tc) tc = t; if (t >= 1) nr = 3; }
+    if (t0g > 60) tg = t0g; else for (int r = 0, nr = 7; r < nr; r++) { t = dfl_wtime(); run(e, DFL_ENGINE_GENERAL, vg, &ng); t = dfl_wtime() - t; if (t < tg) tg = t; if (t >= 1) nr = 3; }
     int f = e->type == T_DIST || e->type == T_COEF || e->type == T_COEFQ ? DFL_F_DIST : e->type == T_MOM ? DFL_F_MOM : e->type == T_ICDF ? DFL_F_ICDF :
             e->type == T_LIN ? DFL_F_LINCDF : e->type == T_ENV ? DFL_F_ENVELOPE : e->type == T_ADF ? DFL_F_ADFMAX : DFL_F_REGION;
     double xa = e->type == T_DIST ? e->x[e->n / 2] : e->type == T_LIN ? e->a : 0.0;
     double c0a = e->type == T_COEF ? e->c0 - 10.0 : e->c0;
     int au = dfl_autoengine(f, e->model, e->stat, e->g0, e->type == T_LIN ? e->cbar : (e->model == 4 ? DFL_CBAR_GLS : NAN), e->type == T_ENV ? e->x[0] : e->c, c0a, xa);
-    printf("  %-66s classical %9.2f  general %9.2f  ratio g/c %7.2f  diff %8.1e  auto %s\n", lab, 1e3 * tc, 1e3 * tg, tg / tc, d, au == DFL_ENGINE_GENERAL ? "general" : "classical");
+    printf("  %-66s classical %9.2f%s general %9.2f%s ratio g/c %7.2f  diff %8.1e  auto %s\n", lab, 1e3 * tc, t0c > 60 ? "*" : " ", 1e3 * tg, t0g > 60 ? "*" : " ", tg / tc, d, au == DFL_ENGINE_GENERAL ? "general" : "classical");
     fflush(stdout);
 }
 /* F and f at mean + (-2, -1, 0, 1, 2) sd (the classical engine's moments) */
@@ -80,7 +92,7 @@ int main(int argc, char **argv)
 {
     double k5[5] = {-2, -1, 0, 1, 2}, k3[3] = {-1, 0, 1};
     if (argc > 1 && !strcmp(argv[1], "borders")) { borders(); return 0; }
-    printf("The choice of engine of the C router: warm times in ms (minimum of 2), %d threads; diff the largest difference of the two\n", dfl_nworkers());
+    printf("The choice of engine of the C router: warm times in ms (the minimum of 7 timed calls, 3 from 1 s on; * one call of more than 60 s), %d threads; diff the largest difference of the two\n", dfl_nworkers());
     printf("C engines (relative for the moments); auto: the engine of dfl_autoengine in the cell (the cells of dev/engine_table.txt of DFLimit.jl).\n\n");
     printf("(1) the t-ratio, F and f at x = mean + (-2, -1, 0, 1, 2) sd\n");
     const char *L1 = "zero start, c0 = 0, -100 <= c <= 5";

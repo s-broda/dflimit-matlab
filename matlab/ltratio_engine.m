@@ -49,15 +49,15 @@ function gen = ltratio_engine(f,S,c,c0,x)
 %   a zero or fixed start up to c = 2, with a stationary start for c <= -1 and
 %   in case ST from c = -0.5 on (nearer zero the general search is off, by up
 %   to 2.6e-7 in case ST at c = -1e-3), as the C rule.  Moments: the
-%   classical programs (1.1 to 360 times faster).  The linear form: the general
-%   engine for the law of V (a = NaN, 4 to 350 times faster, and the more
+%   classical programs (1.3 to 560 times faster).  The linear form: the general
+%   engine for the law of V (a = NaN, 5 to 400 times faster, and the more
 %   accurate for c >= 5), in case DK for c <= 0 with |a| <= 0.1 (where the
-%   classical programs take a conditional integral; 1.9 to 3.4 times) and in
+%   classical programs take a conditional integral; 2.1 to 3.6 times) and in
 %   case DG for c > 3.5, where the classical inversion refuses.  The envelope:
 %   the general engine in case DK for -1 < c < 0 (4 times faster), the
-%   classical programs otherwise (4 to 28 times faster).  ADFmax: the general
+%   classical programs otherwise (4.8 to 49 times faster).  ADFmax: the general
 %   engine with a stationary start for c <= -0.1 (as the Julia package) and
-%   with a zero start for c <= -10 (4 times faster).  Regions: the classical
+%   with a zero start for c <= -10 (3.4 times faster).  Regions: the classical
 %   programs.  With the
 %   folder of the MEX file of the C engine ahead of these programs on the
 %   path (LTRATIO_CROUTE('on'): LTRATIO_MEX and its drop-ins, which carry the

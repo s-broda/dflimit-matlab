@@ -52,7 +52,7 @@ function [F,info] = tr_contour(x,cas,c,opts,mode)
 %   of before where |c g0| > 20; opts.rule = 'present' the rule of before,
 %   64 nodes on the present step; opts.n1, the nodes, and opts.hfac, the
 %   factor of the outer step, override it); true the pair A, B
-%   and the levels described above, at 1.5 to 3 times the cost, with
+%   and the levels described above, at 2.8 to 4.6 times the cost, with
 %   info: time; err, the error estimate per point; status, 0 where the estimate
 %   is at most 1e-10 and the value is finite, otherwise 2 (the warning
 %   tr_contour:status); nodes, the number of outer nodes of A and B together;

@@ -45,7 +45,7 @@ function nfail = dfdet_test(quick,strict)
 %   Tolerances: 1e-8 absolute for distribution functions, densities and
 %   probabilities, 1e-6 for quantiles and critical values, 1e-8 relative for
 %   moments, determinants, roots and eigenvalues, 1e-10 relative for t_*.
-%   About ten minutes (two in the quick version).
+%   About six and a half minutes (five and a half in the quick version).
 %
 %   See also LTRATIO_TEST, DFDET_CDF.
 if nargin < 1 || isempty(quick), quick = false; end

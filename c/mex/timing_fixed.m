@@ -1,6 +1,6 @@
 % TIMING_FIXED  Seconds per value of the distribution function with a fixed start: the MATLAB programs (the conditional
 % integral, and the contour integral in cases DU, DT; 1 thread) against the C MEX (the line integral with the
-% noncentral kernel, the conditional integral and the contour integral), 1 and 10 threads; timeit medians (the
+% noncentral kernel, the conditional integral and the contour integral), 1 and 10 threads; the smallest of 7 warm calls (3 from 1 s on) (the
 % fixed-start rows of the table in README.md and the cost paragraph of the Supplementary Material), and the values.
 %   Needs the MEX file in this folder and MATLAB; run from anywhere.
 here = fileparts(fileparts(fileparts(mfilename('fullpath')))); addpath(fullfile(here,'matlab')); mexdir = fullfile(here,'c','mex');
@@ -13,25 +13,31 @@ for k = 1:size(pts,1)
     o = struct('c0',c0,'g0',g0); ctr = any(strcmp(cas,{'DU','DT'}));
     % the MATLAB programs: matlab/ ahead of c/mex on the path, one thread
     rmpath(mexdir); addpath(fullfile(here,'matlab')); maxNumCompThreads(1);
-    tm = timeit(@() ltratio_cdf(x, cas, c, setfield(o,'method','double')));
+    tm = tmin(@() ltratio_cdf(x, cas, c, setfield(o,'method','double')));
     Fm = ltratio_cdf(x, cas, c, setfield(o,'method','double'));
     tmc = NaN; Fmc = NaN;
     if ctr
-        tmc = timeit(@() ltratio_cdf(x, cas, c, setfield(o,'method','contour')));
+        tmc = tmin(@() ltratio_cdf(x, cas, c, setfield(o,'method','contour')));
         Fmc = ltratio_cdf(x, cas, c, setfield(o,'method','contour'));
     end
     % the MEX: c/mex ahead
     addpath(mexdir);
     ltratio('threads', 1);
-    ts1 = timeit(@() ltratio('cdf', x, cas, c, setfield(o,'method','single')));
-    td1 = timeit(@() ltratio('cdf', x, cas, c, setfield(o,'method','double')));
-    tc1 = NaN; if ctr, tc1 = timeit(@() ltratio('cdf', x, cas, c, setfield(o,'method','contour'))); end
+    ts1 = tmin(@() ltratio('cdf', x, cas, c, setfield(o,'method','single')));
+    td1 = tmin(@() ltratio('cdf', x, cas, c, setfield(o,'method','double')));
+    tc1 = NaN; if ctr, tc1 = tmin(@() ltratio('cdf', x, cas, c, setfield(o,'method','contour'))); end
     ltratio('threads', 10);
-    ts10 = timeit(@() ltratio('cdf', x, cas, c, setfield(o,'method','single')));
-    td10 = timeit(@() ltratio('cdf', x, cas, c, setfield(o,'method','double')));
-    tc10 = NaN; if ctr, tc10 = timeit(@() ltratio('cdf', x, cas, c, setfield(o,'method','contour'))); end
+    ts10 = tmin(@() ltratio('cdf', x, cas, c, setfield(o,'method','single')));
+    td10 = tmin(@() ltratio('cdf', x, cas, c, setfield(o,'method','double')));
+    tc10 = NaN; if ctr, tc10 = tmin(@() ltratio('cdf', x, cas, c, setfield(o,'method','contour'))); end
     Fs = ltratio('cdf', x, cas, c, setfield(o,'method','single')); Fd = ltratio('cdf', x, cas, c, setfield(o,'method','double'));
     Fc = NaN; if ctr, Fc = ltratio('cdf', x, cas, c, setfield(o,'method','contour')); end
     fprintf('%-18s %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f   %18.15f %18.15f %18.15f %18.15f %18.15f\n', ...
             sprintf('%s %g %g %g %g', cas, c, c0, g0, x), tm, tmc, ts1, td1, tc1, ts10, td10, tc10, Fs, Fd, Fc, Fm, Fmc);
+end
+
+function t = tmin(f)
+% the smallest of 7 timed calls after a warm-up call (of 3 where a call takes 1 s or more)
+f(); t0 = tic; f(); t = toc(t0); n = 7; if t >= 1, n = 3; end
+for k = 2:n, t0 = tic; f(); t = min(t, toc(t0)); end
 end

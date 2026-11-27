@@ -254,7 +254,7 @@
 %                   argument checks; the applications against the Julia
 %                   engine; the contour integral against the Julia engine
 %                   (a fixed start in cases DU, DT); the default against
-%                   verified and the warnings.  About five minutes (30 s on
+%                   verified and the warnings.  About seven minutes (35 s on
 %                   the MEX drop-ins).
 %   validation/   - the script behind the accuracy tables of earlier versions of the Supplementary Material,
 %                   the timings behind the automatic choice of the representation and the reference

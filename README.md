@@ -41,12 +41,12 @@ ltratio_mom(4, 'DT')                          % first four moments of tau_tau
 The repository holds two implementations of the same functions with the same arguments.
 
 The MATLAB programs in `matlab/` are plain MATLAB (R2019b or later; they also run, more slowly, on GNU Octave). They
-take 0.006 to 0.15 seconds per value on one thread by the default (up to 2 seconds with a representation forced, the
-conditional integral with a fixed start; `c/mex/README.md`, November 2026) and are the readable form of the method: `Contents.m` lists them and
+take 0.007 to 0.13 seconds per value on one thread by the default (up to 2 seconds with a representation forced, the
+conditional integral with a fixed start; `c/mex/README.md`, November 27, 2026) and are the readable form of the method: `Contents.m` lists them and
 the manual `matlab/doc/ltratio_manual.pdf` describes the user-level routines, the engines (the line integral `dfx_*`,
 the conditional integral `tr_limdist`, the contour integral `tr_contour`), accuracy and cost.
 
-The C engine in `c/` is a port of the Julia engine `DFExact.jl` of the package DFLimit.jl, multithreaded and 6 to 80
+The C engine in `c/` is a port of the Julia engine `DFExact.jl` of the package DFLimit.jl, multithreaded and 5 to 90
 times faster (the same representation, ten threads against the MATLAB programs' one; `c/mex/README.md`). In MATLAB it is reached through the MEX file `ltratio_mex`, built from `c/` with the gateway
 `c/mex/ltratio_mex.c`. The folder of the MEX file has `ltratio.m`, which offers the functions of the MATLAB programs
 with the same arguments (`ltratio('cdf', -2.86157, 'DU', -5)`), and drop-in replacements of the engines of the MATLAB
@@ -54,8 +54,9 @@ programs (`dfx_core.m`, `tr_limdist.m`, `tr_contour.m`, `tr_limmom.m`, `tr_adfma
 `tr_gilpelaez.m`): with that folder ahead of `matlab/` on the path, `ltratio_cdf` and the other user-level routines run
 unchanged on the C engine. The C engine also has the line integral with a fixed start, which the MATLAB programs lack
 (they take the conditional integral there), and its line integral takes the inner integrals on fixed node layouts where
-they serve (c <= 0 and c0 = 0, as the Julia engine: `c/dfl_batch.c`), 8 to 20 times faster than the adaptive rules in
-case DK and 2 to 3 times in the other cases; the MATLAB programs keep the adaptive rules there (they are the readable
+they serve (c <= 0 and c0 = 0, as the Julia engine: `c/dfl_batch.c`), 15 to 20 times faster than the adaptive rules in
+case DK on one thread (8 to 13 on four) and 1.9 to 3.2 times in the other cases (1.7 to 2.9 on four; F and f at five
+points, warm calls on mains power, November 27, 2026); the MATLAB programs keep the adaptive rules there (they are the readable
 form, and their values agree with the layouts' to about 1e-12).
 
 Use the MATLAB programs when nothing but MATLAB may be installed or when the code is to be read, and the MEX file for
@@ -76,9 +77,10 @@ roots supplied by the general engine's transform (`c/dfl_det_line.c`), which `df
 c <= 0.5, where the paths are 1.5 to 2.3 times faster, and with c0 > 0 at the points x < 0 where the outer contour of the
 paths is the vertical line, where the paths do not resolve the two roots of the parabola of such a point and their one
 evaluation was off by up to 1e-3 in the lower tail (the quantiles keep the paths there); the paths otherwise; `DFL_DET_LINE`, `DFL_DET_PATHS`). Measured on one thread and on
-four (`c/test/line_timing.c` and interleaved timings, November 26, 2026): below the unit root the line integral is 1.1 to
-1.7 times faster per value for -20 <= c <= 0; above it the paths are 1.3 to 2.2 times faster up to c = 2 for some designs
-with deterministic terms, but below 1.5 for others beyond c = 0.5 (the Julia rule, whose costs differ, takes the paths up
+four (`c/test/line_timing.c` on mains power, November 27, 2026, and interleaved timings, November 26): below the unit root the line
+integral is 1.0 to 1.6 times faster per value for -20 <= c <= 0 (at c = -30 and -50 the paths up to 2 times faster);
+above it the paths are 1.3 to 2.2 times faster up to c = 2 for some designs with deterministic terms (at c = 2 1.4 to 1.6
+times per value and 1.8 to 2.2 per quantile), but below 1.5 for others beyond c = 0.5 (the Julia rule, whose costs differ, takes the paths up
 to c = 1.5 with one regressor and c = 2 with more). `dfl_engine_*` (`c/dfl_det_route.c`) is one interface over the two C engines, with
 the automatic choice of the Julia package (`dfl_autoengine`), re-derived on November 26, 2026 from interleaved timings of
 the two C engines (a cell moved where the other engine was at least 1.5 times faster) and differing from the Julia rule
@@ -149,9 +151,9 @@ The MATLAB programs have the inversion on paths only: `dfdet_cdf`, `dfdet_pdf` a
 `'auto'` or `'paths'` and refuse `'line'`, the line integral with the explicit kernel of the C engine and of the Julia,
 R and Python packages, with a message that points to the MEX file (`dfdet_method`). Their line integral (`dfx_core`, with
 the adaptive rules) is slower than their inversion on paths in the rank-two cases DU, DT and SU at c0 = 0 even with its
-closed forms of P(t) and the roots: 1.8 times at one point (case DU at c = 0) and 3.2 to 3.7 times at five points in one
-call, whose paths are shared (c = 0 and -10, warm calls on one thread, November 26, 2026; 1.04 to 1.64 times before the
-thinner rules of the paths), so that it would not be faster for any design. With the folder of the MEX file ahead on the path, `ltratio_cdf(x, D, c, struct('method', 'line'))` (and
+closed forms of P(t) and the roots: 3.0 to 3.9 times at one point and 3.0 to 3.6 times at five points in one
+call, whose paths are shared (c = 0 and -10, warm calls on one thread on mains power, November 27, 2026; 1.04 to 1.64
+times before the thinner rules of the paths), so that it would not be faster for any design. With the folder of the MEX file ahead on the path, `ltratio_cdf(x, D, c, struct('method', 'line'))` (and
 `ltratio_pdf`, `ltratio_icdf`, `ltratio('cdf', x, D, c, struct('method', 'line'))`) take the C engine's line integral,
 `'paths'` the C engine's paths, and `'auto'` the C rule.
 
@@ -186,6 +188,15 @@ paths in `c/dfl_det_path.c`) and to the plain MATLAB programs, with the same nam
   `opts.vol`, c <= 0. The moment generating function of its numerator and denominator has poles in its first argument,
   and the inner integral of the inversion on paths is the sum of the residues at the roots on the engine's outer
   contour. The second t-ratio and the F statistic of the regression are in the Julia package only.
+
+The costs of the extensions in the C engine (warm calls on four threads of an M4 laptop on mains power, November 27,
+2026, on the cells of the documentation pages of DFLimit.jl; F and f are two calls): with `vol`, F and f at one point
+3.5 to 9.6 ms and a 5% quantile 9 to 40 ms (10 to 52 ms with the outer contour built; no deterministic terms, an
+intercept, a linear trend with the variance tripling at mid-sample, a break in level and slope with the variance falling);
+with `rho` (rho^2 = 0.5 and 0.9; no deterministic terms, an intercept, a linear trend, a level break), F and f at one
+point by the lines 28 to 80 ms and by the mixture 70 to 530 ms at c0 = 0 (6.4 s with an intercept at c = -5, c0 = 5),
+a 5% quantile 69 to 381 ms; `hegy_t3_*` (single-threaded) F and f 0.09 to 0.15 ms on a cached contour and a 5% quantile
+0.2 to 0.7 ms. On one thread these times are 2 to 4 times longer (`hegy_t3_*` the same).
 
 ```matlab
 V = volpath(0.3, [1 3]);                                        % the standard deviation triples at 30% of the sample
@@ -328,14 +339,14 @@ the source: the points of the repairs of 0.5.0, where the line integral exceeds 
 fixed start, climbed, and those of the upper tail above the unit root of November 23, 2026). The workflow "C engine" (`.github/workflows/c.yml`)
 runs the same tests on Linux, macOS and Windows, on a push that changes `c/`, on a tag `v*` and by hand.
 
-The MATLAB programs: `ltratio_test` runs 335 checks in about six minutes and returns the number of failures
+The MATLAB programs: `ltratio_test` runs 335 checks in about seven minutes and returns the number of failures
 (`ltratio_test(true)` is the quick version, `ltratio_test(false, true)` raises an error on a failure); `dfx_test` checks
 the line integral against stored values of the Julia engine (`matlab/validation/python_exact_reference.json`); `kan_test` checks the devices of Bao and Kan against the values of
 DFLimit.jl in `matlab/validation/kan_ref.txt` (a copy of `c/test/kan_ref.txt`); `ext_test` checks the extensions of the
 limit against `matlab/validation/ext_ref.txt` (a copy of `c/test/ext_ref.txt`) and, where it finds the MEX file, against
 the C engine. Start
 MATLAB in a folder other than `matlab/`. With the folder of the MEX file ahead of `matlab/` on the path the same
-`ltratio_test` runs on the C engine, in about 30 seconds, which is the check of a built MEX file.
+`ltratio_test` runs on the C engine, in about 35 seconds, which is the check of a built MEX file.
 
 `matlab/validation/` has the script behind the accuracy tables of earlier versions of the Supplementary Material
 (`acc_table.m`), the timings behind the automatic choice of the representation (`method_sweep.m` with its logs) and a

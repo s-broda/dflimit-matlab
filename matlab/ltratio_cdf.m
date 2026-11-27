@@ -59,9 +59,11 @@ function [F,info] = ltratio_cdf(x,cas,c,opts)
 %   estimate, no fallback to another representation, no recomputation),
 %   with the warning ltratio:brittle where the parameters lie in a regime in
 %   which one evaluation is known to be brittle (LTRATIO_BRITTLE); true is
-%   the checked behaviour at 1 to 3.5 times the cost of the default (about
-%   1.7 with the contour integral; more in the tails below 1e-3, which it
-%   recomputes): the conditional
+%   the checked behaviour at 1 to 4.6 times the cost of the default (up to
+%   10 where the default takes the general engine, case DT at c = -10,
+%   c0 = 2 and case SU at c = c0 = -10; 2.8 to 4.6 with the contour
+%   integral; more in the tails below 1e-3, which it recomputes; one
+%   thread, November 2026): the conditional
 %   integral with the agreement of two paths and the refinement of their
 %   rules, the contour integral as two evaluations on different paths
 %   refined until they agree, error estimates (info.err) and a status
