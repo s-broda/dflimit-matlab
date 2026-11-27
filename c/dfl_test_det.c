@@ -478,6 +478,36 @@ static void selftest_line_auto(void)
     g->n++; if (det_line_cache_size() != 0) { g->fail++; printf("FAIL line-auto: dfl_det_empty_caches kept the providers\n"); }
     dfl_design_free(&D);
 }
+/* far above the unit root at large x, engine general (case DU at c = 10, the bulk): the line integral's outer panels grow
+ * with x (67680 nodes at x = 7860) and its inner rules exceed their bound there, so that the paths compute; until November
+ * 27, 2026 the provider's memo, with fewer slots than points, searched forever (the call did not return).  The value against
+ * the classical engine and the paths, within a time limit; and the memo of a provider given more points than its slots */
+static void selftest_far_line(void)
+{
+    group_t *g = grp("far-line");
+    char err[512]; double x = 7859.5852, Fc, Fg, Fp, t0 = dfl_wtime();
+    dfl_spec S = {NULL, 2, DFL_START_ZERO, 0, NAN};
+    dfl_design D; dfl_det_opts op; dfl_det_defaults(&op); op.method = DFL_DET_PATHS;
+    int rc = dfl_engine_dist(2, 1, &x, &S, 10.0, 0.0, DFL_ENGINE_GENERAL, 0, 0, &Fg, err, sizeof err);
+    double tg = dfl_wtime() - t0;
+    if (!rc) rc = dfl_engine_dist(2, 1, &x, &S, 10.0, 0.0, DFL_ENGINE_CLASSICAL, 0, 0, &Fc, err, sizeof err);
+    if (!rc) rc = dfl_design_trend(0, &D, err, sizeof err) || dfl_det_dist(2, &D, 1, &x, 10.0, &op, &Fp, err, sizeof err);
+    g->n++;
+    if (rc || !(fabs(Fg - Fc) <= 1e-9 && Fg == Fp) || !(tg < 120)) {
+        g->fail++; printf("FAIL far-line: case DU, c = 10, x = %g, engine general %.15g (%.1f s; at most 120), classical %.15g, paths %.15g%s%s\n",
+                          x, Fg, tg, Fc, Fp, rc ? ": " : "", rc ? err : "");
+    }
+    if (!rc) dfl_design_free(&D);
+    /* (a provider's memo given more points in one call than it has slots, twice) */
+    dfl_design T; dfl_det_opts o; dfl_det_defaults(&o); dfl_prov *pv = NULL; size_t nm1 = 0, nm2 = 0;
+    rc = dfl_design_trend(0, &T, err, sizeof err) || det_line_select(&T, -5.0, &o, &pv, err, sizeof err) || !pv
+         || det_line_raw_test(pv, 70000, &nm1) || det_line_raw_test(pv, 70001, &nm2);
+    g->n++;
+    if (rc || nm1 == 0 || nm1 > 32768 || nm2 == 0 || nm2 > 32768) { g->fail++; printf("FAIL far-line: the provider's memo after 70000 points holds %zu, after 70001 more %zu (at most 32768)%s%s\n", nm1, nm2, rc ? ": " : "", rc ? err : ""); }
+    det_line_release(pv);
+    dfl_design_free(&T);
+    dfl_det_empty_caches();
+}
 /* the brittle region far above the unit root (far_above_warn of dfl_det_api.c): the warning fires at c = 6 and not at c = 5,
  * for Perron's model C and for the linear trend with a fixed start, where the paths compute; not for trend(2) at c0 = 0 (the
  * line integral computes) */
@@ -903,6 +933,7 @@ int main(int argc, char **argv)
     selftest_nonfinite();
     selftest_far();
     selftest_far_above();
+    selftest_far_line();
     selftest_line_auto();
     selftest_above();
     selftest_rules();
