@@ -45,9 +45,9 @@ function [F,info] = ltratio_cdf(x,cas,c,opts)
 %   opts.method selects it: 'auto' (the default) takes, point by point, the
 %   fastest that one evaluation gives to well below 1e-5 (LTRATIO_METHOD:
 %   the line integral for c0 = 0, with a zero start and c0 > 0, in case DK
-%   with c0 < 0 for c > -5, in case SK for c > -0.5 and far from the unit
-%   root; with c0 ~= 0 otherwise the conditional integral, in cases SU, ST
-%   only for c0 < 0 at x >= 0; the contour integral with a fixed start in
+%   with c0 < 0 for c > -5, in case SK for c > -0.5, in cases SU, ST for
+%   c0 <= -1 at c >= -20 and far from the unit root; with c0 ~= 0 otherwise
+%   the conditional integral; the contour integral with a fixed start in
 %   cases DU, DT, the conditional integral there for c > 1 with c0 < 0).
 %   With a fixed nonzero start (g0 ~= 0) these programs have no line
 %   integral (the C and Julia implementations carry its noncentral kernel):

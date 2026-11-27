@@ -78,8 +78,9 @@ function [F,info] = ltratio_dist(x,cas,c,opts,mode)
 %   after the checks of LTRATIO_ARGS, where opts.method is 'auto', opts.verified
 %   is false and no option of the classical engines is given (otherwise the
 %   classical programs, as before); the values of the general engine below
-%   1e-3 go back to the classical programs where their automatic method takes
-%   the conditional integral, whose error is relative.  cas may also be a design
+%   1e-3 go to the classical programs' conditional integral, whose error is
+%   relative, where it holds by one evaluation (the rule of LTRATIO_METHOD
+%   before November 27, 2026, its argument cond).  cas may also be a design
 %   of the general engine (DFDET_TREND, DFDET_PERRON, ...; with opts.start and
 %   opts.gls): a design that is a classical case (LTRATIO_SPEC) is that case,
 %   within the checks of LTRATIO_ARGS; any other design, or one outside the
@@ -123,12 +124,15 @@ if strcmp(engine,'auto') && plain(oc)
     gen = ltratio_engine('dist',S,c,c0,x) & isfinite(x);
     if any(gen(:))
         Fg = general_values(x(gen),S,c,oc,mode);
-        % the tails: where the classical programs would take the conditional integral, whose error is relative, the
-        % values of the general engine below 1e-3 (absolute errors) go back to them
-        back = Fg < 1e-3 & ltratio_method(cas,c,c0,g0,x(gen),false);
+        % the tails: where the classical programs' conditional integral holds by one evaluation (LTRATIO_METHOD with
+        % cond = true), whose error is relative, the values of the general engine below 1e-3 (absolute errors) go to it;
+        % by the conditional integral itself, also where the rule now takes the faster line integral (a stationary start
+        % with c0 <= -1 in cases SU, ST), so that these values stay those of before
+        back = Fg < 1e-3 & ltratio_method(cas,c,c0,g0,x(gen),false,true);
         ig = find(gen); gen(ig(back)) = false;
         F = zeros(size(x)); F(ig(~back)) = Fg(~back);
-        cl = ~gen;
+        tl = false(size(x)); tl(ig(back)) = true;
+        cl = ~gen & ~tl;
         if any(cl(:))
             [Fc,info] = classical_dist(x(cl),cas,c,oc,mode);
             F(cl) = Fc;
@@ -137,6 +141,11 @@ if strcmp(engine,'auto') && plain(oc)
         end
         if ~isfield(info,'ndouble'), info.ndouble = 0; end
         if ~isfield(info,'ncontour'), info.ncontour = 0; end
+        if any(tl(:))
+            ot = oc; ot.method = 'double';
+            F(tl) = classical_dist(x(tl),cas,c,ot,mode);
+            info.ndouble = info.ndouble + nnz(tl);
+        end
         info.engine = 'general'; if any(cl(:) & isfinite(x(:))), info.engine = 'mixed'; end
         info.ngeneral = nnz(gen); info.time = toc(t0);
         return

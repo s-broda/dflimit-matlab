@@ -1,4 +1,4 @@
-function [dbl,tails,ctr] = ltratio_method(cas,c,c0,g0,x,verified)
+function [dbl,tails,ctr] = ltratio_method(cas,c,c0,g0,x,verified,cond)
 %LTRATIO_METHOD  Automatic choice of the representation (opts.method = 'auto').
 %
 %   With verified = false (the default of the programs since November 2026: one
@@ -12,12 +12,22 @@ function [dbl,tails,ctr] = ltratio_method(cas,c,c0,g0,x,verified)
 %   times faster here), with a zero start and c0 > 0 (where one evaluation of
 %   the conditional integral is off by up to 1.5e-2 at x < 0 for c < 0; but the
 %   conditional integral at x < 0 for c >= 0 in cases DU, DT), in case DK with
-%   c0 < 0 for c > -5, in case SK for c > -0.5 and far from the unit root (c <
-%   -100 with a zero start, c < -50 with a stationary one); the conditional
-%   integral elsewhere.  The rule differs from that of the C and Julia engines
-%   (automethod, dfl_automethod) in case DK with a fixed start (they take the
-%   line integral, which these programs do not have) and at c0 = 0, where their
-%   line integral is the faster one.  tails is false (no recomputation).  The
+%   c0 < 0 for c > -5, in case SK for c > -0.5, in cases SU, ST for c0 <= -1 at
+%   c >= -20 (1.7 to 3.4 times faster here in both tails, F and f at the 5% and
+%   the 95% points, c from -0.01 to -20, November 27, 2026; at c0 = -0.5 1.29 to
+%   3.3 times, with c0 > 0 within a factor of 1.3 in one tail or the other, in
+%   case SK the conditional integral the faster) and far from the unit root
+%   (c < -100 with a zero start, c < -50 with a stationary one); the
+%   conditional integral elsewhere.  With cond = true (the seventh argument)
+%   the rule before November 27, 2026, the conditional integral in cases SU, ST
+%   with c0 ~= 0: LTRATIO_DIST sends the general engine's values below 1e-3
+%   there to the conditional integral, whose error is relative.  The rule
+%   differs from that of the C and Julia engines (automethod, dfl_automethod)
+%   in case DK with a fixed start (they take the line integral, which these
+%   programs do not have), at c0 = 0, where their line integral is the faster
+%   one, and in cases SU, ST (the Julia engine takes the line integral for c0
+%   <= -1/2 at c >= -20 and in case SU for 1/2 <= c0 <= 10 at c >= -2, the C
+%   engine at every c0).  tails is false (no recomputation).  The
 %   rule below is that of verified = true (and the one before November 2026):
 %
 %   [dbl,tails,ctr] = LTRATIO_METHOD(cas,c,c0,g0,x): dbl is a logical array of
@@ -100,7 +110,11 @@ if nargin > 5 && ~verified
     elseif (cas(1) == 'S' && c < -50) || c < -100 || (c0 > 0 && cas(1) == 'D' && c < -20)
         % far from the unit root: the line integral (as dfl_autodouble, autodouble)
     elseif cas(1) == 'S'
-        dbl(:) = ~(strcmp(cas,'SK') && c > -0.5);
+        % (cases SU, ST with c0 <= -1 at c >= -20: the line integral, 1.7 to 3.4 times faster here than the conditional
+        % integral in both tails, November 27, 2026; cond = true, the rule before, keeps the conditional integral there:
+        % the tails that LTRATIO_DIST sends back from the general engine)
+        su = any(strcmp(cas,{'SU','ST'})) && c0 <= -1 && c >= -20 && ~(nargin > 6 && cond);
+        dbl(:) = ~((strcmp(cas,'SK') && c > -0.5) || su);
     elseif strcmp(cas,'DK') && c > -5
         % case DK with c0 ~= 0 near or above the unit root: the line integral
     elseif c0 > 0

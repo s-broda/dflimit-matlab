@@ -528,6 +528,17 @@ end
 [d3,t3] = ltratio_method('DU',-20,3,0,-5,true); [d4,t4] = ltratio_method('DU',-100,-3,0,-5,true); d5 = ltratio_method('DU',-100,3,0,-5,false);
 check('the verified rule: the line integral alone with c0 > 0 below c = -20, the conditional integral at c = -20 and with c0 < 0', ...
       double(d1 || t1 || d2 || t2 || ~d3 || ~t3 || ~d4 || ~t4 || d5),0);
+% (a stationary start with c0 <= -1 in cases SU, ST at c >= -20: the line integral, November 27, 2026; the rule before,
+% cond = true, for the router's tails; the conditional integral at c0 = -0.5, at c = -25, in case SK and with c0 > 0)
+e1 = ltratio_method('SU',-5,-2,0,-1,false); e2 = ltratio_method('ST',-20,-1,0,1,false); e3 = ltratio_method('SU',-5,-2,0,-1,false,true);
+e4 = ltratio_method('SU',-5,-0.5,0,-1,false); e5 = ltratio_method('ST',-25,-2,0,-1,false); e6 = ltratio_method('SK',-5,-2,0,-1,false);
+e7 = ltratio_method('SU',-1,2,0,-1,false);
+check('the rule of a stationary start with c0 ~= 0: the line integral in cases SU, ST for c0 <= -1 at c >= -20', ...
+      double(e1 || e2 || ~e3 || ~e4 || ~e5 || ~e6 || ~e7),0);
+xs = [-3.5 -2 0.5];
+Fa = ltratio_cdf(xs,'SU',-5,struct('c0',-2,'engine','classical')); Fs = ltratio_cdf(xs,'SU',-5,struct('c0',-2,'method','single','engine','classical'));
+Fd = ltratio_cdf(xs,'SU',-5,struct('c0',-2,'method','double','engine','classical'));
+check('SU c=-5 c0=-2: the default is the line integral, within 1e-10 of the conditional integral',double(any(Fa ~= Fs)) + max(abs(Fa - Fd)),1e-10);
 
 fprintf('\n=== 13. the upper tail above the unit root ===\n');
 % (the references: the independent computation by conditioning on J(1); the classical programs before: 0.8415, -1.3674,

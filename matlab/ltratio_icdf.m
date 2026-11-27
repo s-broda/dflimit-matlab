@@ -145,7 +145,7 @@ o = rmfield_(o,'tol');                                    % (the tolerance of th
 if f < 0, f = 0; end
 % (the tails below 1e-3 where the classical programs would take the conditional integral go back to them, as in
 % LTRATIO_DIST, for F and f each: the search then takes the two evaluations)
-if (F < 1e-3 || f < 1e-3) && ltratio_method(cas,c,c0,g0,x,false), return, end
+if (F < 1e-3 || f < 1e-3) && ltratio_method(cas,c,c0,g0,x,false,true), return, end
 a = sprintf('case %s, c = %g',cas,c);
 if c0 ~= 0, a = [a sprintf(', c0 = %g',c0)]; end
 if g0 ~= 0, a = [a sprintf(', g0 = %g',g0)]; end
