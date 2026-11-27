@@ -18,9 +18,9 @@ function nfail = ext_test(strict)
 %   (the folder c/mex of the repository is appended to the path for the
 %   test), the MATLAB programs against the C engine.  It prints each group
 %   with its count and largest deviation and returns the number of failures;
-%   EXT_TEST(true) raises an error at the end when a check has failed.  The
-%   second seasonal t-ratio and the F statistic (the lines of t4cdf, t4pdf,
-%   fcdf, the seasonal transform sdval) are not ported and are skipped.
+%   EXT_TEST(true) raises an error at the end when a check has failed.  (The
+%   second seasonal t-ratio and the F statistic are not part of the release
+%   0.5.0; their lines left the reference file on November 27, 2026.)
 %   About two minutes.
 %
 %   See also DFDET_TEST, VOLPATH, HEGY_T3_CDF.

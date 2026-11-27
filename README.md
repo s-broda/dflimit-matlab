@@ -187,7 +187,8 @@ paths in `c/dfl_det_path.c`) and to the plain MATLAB programs, with the same nam
   `dfdet_trend(0)` seasonal dummies, `dfdet_trend(1)` seasonal dummies and seasonal trends, breaks), with `opts.c0` and
   `opts.vol`, c <= 0. The moment generating function of its numerator and denominator has poles in its first argument,
   and the inner integral of the inversion on paths is the sum of the residues at the roots on the engine's outer
-  contour. The second t-ratio and the F statistic of the regression are in the Julia package only.
+  contour. The second t-ratio and the F statistic of the regression are not part of this release (nor of the Julia
+  package's).
 
 The costs of the extensions in the C engine (warm calls on four threads of an M4 laptop on mains power, November 27,
 2026, on the cells of the documentation pages of DFLimit.jl; F and f are two calls): with `vol`, F and f at one point

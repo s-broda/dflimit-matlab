@@ -60,7 +60,7 @@ its side of the imaginary axis (before: the positive group only), as in DFLimit.
 for the engine's designs nothing changes (the existing tests give identical results). Calls without the new options are
 unchanged. Tests: `c/dfl_test_ext.c` and `matlab/ext_test.m` against the reference values of the Julia engine
 (`c/test/ext_ref.txt`, `matlab/validation/ext_ref.txt`) and the limiting cases. The second seasonal t-ratio and the F
-statistic are not ported.
+statistic are not part of 0.5.0 (their lines left the reference files).
 
 **The choice of engine re-derived** (`dfl_autoengine`, `ltratio_engine`, November 26, 2026), after the thinner rules of
 one evaluation, which halved the time of the general engine's paths: from interleaved timings of the two C engines in each

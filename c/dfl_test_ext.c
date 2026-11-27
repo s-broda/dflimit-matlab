@@ -192,7 +192,7 @@ int main(int argc, char **argv)
             check("cquant", rc ? NAN : q, x, tol, what);
         } else if (!strcmp(tag, "sval") && !SKIP_SEAS) {
             char fn[8]; word(&p, fn, sizeof fn);
-            if (strncmp(fn, "t3", 2)) continue;          /* (the second t-ratio and F are not ported) */
+            if (strncmp(fn, "t3", 2)) continue;          /* (the second t-ratio and F: not part of the release 0.5.0) */
             int did = inum(&p); double c = num(&p), c0 = num(&p); int vid = inum(&p);
             double x[32], ref[32], got[32]; int n = vecs(&p, x); vecs(&p, ref); double tol = num(&p);
             dfl_det_opts o; dfl_det_defaults(&o); o.c0 = c0;
