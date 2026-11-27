@@ -148,7 +148,7 @@ C engines (relative for the moments); auto: the engine of dfl_autoengine in the 
   adfmax_cdf, adfmax_pdf at x = -3, -2.4, -1.5 (SU, c = -0.1)        classical     66.89  general     51.31  ratio g/c    0.77  diff  6.0e-13  auto general
   adfmax_cdf, adfmax_pdf at x = -3, -2.4, -1.5 (ST, c = -50)         classical     71.00  general     60.98  ratio g/c    0.86  diff  6.2e-13  auto general
   ltratio_region, line a = -3.5, b = -0.2639 (DK, c = -5)            classical      1.07  general      3.08  ratio g/c    2.89  diff  1.0e-12  auto classical
-  ltratio_region, parabola x = -1.94087 (DK, c = -7)                 classical      1.14  general      0.22  ratio g/c    0.20  diff  1.6e-14  auto classical
+  ltratio_region, parabola x = -1.94087 (DK, c = -7)                 classical      1.14  general      0.22  ratio g/c    0.20  diff  1.6e-14  auto general
 
 (6) the borders of the C rule
   zero start, c0 = 0, far from the unit root (DK, c = -20)           classical      1.91  general      1.56  ratio g/c    0.82  diff  3.3e-16  auto classical
@@ -193,3 +193,6 @@ C engines (relative for the moments); auto: the engine of dfl_autoengine in the 
   ltratio_lincdf (DG, c = 3, a = -7.3, cbar = -13.5)                 classical    111.67  general     25.09  ratio g/c    0.22  diff  3.5e-14  auto general
   ltratio_lincdf (DG, c = 4, a = -7.3, cbar = -13.5)                 classical    921.28  general     78.10  ratio g/c    0.08  diff  7.4e-15  auto general
   ltratio_lincdf (DG, c = 2, a = -7.3, cbar = -5)                    classical     31.66  general     11.25  ratio g/c    0.36  diff  2.9e-13  auto general
+
+(The label auto of the parabola row corrected on November 27, 2026, without re-timing: the program asked dfl_autoengine with x = 0,
+the router asks with x = 1 and the parabola's c0 and takes the general engine at c0 = 0 for -20 <= c <= 0.)

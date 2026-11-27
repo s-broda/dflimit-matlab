@@ -70,7 +70,12 @@ static void row(const char *label, const cell_t *e)
             e->type == T_LIN ? DFL_F_LINCDF : e->type == T_ENV ? DFL_F_ENVELOPE : e->type == T_ADF ? DFL_F_ADFMAX : DFL_F_REGION;
     double xa = e->type == T_DIST ? e->x[e->n / 2] : e->type == T_LIN ? e->a : 0.0;
     double c0a = e->type == T_COEF ? e->c0 - 10.0 : e->c0;
-    int au = dfl_autoengine(f, e->model, e->stat, e->g0, e->type == T_LIN ? e->cbar : (e->model == 4 ? DFL_CBAR_GLS : NAN), e->type == T_ENV ? e->x[0] : e->c, c0a, xa);
+    /* (the regions as dfl_engine_region asks the rule: the parabola of case DK with x = 1 and its c0 = par[1], the line and the
+     * other boundaries by the classical code; until November 27, 2026 the table asked with x = 0 and labelled the parabola
+     * classical, which the router takes by the general engine at c0 = 0 for -20 <= c <= 0) */
+    int au = e->type == T_REGION
+        ? ((e->model == 1 && !e->stat && e->rtype == 2 && dfl_autoengine(DFL_F_REGION, 1, 0, 0.0, NAN, e->c, e->par[1], 1.0) == DFL_ENGINE_GENERAL) ? DFL_ENGINE_GENERAL : DFL_ENGINE_CLASSICAL)
+        : dfl_autoengine(f, e->model, e->stat, e->g0, e->type == T_LIN ? e->cbar : (e->model == 4 ? DFL_CBAR_GLS : NAN), e->type == T_ENV ? e->x[0] : e->c, c0a, xa);
     printf("  %-66s classical %9.2f%s general %9.2f%s ratio g/c %7.2f  diff %8.1e  auto %s\n", lab, 1e3 * tc, t0c > 60 ? "*" : " ", 1e3 * tg, t0g > 60 ? "*" : " ", tg / tc, d, au == DFL_ENGINE_GENERAL ? "general" : "classical");
     fflush(stdout);
 }
