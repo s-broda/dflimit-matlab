@@ -6,7 +6,7 @@ DFLimit.jl, checked against its values by the tests in `c/test/`).  It needs not
 - **Self-contained**: `ltratio.m` offers the functions of the MATLAB programs in `matlab/` with the same arguments.
 - **Under the MATLAB programs**: `dfx_core.m`, `tr_limdist.m`, `tr_contour.m` and `tr_limmom.m` have the names and
   signatures of the engines in `matlab/`; with this folder ahead of `matlab/` on the path, `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`,
-  `ltratio_mom`, `ltratio_test` and the companion paper's replication script `ltratio_paper` (in its replication package) run unchanged on the C engine (`ltratio_test` passes all 335
+  `ltratio_mom`, `ltratio_test` and the companion paper's replication script `ltratio_paper` (in its replication package) run unchanged on the C engine (`ltratio_test` passes all 337
   checks in about 35 s instead of about seven minutes, when started from a folder other than `matlab/`: the current folder
   comes first on MATLAB's path).  In the repository this folder also has `tr_adfmax.m`, `tr_region.m` and
   `tr_gilpelaez.m`, the replacements of the engines of the applications in `matlab/`: `adfmax_cdf`, `adfmax_pdf`,

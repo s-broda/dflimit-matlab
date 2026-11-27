@@ -1,302 +1,8 @@
 # News
 
-## Unreleased
+## 0.5.0 (2026-11-27)
 
-**The methods `'lines'` and `'mixture'` without a normal component** (rho = 1) are refused by the general engine's
-distribution function, density and quantiles (`dfl_det_dist`, `dfl_det_quantile`; `dfdet_cdf`, `dfdet_pdf`,
-`dfdet_icdf`) with the message of DFLimit.jl for a method other than `'auto'`, `'line'` and `'paths'` ("method must be
-'auto', 'line' (the line integral with the explicit kernel) or 'paths' (the inversion on paths around the roots)"),
-as DFLimit.jl refuses them; before, the C engine named them the methods of a normal component. Tests: the group `errors`
-of `c/dfl_test_ext.c` and of `ext_test`. The local build of the MEX file in `c/mex/README.md` lists `dfl_det_ext`.
-
-**`verified = true` with c0 > 0 far from the unit root** (November 26, 2026, as DFLimit.jl). The checked computation took
-the conditional integral for a zero start with c0 != 0 down to c = -100 inclusive; with c0 > 0 far from the unit root
-that integral with its checks was off by 2.4e-6 to 1e-5 in cases DU, DT (in DFLimit.jl), its agreement rule flagged
-most such points but not all, and at c = -100, c0 = 3 the checked value was off by 2.05e-8 in case DU at the 99% point
-in C (2.1e-8 in DU and 4.2e-8 in DT in DFLimit.jl), where the line integral agrees with the general engine to 3e-12.
-Below c = -20 a zero start with c0 > 0 now takes the line integral with `verified = true` as well, without the
-recomputation of the tails (`dfl_autodouble`, `DFL_DOUBLE_C0POS_CMAX`; `ltratio_method`; the default took the line
-integral there already; method 2 or `'double'` still forces the conditional integral). `dfl_automethod_verified` is the
-rule of the checked computation. Tests: the last section of `c/dfl_test_dbl.c`, section 12 of `ltratio_test`.
-
-**No NaN, hang or silently wrong value at a finite point** (November 26, 2026, as DFLimit.jl). Four causes. (1) Where
-0.001 |x| 4^m fell a few ulps short of 1/2, the geometric partitions of the C engine's fixed node layouts left a last
-panel a few ulps long whose nodes lay on the support edge of the kernel, X^{-1/2} = Inf times a vanishing weight: F and
-f were NaN at the one to four ulps above x = -500/4^k in every case at every c <= 0 (x = -7.8124999999999991 in case DK
-at c = 0 among them); now no panel ends within 1e-9 of the end of its partition (`dfl_nosliver`, in the layouts, the
-rays, the edge segments and the smooth parts; the same in `dfx_core.m`). (2) For 0 < |x| below about 1e-162 the
-Gaussian factor of the ray of the distribution function, e^{-|t| r^2/q^2}, underflowed to 0/0: F was NaN in the C engine
-and in `dfx_core.m` (cases DK, DU, DT, ...); now in (r/q)^2. (3) Far in the tails the C engine's fixed layouts lost
-accuracy (case DK at c = 0: F = 1 + 1.3e-6 at x = 31.25 and 1 + 2.1e-3 at 125, refused by the range check, F = -2.5e-3
-at x = -500; at c = -480 F = -2.9e-7 at x = -100; case DU at c = -10 F = 4.9e-7 at x = -250, returned): they now serve
--50 <= x <= 15 (`DFL_BATCH_QMIN`, `DFL_BATCH_QMAX`), the adaptive rules beyond (the MATLAB programs have no fixed layouts).
-(4) The general engine's paths at a tiny x < 0, whose parabola has its root at -1/(2x): the asymptotic series of the
-incomplete Gaussian integrals never ended beyond |z| ~ 1e102 in C (the call hung: Perron's model C at c = -5,
-x = -1e-200; case DU at c = 1, x = -1e-100 by the paths), now with `<=` in its tests (also in the classical engine's copy,
-`dfl_gen.c`, and in `tr_contour.m`), and the density was NaN where an end's exponential underflowed (0 times Inf; in C and
-in `dfdet_contour.m`), now such an end contributes nothing but its flag. Elsewhere the values are unchanged (the existing
-tests pass unchanged). Tests: section 5 of `c/dfl_test_bounds.c`, section 14 of `ltratio_test`, and the checks of the
-paths at a tiny x in `dfdet_test`.
-
-**The LM statistic only for a design whose span contains the constant** (November 26, 2026, as DFLimit.jl). `lm_cdf`,
-`lm_quantile`, `lm_power` (`dfl_det_lm_cdf`, `dfl_det_lm_quantile`, `dfl_det_lm_power` in C) computed the limit
--1/(2 sqrt V) for any design with a linear trend in its span; that limit holds only when the span also contains the
-constant (the LM regression estimates the level from the first observation). They now refuse such a design with an error
-(r alone, r and e^r, a level dummy with r gave the limit of the linear trend): the span is decided on the values of the
-piecewise polynomial design at Chebyshev points of each piece, by a least-squares fit of the constant (`det_span_has_constant`
-in C, a subfunction of `dfdet_lmpath` in MATLAB; exactly for polynomial trends, breaks and dummies, to 1e-6 for the
-interpolants of a function design and a design from a matrix). Tests: the group `lmspan` of `c/dfl_test_det.c` and the
-checks "LM refused" and "LM accepts" of `dfdet_test`.
-
-**Three extensions of the limit** (November 26, 2026), ported from DFLimit.jl to the C engine (`c/dfl_det_ext.c`; the
-volatility transform in `dfl_det_mgf.c`, its paths in `dfl_det_path.c`), the MEX file and the plain MATLAB programs:
-volatility and persistence regimes (`volpath`, the option `vol` of `dfl_det_dist`, `dfl_det_quantile`, `dfdet_cdf`,
-`dfdet_pdf`, `dfdet_icdf`, `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`, with c a vector of one value per regime); a
-normal component (the option `rho`: the covariate-augmented t-ratio and the predictive regression, `cadf_c0`,
-`predictive_c0`; the inversion on two lines and the normal average); and the first seasonal t-ratio of Hylleberg, Engle,
-Granger and Yoo (`dfl_hegy_t3`, `hegy_t3_cdf`, `hegy_t3_pdf`, `hegy_t3_quantile`). The router has `dfl_engine_dist_ext`
-and `dfl_engine_icdf_ext`. The outer contour of the general engine is now steepened while either group of roots leaves
-its side of the imaginary axis (before: the positive group only), as in DFLimit.jl; the volatility transform needs it, and
-for the engine's designs nothing changes (the existing tests give identical results). Calls without the new options are
-unchanged. Tests: `c/dfl_test_ext.c` and `matlab/ext_test.m` against the reference values of the Julia engine
-(`c/test/ext_ref.txt`, `matlab/validation/ext_ref.txt`) and the limiting cases. The second seasonal t-ratio and the F
-statistic are not part of 0.5.0 (their lines left the reference files).
-
-**The choice of engine re-derived** (`dfl_autoengine`, `ltratio_engine`, November 26, 2026), after the thinner rules of
-one evaluation, which halved the time of the general engine's paths: from interleaved timings of the two C engines in each
-cell (a cell moved where the other engine was at least 1.5 times faster) and checks of the new choice's one evaluation
-against the other engine's checked computation from the 0.01% to the 99.99% point (within 1e-7; measured in Julia, whose
-general engine the C engine ports to 1e-12). The C router takes the general engine also with a zero start and c0 > 0 at
-c = -100 (2 to 4.4 times faster) and in case DT up to c = 2 (3.6 to 6.8 times); with c0 < 0 in case DK for -5 < c <= 0
-(6.7 to 8.7 times) and in case DT at every c <= 0 (1.7 to 3.5 times); at c0 = 0 in cases DU, DT just above the unit
-root, 0 < c <= 0.5, by its paths (1.75 to 2.1 times), and in case DT with a zero start below c = -20 (1.6 to 1.9 times);
-with a fixed start in case DK also where |g0| <= 1 with |c g0| <= 50 and c >= -100 (1.8 to 3.9 times; the rule now takes
-the absolute value of g0, which the law depends on); the quantiles of case ST from c = -0.5 on (1.7 times); and the
-parabola of `dfl_engine_region` at c0 = 0 for -20 <= c <= 0 (3.5 to 45 times). The general engine's method auto takes its
-paths at c0 = 0 just above the unit root, 0 < c <= 0.5, for designs with deterministic terms (1.5 to 2.3 times faster than
-the line integral). The Julia rule, whose costs differ, moves further in some cells (the paths up to c = 1.5 and 2, case
-DK with c0 < 0 up to c = 2, |g0| <= 1.5, the quantiles of case SU); the C cells whose gains lay between 1.3 and 1.5 were
-left alone. The MATLAB rule (`ltratio_engine`) follows the C rule in these cells (c0 > 0 in case DT up to c = 2, c0 < 0
-in case DT at every c <= 0, the fixed start of case DK, the quantiles with a zero start up to c = 2 and of case ST from
-c = -0.5 on, where nearer zero the general search is off) and keeps its own cells elsewhere; its regions stay with the
-classical programs. Where the rule now takes the other engine, values move by less than 1e-7.
-
-**The general engine with c0 > 0 on the vertical line** (C, the MEX file): where the outer contour of the paths is the
-vertical line (above the unit root, beyond the hyperbolas) the paths do not resolve the two roots of the parabola of a
-point x < 0, and one evaluation was off by up to 1e-3 in the lower tail, below zero (refused by the range check) or NaN,
-with the line's warning (an intercept with a sine and a cosine at c = 5, c0 = 2: F(-26.7) = 1.3e-3 for 6.9e-14). Method
-auto now takes the line integral at these points where it covers the design (`det_line_vline`; the points x >= 0 and the
-quantiles keep the paths, where the line integral grows slow far out); the MATLAB programs, which have no line integral
-for general designs, keep the warning.
-
-**A warning far above the unit root.** For c > 5.5 the inversion on paths by one evaluation was off by more than 1e-5 in
-the upper tail for designs beyond the classical cases and for a fixed start with deterministic terms (Perron's model C at
-c = 7 by 1.5e-5 in F, at c = 8 by 6.3e-5; a linear trend with a fixed start at c = 7 by 8.7e-5), without a warning. The
-general engine now warns there where the paths compute (C `dfl_det_warning`, `far_above_warn` of `c/dfl_det_api.c`;
-MATLAB `dfdet:brittle`, `dfdet_farwarn`); `verified` checks the values.
-
-**Timings re-measured for 0.5.0** (November 26, 2026, after the thinner rules of one evaluation): the two tables of
-`c/mex/README.md` (the first now written by `c/mex/timing_table.m`, which also runs `timing_fixed.m`), the cost of the
-MATLAB programs in README, the manual and the help of `adfmax_cdf`, `ltratio_region`, `ltratio_lincdf` and
-`power_envelope` (which still gave the times of before the devices of Bao and Kan: 0.5 s and 3 s a value of the
-envelope, now 0.02 s by the default in case DK and 0.14 s in case DG), the line integral against the paths in C
-(`c/test/line_timing.c`: 1.1 to 1.7 times faster per value for -20 <= c <= 0, no longer 2.2 to 3.5, and at c = 2
-slower for the designs with deterministic terms) and in MATLAB, the counts and durations of `ltratio_test` (314
-checks, about six minutes) and `dfdet_test` (1330 checks, about seven minutes). The rules are unchanged.
-
-**The templates of the devices of Bao and Kan are headers.** `c/dfl_kan_jet.inc` and `c/dfl_kan_logcf.inc`, which
-`c/dfl_kan.c` includes several times with different types, are now `c/dfl_kan_jet.h` and `c/dfl_kan_logcf.h`: `R CMD
-check` of the R package, whose `src/` copies them, gave a WARNING for the unlikely file names `.inc` in `src/`, which
-CRAN does not accept. The sources are otherwise unchanged (the C tests pass as before); the R and Python packages
-copy the new names. The README's list of the C tests names `dfl_test_batch`, which the workflow runs.
-
-**The two papers.** The programs cite the lead paper, Bao, Broda and Kan, "The Exact Limiting Distribution of the
-Dickey-Fuller t-Ratio with General Deterministic Terms" (SSRN 7745921), the paper of the general engine and of the
-inversion formula on paths, and, for the classical programs and their representations, its companion, "Low-Rank
-Representations of the Classical Dickey-Fuller Limits, with an Extension to Predictive Regressions" (SSRN 7725619,
-the posting that carried the former title "... and Some Related Statistics"): README, `Contents.m`, the help of the
-routines that named the paper, the manual (rebuilt), `CITATION.cff` (the companion under `references`) and
-`.zenodo.json`.
-
-**The rules of one evaluation** (C, the MEX file and MATLAB alike, a port of DFLimit.jl fde1632 to 9c71860, merged at
-d95305c; the README, "The rules of one evaluation"). One evaluation, the default, takes thinner rules where they hold,
-with the rules, regions and constants of the Julia package:
-
-- the general engine's inversion on paths (`dfl_det_dist`, `dfl_det_quantile`; `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf`)
-  the outer hyperbola with 1.5 times the step and the U-shapes with 16 nodes per panel and 32 on the tails of their rays
-  (24 and 40 before; 32 and 48 for 48 and 64 with a fixed start), and by regions of the start, the deterministic terms, c
-  and c0 the present rule or a finer one (`dfl_det_path_region`, `dfdet_rules`; near the unit root with c0 < 0 and a
-  fixed start without deterministic terms the present step itself was off by up to 0.86 in the upper tail, the new step
-  within 7e-12 of the classical engine). New: `dfl_det_opts.rule` (`DFL_RULE_*`), `n`, `ntail`, and `hfac` NaN (by the
-  rule) unless given; `opts.rule` of `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf` and of `ltratio('det', ...)`. `verified`
-  takes the rule of before. The guard on the U-shapes counts the nodes of the present rule;
-- the classical contour integral (`dfl_ctr_rule`, `dfl_contour_rule`; `ltratio_rules('contour')`, `opts.rule`,
-  `opts.n1`, `opts.hfac` of `tr_contour`): 32 nodes for 64 and the outer step 1.5 times as long where they hold; the
-  conditional integral (`dfl_cond_rule`; `ltratio_rules('conditional')`): 48 or 64 nodes for 96 in its regions, `Nv`,
-  `Nl` override it (in C now 0 by default, the rule; 96 with `verified` and in `dfl_adfmax`, `dfl_region`);
-- the fixed start: its U-shapes count the growth of the v-kernels of the upper tail at every c (in case DK near the unit
-  root one evaluation of the general engine was off by 3e-7 at x = 9.7, 7e-3 at x = 12 and 1e39 at x = 20 at c = 0, g0 =
-  1, where the final check refused); the C router takes the classical engine for case DK with c0 < 0 near the unit root
-  (`ltratio_cdf(45.11, 'DK', 0.5, struct('c0', -10, 'g0', 1))` was refused by the final check, now 0.99981515720), and
-  both rules take the general engine for the fixed start of cases DU, DT far from the unit root (c0 > 0 below c = -20,
-  below -10 where |c g0| > 20; any c0 below c = -20 where |c g0| > 60), where the contour integral's one evaluation was
-  off by up to 2.2e-2 of the peak of the density; `dfl_brittle` and `ltratio_brittle` warn there of the classical one
-  evaluation and say "may be off by more than 1e-5" with c0 > 0 below c = -15;
-- the quantile searches start from the moments from jets of Bao and Kan (`dfl_mom_start`; `mom_start` in
-  `ltratio_icdf.m`) and take F and f from one pass of the general engine's paths where the rule gives a Newton step's
-  point to it (`dfl_det_dist_both`, `dfdet_dist(..., 'both')`), the quantiles bit for bit those of the two evaluations;
-  `DFL_MOM_START`, `DFL_DIST2`, `ltratio_switch`, `ltratio('switch', ...)` and `ltratio_mex('switch', ...)` restore the
-  computation of before.
-
-Against DFLimit.jl d95305c (`c/test/det_ref.txt` and `matlab/validation/det_ref.txt` regenerated, with a section of the
-rules): C within 3.7e-14 (paths), 2.3e-14 (contour), 7.1e-13 (conditional), 5.6e-11 (quantiles; the search tolerance is
-1e-10); the MATLAB programs within 2e-14, 1.6e-14, 2.1e-12 and 1.9e-11. The earlier reference values of the general
-engine move by at most 3.4e-11 under the thinner rules, the fixed-start value of case DT at c = -5 (`dfl_test_dbl`) by
-1.3e-11. Warm time new/old in C (minima of seven calls, ten threads): the paths 0.47 to 0.71 (1.4 to 1.7 in the cells of
-the finer steps), the contour integral 0.39 to 0.69, the conditional integral 0.55 to 0.84, the router's quantiles 0.26
-to 0.31 with c0 != 0 (0.80 to 0.98 where the classical search computes). In the MATLAB programs: warm calls (minima of
-five after a first, one MATLAB session each): the paths 0.48 to 0.78 (1.6 in the cells of the finer steps), the contour
-integral 0.44 to 0.83, the conditional integral 0.87 to 0.98, the quantiles of `ltratio_icdf` 0.34 to 0.48 where the
-general engine computes some of their points, 1.01 with the classical engine.
-
-**The devices of Bao and Kan** (C, the MEX file and MATLAB alike, a port of the module DFKan of DFLimit.jl at c9fecd6):
-the numerical devices of Yong Bao and Raymond Kan, "Exact Finite-Sample Distribution and Moments of the Least Squares
-Estimator in First-Order Autoregressions: O(1) Algorithms", for the limits of these programs (`c/dfl_kan.c` with the
-transform written once for numbers and jets in `c/dfl_kan_logcf.inc` and `c/dfl_kan_jet.inc`, `c/dfl_det_kan.c`;
-`matlab/kan_core.m`, `matlab/dfdet_kan.m`, `matlab/kan_route.m`). The joint characteristic function of the limit pair of
-the six classical cases in closed forms free of cancellation on both sides of the unit root, with the branch of the
-square root fixed at each point, in Taylor-mode arithmetic (jets); a statistic that rejects on a half-plane by one
-inversion along a ray, adaptive quadrature over decades (the algorithm of QuadGK.jl, so that the values are those of the
-Julia package to rounding) with the tail beyond S = 400/|w| completed by repeated integration by parts from a jet of order
-eight; the moments from one jet per node. By default, with the rules and constants of `merged.jl`:
-
-- the coefficient statistic (`coef_cdf`, `coef_icdf`, the new `coef_pdf` and `coef_mom`; `dfl_engine_coef`,
-  `dfl_engine_coef_icdf`, the new `dfl_engine_coef_pdf`, `dfl_engine_coef_mom`) in the cases DK, DU, DT (zero or fixed
-  start) and SK, SU, ST up to c = 20;
-- the linear form (`ltratio_lincdf`, `dfl_engine_lincdf`) in case DK for a != 0 and -100 <= c <= 4, and the six classical
-  cases through their designs (fixed and stationary starts included) for -100 <= c <= 2 (`dfl_engine_lincdf_x` takes a
-  design);
-- the power envelope (`power_envelope`, `dfl_engine_envelope`) in case DK for c <= -1e-4, the critical value by regula
-  falsi to 1e-12;
-- the moments of the t-ratio (`ltratio_mom`, `dfl_engine_mom`) from jets in the six cases up to c = 20 (and p = 31), any
-  c0 and fixed start;
-- the general engine's point-optimal statistic (`pt_cdf`, `pt_pdf`, `pt_quantile`, `pt_power`, `pt_envelope`;
-  `dfl_det_pt*`) up to c = 4 and `dfl_det_coef_cdf_gp` (zero or stationary start) up to c = 5, with the branch of the
-  square root of the determinant from the pivots of the precision matrix at each point (`det_detlog_piv`,
-  `dfdet_kan`); the quantile searches keep the transform values along the ray.
-
-The options: `method` (`'auto'`; `'inversion'`, `'jets'` for the moments, which forces them; `'engine'`, the computation of
-before, which reproduces those values; `'grid'` for the point-optimal functions and `coef_cdf_gp`; in C the codes
-`DFL_METHOD_INVERSION`, `DFL_METHOD_ENGINE`, `DFL_METHOD_GRID` of `dfl_inv_opts` and the `*_x` functions), `tol` (1e-12;
-1e-10 relative for the moments), `verified` (recomputes by the engines the values whose estimate exceeds the tolerance)
-and the error estimates (a second output in MATLAB and the MEX file, `errest` in C); a warning (`ltratio:inversion` in
-MATLAB, `dfl_det_warning` in C) names the values whose estimate exceeds the tolerance. Within 6e-15 of DFLimit.jl in C
-and MATLAB (`c/dfl_test_kan`, `matlab/kan_test`, 2812 and 2526 checks against `c/test/kan_ref.txt`, written by
-`c/test/kan_ref.jl`). Against `method = engine` the values move as in the Julia package (the coefficient statistic by up
-to 5.5e-13 in the cases timed, the quantiles of before stopped at a width of 1e-9, the envelope's bisection to 1e-9 by up to
-3.3e-10; with a fixed start above the unit root the engines' moments were off, by 0.39 relative at c = 2, c0 = -2, g0 = 1
-in case DK). Warm time per value in C, single inversion against `method = engine`: the coefficient statistic 0.005 to
-0.18, its quantiles 0.02, its density 0.03 (at the chi-square point y = -c0, where the transform decays like a power, 57
-times slower, about 0.9 s a value, as in the Julia package, with a warning), the linear form 0.07 to 0.24, the envelope
-0.13 to 0.16, the moments 0.013 to 0.23, the point-optimal statistic 0.08 to 0.15 (quantiles 0.3 to 0.4, envelope 0.2),
-`coef_cdf_gp` 0.05 to 0.1. In the MATLAB programs (warm, minima of three calls, against `opts.method = 'engine'` or
-`'grid'`): the coefficient statistic 0.02 to 0.10, its quantiles 0.013, its density 0.07, the linear form 0.5 to 1.05 (the
-engines' closed forms are as fast in case DK at c = 0), the envelope 0.31, the moments 0.08 to 1.08 (case DK at c = 0, where
-the classical circles are cheap), the point-optimal statistic 0.02 to 0.06 (quantiles 0.21, envelope 0.13; the grid with
-its cache cleared).
-
-**The branches at each point.** The classical engines' P(t), M_0(t) and the labels of the roots (`dfl_tparts`,
-`dfx_core('tparts')`) and the argument of log P(t) in the provider of the general engine's line integral
-(`c/dfl_det_line.c`) are fixed at each point, after Bao and Kan, in place of their continuation along the grids (removed:
-`line_continue`). The engines' values move by at most 4.2e-13 (the contour integral of case DT with g0 = 2 at c = -20;
-elsewhere below 1e-13) at the same cost (warm time new/old: median 0.95; in MATLAB the line and contour integrals within
-7.7e-13 at 0.97 to 1.05 of the time). `c/test/prim_ref.txt` regenerated: its
-continuation on a coarse grid of 13 points was on the wrong branch at its last point (t = 1 + 201.7i at c = -5, the sign of
-P).
-
-**The upper tail above the unit root, and the final check of a distribution function** (C and MATLAB alike, the
-changes of DFLimit.jl). Above the unit root the t-ratio with c0 != c has its upper tail at x of the order
-(c - c0) e^c/(2c), and the automatic method returned values outside [0, 1] there without a warning (case DK at c = 10,
-c0 = 2: 0.8415 for 0.7436 at x = 1e4 and -1.3674 for 0.9993 at x = 3e4; at c = 10, c0 = 9 1.0479 for 0.9936 at x = 3e3;
-also with `verified` and the classical engine forced). Beyond x ~ 700 the line integral's inner rule needs more than
-`DFL_RULEMAX` nodes, the point goes to the conditional integral with its checks (`route_double` in `c/dfl_api.c` and
-`matlab/ltratio_dist.m`), and where that flagged the point its one evaluation was returned, which in case DK is off by up
-to 14. In case DK the flag is a false alarm (the checked value within 1.3e-8 of an independent computation, the law of V
-given J(1) by Girsanov's theorem, up to c = 14): case DK now takes the checked value whatever its flag (cases DU, DT
-unchanged). Far above the unit root (c > 4) the three cases take the conditional integral at x > 300 too, and case DK with
-c0 > c at x < -20 (`far_tail`, before the rule's representations): the line integral's cost grows like x^4 at large x (in
-cases DU, DT at c = 16, c0 = 0 it exhausted more than 8 GB at the median in the Julia engine; here the size of its outer
-rule overflowed an int), and in case DK with c0 > c it was off by up to 1.5e-3 in the lower tail (a negative value at
-c = 7, c0 = 9, x = -627); the values of cases DU, DT there are within 1e-14 of the general engine up to c = 13 and within
-5e-7 of the large-c law at c = 13 and 14. Above c = 14 these points are refused in the three cases with an error that
-names the statistic, c, c0, x and the region computed (`DFL_FAR_CMAX`; `ltratio:args` in MATLAB; before anything is
-computed, with `verified` too): the conditional integral of case DK is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18,
-one path of case DT gives 1e44 and more at c = 16. With `verified` these points no longer fall back to the line
-integral. The general engine cut its vertical line to the oscillation as if c0 were 0
-(`line_refine` in `c/dfl_det_path.c` and `matlab/dfdet_contour.m`): it was off by 1.1e-3 at c = 10, c0 = 9, x = 1000 and
-gave 1.0000000112 at x = 1e4; for c0 > 0 the line is now cut to the larger of the rates with and without c0
-(`det_line_refined` takes the values c0; `dfdet_contour('refine', CP, xs, amax, c0s)`; with c0 < 0 the rate is below
-that of c0 = 0 and the cut is unchanged). Every distribution function of both engines ends with
-a check of its values: below -1e-8 or above 1 + 1e-8 an error that names the call (`dfl_cdf_range_check` in `dfl_dist`,
-`dfl_det_dist` and `dfl_det_coef`; `ltratio_rangecheck` in `ltratio_cdf`, `coef_cdf`, `dfdet_cdf` and `dfdet_coef_cdf`,
-the error `ltratio:range`). Tests: `c/dfl_test_bounds.c` (part 4) and section 13 of `matlab/ltratio_test.m`.
-
-**The general engine above the unit root** (C and MATLAB alike, the repairs of DFLimit.jl). The coefficient statistic
-far above the unit root was silently wrong: the panels of the paths around the roots merged every point within 1e-12
-max(B - A, 1) of an end with it (`graded_panels` in `c/dfl_det_inner.c` and `matlab/dfdet_contour.m`), and from c = 16
-on the segment around the positive root, which lies within about 2c e^{-2c} of the branch point -t/c0 of the coefficient
-statistic, got no panel at all: off by up to 0.2 without a warning (case DK at c = 20: 0.312770633 in C and 0.312770632
-in MATLAB for the 30% point, `dfdet_coef_cdf` and the router with `engine` general; the default route takes the
-classical engine there). The tolerance is now relative to the length of the interval. The (1,1) entry of the matrix of
-the transform (`buildM` in `c/dfl_det_mgf.c`, `matlab/dfdet_mgf.m`, `dfdet_logmgf.m`, `dfdet_dval.m`) carried an
-absolute rounding error of 1e-16, of the size of the entry far above the unit root wherever the transform is evaluated
-at s != 0: the moments of the general engine were off by 6e-4 relative at c = 15 and 0.95 at c = 20, and the inversion
-of Gil-Pelaez worse; it is now m011 plus the product term. The moments with c0 != 0 continued the logarithm of the
-determinant alone around their circles, whose phase at the real point is -Im theta where -s - c0 r > c^2/2, and refused
-on every circle at c = 0 with c0 < 0 (`dfl_det_moments`, `dfdet_mom`; through the router the moments of case DT at c =
-0, c0 = -2): now the logarithm of e^{c + theta} det(...). The density of the coefficient statistic with a fixed start
-above the unit root was off without a warning (by up to 0.12 at c from 1 to 5, case DU at c = 5, g0 = 0.5, at the 90%
-point; 5.9e-5 in case DU at c = 2, g0 = 1): the objective that places the path G+ around the positive roots (`place` in
-`c/dfl_det_inner.c` and `matlab/dfdet_contour.m`) did not see the branch point -Re(t)/c0 of the v-kernels, where the
-kernel of the density has a double pole; it is now a focus of its grading cost (above the unit root with c0 > 0 only;
-elsewhere unchanged). `dfl_det_coef_cdf_gp` refuses where its grid does not resolve the transform (d/h below 3.3, d the
-distance of the nearest singularity of the transform from the real line, h the step of the grid at the origin; it was
-off by 1.1e-2 at c = 12 and by 15 at c = 20 for the 30% point of case DK), with an error that names the N that serves.
-And every function of the general engine refuses above c = 16 with deterministic terms (10 with them and a fixed start)
-and above c = 20 without them (`DFL_DET_CMAX`, `DFL_DET_CMAX_FIXED`, `DFL_DET_CMAX0`, `dfl_det_cmax`; `dfdet_cmax` in
-MATLAB), where one root of the transform is of the order 2c e^{-2c} and the others are lost in double precision (the
-paths of case DU failed from c = 17, of case DT from c = 18), with an error that names the statistic, c and the bound;
-the rules (`dfl_autoengine`, `ltratio_engine`) take the classical engine there.
-
-**The fixed node layouts of the C line integral.** `c/dfl_batch.c` ports the batched evaluation of the Julia engine
-(`DFExact.jl`): for c <= 0, c0 = 0 and |x| above about 0.034 the inner integrals of the line integral are sums over nodes
-that do not depend on t, on geometric panels (the chi-square kernel of case DK and case DG at tau = 1, the K_0 kernel's
-density at any tau and its distribution function at tau = 1). The option `batched` of `dfl_single_opts`, which was set and
-never read, now chooses them (true by default). The classical tests pass unchanged with and without them; against the
-adaptive rules they agree to 3.7e-13 for c > -20 and 3.2e-12 for -480 <= c <= -20 (as in the Julia engine,
-`c/dfl_test_batch`). Per value case DK is 8 to 20 times faster, the other cases 1.8 to 3.2 times. The C router takes the
-classical line integral again at c0 = 0 below c = -20 (it is now the faster there) and, for the quantiles of case DK below
-c = -20, the classical search.
-
-**The line integral for the general designs of rank one or two.** `c/dfl_det_line.c` ports `src/DFDet_line.jl` of
-DFLimit.jl: for polynomial trends of any order, an intercept with sines and cosines and the statistic that detrends first
-for a continuous design with d(0) != 0 (zero or stationary start, least squares detrending) the classical line integral
-with P(t) and the two roots from the general engine's transform. `dfl_det_opts.method` (`DFL_DET_AUTO`, the default by
-`dfl_det_defaults`; `DFL_DET_LINE`; `DFL_DET_PATHS`) of `dfl_det_dist` and `dfl_det_quantile`; the rule takes the line
-integral at c0 = 0 for c >= -20, 2.2 to 3.5 times faster than the paths per value and 1.8 to 2.7 times per quantile; the
-router's method 1 and `DFL_METHOD_PATHS` (4) where the general engine computes; `ltratio_mex` and `ltratio` pass it
-(`opts.method` `'line'`, `'paths'` with a design). Within 1.8e-12 of the Julia line integral (`c/dfl_test_det`: 5336
-comparisons). The MATLAB programs do not have it (their line integral is the slower one there): `dfdet_cdf`, `dfdet_pdf`,
-`dfdet_icdf` take `opts.method` `'auto'` or `'paths'` and refuse `'line'` with a pointer to the MEX file.
-
-**The coefficient statistic's engine.** At x = 0, the points of `coef_cdf` and `coef_icdf`, the rules of C and MATLAB take
-the classical line integral for c0 > 0 (2 to 17 times faster there) and, in C, the general engine for c0 < 0 in case DK at
-c > -5 and the classical engine in case DU (`coef_cdf` of case DU at c = -5 had become three times slower in the R and
-Python packages).
-
-**The quantile searches.** A Newton step below half an ulp that landed on the end of the bracket sent the search into
-bisection (30 evaluations instead of 5); the bracket is closed now (`dfl_icdf`, the router, `newton_safe`, LTRATIO_NEWTON,
-ADFMAX_ICDF, DFDET_NEWTON).
+### The general engine and the automatic choice
 
 **The general engine in C.** `c/dfl_det_*.c` is a port of the general engine of DFLimit.jl (`src/DFDet.jl` and
 `src/DFDet_paper2.jl`, branch engine-merge): the limiting law of the Dickey-Fuller t-ratio for any piecewise smooth
@@ -326,11 +32,6 @@ below c = 2 to the classical engine.
 `ltratio('cdf', x, D, c, opts)` (and `'pdf'`, `'icdf'`, `'mom'`) takes the router, `ltratio('det', fn, D, ...)` the other
 functions; `c/mex/det_check.m` checks a built MEX file.
 
-**Tests.** `c/dfl_test_det` compares the general engine and the router with reference values of the Julia engine
-(`c/test/det_ref.jl`, `c/test/det_ref.txt`): every constructor, one to three breaks, polynomial degrees 0 to 4, the three
-starts, GLS detrending, a local null value, the tails and the edge of the support, every companion, and the three settings
-of the router; it is built by `c/build.sh` and run by the workflow of the C engine.
-
 **MATLAB.** The general engine of DFLimit.jl (`DFLimit.DFDet`: any deterministic terms, polynomial trends of any
 order, breaks in level and slope at several known dates, smooth functions of t/n, by the inversion on paths around the
 roots of the joint moment generating function) is ported to plain MATLAB: the constructors of the designs
@@ -344,71 +45,6 @@ the two MATLAB engines; 'classical'; 'general') and a design in place of the cas
 against 1113 values of the Julia engine (within 1.3e-11 in distribution functions and densities, 2.2e-11 in
 quantiles); the values of the classical programs are unchanged where they compute.
 
-**Repairs of the general engine (November 2026), in C and in MATLAB, as in DFLimit.jl 6e3109e to f824375.** The LM
-statistic's edge t_* of its transform is estimated from the quadratic form of its own denominator (the estimate of the
-orthogonal projection was up to 2.3 times too large, and above the unit root the LM functions failed, Perron's model A at
-c = 3 to 5); above the unit root the LM statistic takes the path of its denominator alone, a hyperbola, in place of the
-vertical line of the t-ratio (P(V <= y) was off by 6e-3 at c = 5 with a linear trend), and it refuses c > 10, where the
-contours disagree. The point-optimal statistic refuses where the grid of its inversion does not resolve the transform
-(far above the unit root: with a linear trend and cbar = -13.5 from c = 3.7, where the distribution function had come out
-between -0.1 and 3.4 at c = 5; the error names the grid size that serves) and at |q| beyond 0.15/h (1000 with the default
-grid); 0, 1 and NaN at -Inf, Inf and NaN. The U-shapes of the zero and the stationary start stop with an error beyond 1e6
-nodes, as those of the fixed start did (the design (1 + r, 1{r < 0.4}), whose positive root runs off on the vertical
-line, took gigabytes within seconds; it is now refused at every c). The refusal comes before any U-shape is built: the
-outer path carries the roots at its nodes, and the count is checked at every node where the transform is not negligible
-before the outer sum (`ushape_guard`, as in DFLimit.jl), so that such a design fails within 0.1 s and a few MB in C, where
-the guard in the U-shapes refused after 1.4 s and 1.2 GB, and in MATLAB within the 0.8 s its outer path takes, where it
-refused after 11 s. The checked computation (`verified`) falls back to the
-variant at the default angle after any error of the steeper variant, except an exhausted memory. Values at c <= 0
-unchanged (bit for bit in the reference values of both tests).
-
-**The rules far from the unit root from c = -60 on (C and MATLAB, as in DFLimit.jl).** On -100 <= c < -60 the outer
-contour of the general engine was the 45-degree hyperbola, on which the terms grow far from the unit root: the
-distribution function was off by 1e-11 at c = -70 and by up to 1.4e-9 at c = -100 against the line integral (cases DU,
-DT, SK, SU at c0 = 0, case DU at c0 = 2), the linear form of the envelope by up to 9e-10. The angle of `fixed_phi` (with
-every start) and the caps 20/min(A, 40/|sigma|) of the segments of the U-shapes now apply from c = -60 on
-(`DET_FAR_CMIN`), and the contour ends at the larger of 1e5 and 20 c^2 for every c: within 5e-13 there (case DK 3e-11, as
-below c = -100), values elsewhere unchanged bit for bit, and on that range the C general engine at c0 = 0 takes 0.6 to 0.9
-times the classical engine's time in cases DU, DT, SU (1.4 to 1.7 in case DK, as below c = -100; in DFLimit.jl the
-general engine takes 0.2 to 0.95 times its former time there in cases DU, DT and 1.3 to 1.5 times in cases DK, SU).
-The MATLAB rule (`ltratio_engine`) no longer keeps the
-classical programs on that range; `dfl_test_det` and `dfdet_test` check it (the general engine within 1e-10 of the line
-integral at c = -70, -85, -100).
-
-**The engine chosen automatically for a case string in MATLAB with the MEX file.** With the folder of the MEX file
-ahead on the path, a case string without `opts.engine` goes to the C router with `'auto'`, as a design does
-(`ltratio_croute`, and `ltratio.m` of the MEX folder for `'cdf'`, `'pdf'`, `'icdf'`, `'mom'`, `'lincdf'` and
-`'envelope'`); `opts.engine = 'classical'`, a method named, `verified` and the options of the MATLAB engines keep the
-classical programs. Where the C rule takes the general engine for a case string the two engines agree to about 1e-9.
-The plain MATLAB programs already chose by `ltratio_engine` with `'auto'` as the default.
-
-**Non-finite arguments (C and MATLAB, as in DFLimit.jl).** Every public function of the general engine and of the router
-gives at +-Inf and NaN in each argument either the limit or an error that names the argument. `dfl_det_coef_cdf_gp` did not
-return at y = +-Inf (the full sum on all threads; now 1 and 0 without the sum, NaN at NaN); the searches from a start
-value of +-Inf (`dfl_det_quantile`, `dfl_det_coef_quantile`, `dfl_det_lin_quantile`, `dfl_det_adfmax_quantile`,
-`dfl_det_mza_quantile`) did not return or returned +-Inf, and a tolerance of +Inf stopped them after one step (now
-errors; NaN keeps the default); the point-optimal statistic at c = +-Inf or cbar = -Inf and with umax = +Inf, and
-`dfl_det_coef_cdf_gp` with umax = +Inf, did not return (now errors); the linear form at a = +-Inf gave NaN, through the
-router's classical code 0, also at cbar = +-Inf in case DG (now errors; a = NaN is the law of V as before); the region
-below a line gave NaN at a = +-Inf and the law of V at a = NaN, through the classical code 0 at b = Inf and at a = +-Inf
-(now an error for the slope, and 1, 0, NaN at b = Inf, -Inf, NaN); the envelopes failed at c = -Inf (now 1, the limit);
-GLS detrending at cbar = -Inf and MSB at a non-finite c gave errors that named another quantity (now named). The
-sizes of the general engine are bounded: the outer hyperbola refuses more than 1e5 nodes (a factor hfac of its step far
-below one, or not positive; in C the count overflowed an int) and the moments a grid of more than 1e6 points (c beyond
-2.5e4). `dfl_det_local_power` checks its own level and c0, and the router's message of the level is that of the general
-engine, "the level must lie in (0, 1)".
-
-**Defects of the C interface (the R and Python wrappers).** `dfl_warning()` and `dfl_det_warning()` are cleared at the
-start of every `dfl_engine_*` function and of `dfl_design_from_matrix` (a warning of an earlier call was read again), and
-the new public functions `dfl_warning_clear()` and `dfl_det_warning_clear()` clear each; the router's quantile search
-kept its hold on the general engine's warnings when it refused p outside (0, 1), after which that thread's warnings were
-never cleared again (every return releases it now). ADFmax with a fixed start through the router computed the zero start of the classical ADFmax:
-it takes the general engine; ADFmax with GLS detrending or c0 != 0 (dropped without notice) and a case code with gls
-other than NaN are refused. The quantile functions of the general engine (`dfl_det_lin_quantile`,
-`dfl_det_adfmax_quantile`, `dfl_det_pt_quantile`) and the levels of the power functions refuse p outside (0, 1) instead
-of growing the bracket (`dfl_det_lin_quantile` at p = 1.5 had exhausted the memory). The law of V is 0 at b <= 0, the
-envelopes of the general engine are NaN at c = NaN, as the classical envelope, and MSB is NaN at NaN.
-
 **The MATLAB router.** The regions and the linear form with no deterministic terms and a fixed start take the general
 engine (the classical programs have the zero start only, and the start was dropped: 0.285 for 0.975), ADFmax with a
 fixed start too; `opts.start` or `opts.gls` with a case string, a zero start named with `g0 ~= 0`, `opts.g0` with the
@@ -421,10 +57,45 @@ classical programs, as `ltratio.m` does).
 The MEX file's `route` operation has ADFmax, the linear form, the envelope and the regions, and gives the warning
 `ltratio:brittle` where it takes the classical engine in a brittle regime.
 
-## 0.5.0
+**The engine chosen automatically for a case string in MATLAB with the MEX file.** With the folder of the MEX file
+ahead on the path, a case string without `opts.engine` goes to the C router with `'auto'`, as a design does
+(`ltratio_croute`, and `ltratio.m` of the MEX folder for `'cdf'`, `'pdf'`, `'icdf'`, `'mom'`, `'lincdf'` and
+`'envelope'`); `opts.engine = 'classical'`, a method named, `verified` and the options of the MATLAB engines keep the
+classical programs. Where the C rule takes the general engine for a case string the two engines agree to about 1e-9.
+The plain MATLAB programs already chose by `ltratio_engine` with `'auto'` as the default.
 
-Four errors are repaired, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB
-programs, as in DFLimit.jl 0.5.0. Values outside the regions named below are unchanged.
+**The line integral for the general designs of rank one or two.** `c/dfl_det_line.c` ports `src/DFDet_line.jl` of
+DFLimit.jl: for polynomial trends of any order, an intercept with sines and cosines and the statistic that detrends first
+for a continuous design with d(0) != 0 (zero or stationary start, least squares detrending) the classical line integral
+with P(t) and the two roots from the general engine's transform. `dfl_det_opts.method` (`DFL_DET_AUTO`, the default by
+`dfl_det_defaults`; `DFL_DET_LINE`; `DFL_DET_PATHS`) of `dfl_det_dist` and `dfl_det_quantile`; the rule takes the line
+integral at c0 = 0 for c >= -20, 2.2 to 3.5 times faster than the paths per value and 1.8 to 2.7 times per quantile; the
+router's method 1 and `DFL_METHOD_PATHS` (4) where the general engine computes; `ltratio_mex` and `ltratio` pass it
+(`opts.method` `'line'`, `'paths'` with a design). Within 1.8e-12 of the Julia line integral (`c/dfl_test_det`: 5336
+comparisons). The MATLAB programs do not have it (their line integral is the slower one there): `dfdet_cdf`, `dfdet_pdf`,
+`dfdet_icdf` take `opts.method` `'auto'` or `'paths'` and refuse `'line'` with a pointer to the MEX file.
+
+### Extensions of the limit
+
+**Three extensions of the limit** (November 26, 2026), ported from DFLimit.jl to the C engine (`c/dfl_det_ext.c`; the
+volatility transform in `dfl_det_mgf.c`, its paths in `dfl_det_path.c`), the MEX file and the plain MATLAB programs:
+volatility and persistence regimes (`volpath`, the option `vol` of `dfl_det_dist`, `dfl_det_quantile`, `dfdet_cdf`,
+`dfdet_pdf`, `dfdet_icdf`, `ltratio_cdf`, `ltratio_pdf`, `ltratio_icdf`, with c a vector of one value per regime); a
+normal component (the option `rho`: the covariate-augmented t-ratio and the predictive regression, `cadf_c0`,
+`predictive_c0`; the inversion on two lines and the normal average); and the first seasonal t-ratio of Hylleberg, Engle,
+Granger and Yoo (`dfl_hegy_t3`, `hegy_t3_cdf`, `hegy_t3_pdf`, `hegy_t3_quantile`). The router has `dfl_engine_dist_ext`
+and `dfl_engine_icdf_ext`. The outer contour of the general engine is now steepened while either group of roots leaves
+its side of the imaginary axis (before: the positive group only), as in DFLimit.jl; the volatility transform needs it, and
+for the engine's designs nothing changes (the existing tests give identical results). Calls without the new options are
+unchanged. Tests: `c/dfl_test_ext.c` and `matlab/ext_test.m` against the reference values of the Julia engine
+(`c/test/ext_ref.txt`, `matlab/validation/ext_ref.txt`) and the limiting cases. The second seasonal t-ratio and the F
+statistic are not part of 0.5.0 (their lines left the reference files).
+
+### Repairs
+
+Four errors are repaired first, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB
+programs, as in DFLimit.jl 0.5.0 (the next four entries; outside the regions they name the values are unchanged), then
+the later repairs.
 
 **Large x above the unit root.** In the bulk of the distribution at c = 7 and beyond (x in the hundreds) the inner
 integrals of the line integral need a Gauss-Legendre rule whose node count grows like x^2. Beyond 4096 nodes the C
@@ -493,6 +164,365 @@ unchanged bit for bit; the 85 others are values of the linear form and of the en
 reference (the closed form at a = 0, an inversion on 1.2e6 nodes up to u = 1e5 elsewhere) than before, within 3e-13
 of it, and one, 1 - 2.2e-14 before, moves by 1.5e-14. The MATLAB programs other than these four are not touched, and
 `ltratio_test` (now 268 checks) passes, also on the MEX file.
+
+**Repairs of the general engine (November 2026), in C and in MATLAB, as in DFLimit.jl 6e3109e to f824375.** The LM
+statistic's edge t_* of its transform is estimated from the quadratic form of its own denominator (the estimate of the
+orthogonal projection was up to 2.3 times too large, and above the unit root the LM functions failed, Perron's model A at
+c = 3 to 5); above the unit root the LM statistic takes the path of its denominator alone, a hyperbola, in place of the
+vertical line of the t-ratio (P(V <= y) was off by 6e-3 at c = 5 with a linear trend), and it refuses c > 10, where the
+contours disagree. The point-optimal statistic refuses where the grid of its inversion does not resolve the transform
+(far above the unit root: with a linear trend and cbar = -13.5 from c = 3.7, where the distribution function had come out
+between -0.1 and 3.4 at c = 5; the error names the grid size that serves) and at |q| beyond 0.15/h (1000 with the default
+grid); 0, 1 and NaN at -Inf, Inf and NaN. The U-shapes of the zero and the stationary start stop with an error beyond 1e6
+nodes, as those of the fixed start did (the design (1 + r, 1{r < 0.4}), whose positive root runs off on the vertical
+line, took gigabytes within seconds; it is now refused at every c). The refusal comes before any U-shape is built: the
+outer path carries the roots at its nodes, and the count is checked at every node where the transform is not negligible
+before the outer sum (`ushape_guard`, as in DFLimit.jl), so that such a design fails within 0.1 s and a few MB in C, where
+the guard in the U-shapes refused after 1.4 s and 1.2 GB, and in MATLAB within the 0.8 s its outer path takes, where it
+refused after 11 s. The checked computation (`verified`) falls back to the
+variant at the default angle after any error of the steeper variant, except an exhausted memory. Values at c <= 0
+unchanged (bit for bit in the reference values of both tests).
+
+**The general engine above the unit root** (C and MATLAB alike, the repairs of DFLimit.jl). The coefficient statistic
+far above the unit root was silently wrong: the panels of the paths around the roots merged every point within 1e-12
+max(B - A, 1) of an end with it (`graded_panels` in `c/dfl_det_inner.c` and `matlab/dfdet_contour.m`), and from c = 16
+on the segment around the positive root, which lies within about 2c e^{-2c} of the branch point -t/c0 of the coefficient
+statistic, got no panel at all: off by up to 0.2 without a warning (case DK at c = 20: 0.312770633 in C and 0.312770632
+in MATLAB for the 30% point, `dfdet_coef_cdf` and the router with `engine` general; the default route takes the
+classical engine there). The tolerance is now relative to the length of the interval. The (1,1) entry of the matrix of
+the transform (`buildM` in `c/dfl_det_mgf.c`, `matlab/dfdet_mgf.m`, `dfdet_logmgf.m`, `dfdet_dval.m`) carried an
+absolute rounding error of 1e-16, of the size of the entry far above the unit root wherever the transform is evaluated
+at s != 0: the moments of the general engine were off by 6e-4 relative at c = 15 and 0.95 at c = 20, and the inversion
+of Gil-Pelaez worse; it is now m011 plus the product term. The moments with c0 != 0 continued the logarithm of the
+determinant alone around their circles, whose phase at the real point is -Im theta where -s - c0 r > c^2/2, and refused
+on every circle at c = 0 with c0 < 0 (`dfl_det_moments`, `dfdet_mom`; through the router the moments of case DT at c =
+0, c0 = -2): now the logarithm of e^{c + theta} det(...). The density of the coefficient statistic with a fixed start
+above the unit root was off without a warning (by up to 0.12 at c from 1 to 5, case DU at c = 5, g0 = 0.5, at the 90%
+point; 5.9e-5 in case DU at c = 2, g0 = 1): the objective that places the path G+ around the positive roots (`place` in
+`c/dfl_det_inner.c` and `matlab/dfdet_contour.m`) did not see the branch point -Re(t)/c0 of the v-kernels, where the
+kernel of the density has a double pole; it is now a focus of its grading cost (above the unit root with c0 > 0 only;
+elsewhere unchanged). `dfl_det_coef_cdf_gp` refuses where its grid does not resolve the transform (d/h below 3.3, d the
+distance of the nearest singularity of the transform from the real line, h the step of the grid at the origin; it was
+off by 1.1e-2 at c = 12 and by 15 at c = 20 for the 30% point of case DK), with an error that names the N that serves.
+And every function of the general engine refuses above c = 16 with deterministic terms (10 with them and a fixed start)
+and above c = 20 without them (`DFL_DET_CMAX`, `DFL_DET_CMAX_FIXED`, `DFL_DET_CMAX0`, `dfl_det_cmax`; `dfdet_cmax` in
+MATLAB), where one root of the transform is of the order 2c e^{-2c} and the others are lost in double precision (the
+paths of case DU failed from c = 17, of case DT from c = 18), with an error that names the statistic, c and the bound;
+the rules (`dfl_autoengine`, `ltratio_engine`) take the classical engine there.
+
+**The upper tail above the unit root, and the final check of a distribution function** (C and MATLAB alike, the
+changes of DFLimit.jl). Above the unit root the t-ratio with c0 != c has its upper tail at x of the order
+(c - c0) e^c/(2c), and the automatic method returned values outside [0, 1] there without a warning (case DK at c = 10,
+c0 = 2: 0.8415 for 0.7436 at x = 1e4 and -1.3674 for 0.9993 at x = 3e4; at c = 10, c0 = 9 1.0479 for 0.9936 at x = 3e3;
+also with `verified` and the classical engine forced). Beyond x ~ 700 the line integral's inner rule needs more than
+`DFL_RULEMAX` nodes, the point goes to the conditional integral with its checks (`route_double` in `c/dfl_api.c` and
+`matlab/ltratio_dist.m`), and where that flagged the point its one evaluation was returned, which in case DK is off by up
+to 14. In case DK the flag is a false alarm (the checked value within 1.3e-8 of an independent computation, the law of V
+given J(1) by Girsanov's theorem, up to c = 14): case DK now takes the checked value whatever its flag (cases DU, DT
+unchanged). Far above the unit root (c > 4) the three cases take the conditional integral at x > 300 too, and case DK with
+c0 > c at x < -20 (`far_tail`, before the rule's representations): the line integral's cost grows like x^4 at large x (in
+cases DU, DT at c = 16, c0 = 0 it exhausted more than 8 GB at the median in the Julia engine; here the size of its outer
+rule overflowed an int), and in case DK with c0 > c it was off by up to 1.5e-3 in the lower tail (a negative value at
+c = 7, c0 = 9, x = -627); the values of cases DU, DT there are within 1e-14 of the general engine up to c = 13 and within
+5e-7 of the large-c law at c = 13 and 14. Above c = 14 these points are refused in the three cases with an error that
+names the statistic, c, c0, x and the region computed (`DFL_FAR_CMAX`; `ltratio:args` in MATLAB; before anything is
+computed, with `verified` too): the conditional integral of case DK is off by up to 7.7e-5 at c = 16 and 5.5e-3 at c = 18,
+one path of case DT gives 1e44 and more at c = 16. With `verified` these points no longer fall back to the line
+integral. The general engine cut its vertical line to the oscillation as if c0 were 0
+(`line_refine` in `c/dfl_det_path.c` and `matlab/dfdet_contour.m`): it was off by 1.1e-3 at c = 10, c0 = 9, x = 1000 and
+gave 1.0000000112 at x = 1e4; for c0 > 0 the line is now cut to the larger of the rates with and without c0
+(`det_line_refined` takes the values c0; `dfdet_contour('refine', CP, xs, amax, c0s)`; with c0 < 0 the rate is below
+that of c0 = 0 and the cut is unchanged). Every distribution function of both engines ends with
+a check of its values: below -1e-8 or above 1 + 1e-8 an error that names the call (`dfl_cdf_range_check` in `dfl_dist`,
+`dfl_det_dist` and `dfl_det_coef`; `ltratio_rangecheck` in `ltratio_cdf`, `coef_cdf`, `dfdet_cdf` and `dfdet_coef_cdf`,
+the error `ltratio:range`). Tests: `c/dfl_test_bounds.c` (part 4) and section 13 of `matlab/ltratio_test.m`.
+
+**Non-finite arguments (C and MATLAB, as in DFLimit.jl).** Every public function of the general engine and of the router
+gives at +-Inf and NaN in each argument either the limit or an error that names the argument. `dfl_det_coef_cdf_gp` did not
+return at y = +-Inf (the full sum on all threads; now 1 and 0 without the sum, NaN at NaN); the searches from a start
+value of +-Inf (`dfl_det_quantile`, `dfl_det_coef_quantile`, `dfl_det_lin_quantile`, `dfl_det_adfmax_quantile`,
+`dfl_det_mza_quantile`) did not return or returned +-Inf, and a tolerance of +Inf stopped them after one step (now
+errors; NaN keeps the default); the point-optimal statistic at c = +-Inf or cbar = -Inf and with umax = +Inf, and
+`dfl_det_coef_cdf_gp` with umax = +Inf, did not return (now errors); the linear form at a = +-Inf gave NaN, through the
+router's classical code 0, also at cbar = +-Inf in case DG (now errors; a = NaN is the law of V as before); the region
+below a line gave NaN at a = +-Inf and the law of V at a = NaN, through the classical code 0 at b = Inf and at a = +-Inf
+(now an error for the slope, and 1, 0, NaN at b = Inf, -Inf, NaN); the envelopes failed at c = -Inf (now 1, the limit);
+GLS detrending at cbar = -Inf and MSB at a non-finite c gave errors that named another quantity (now named). The
+sizes of the general engine are bounded: the outer hyperbola refuses more than 1e5 nodes (a factor hfac of its step far
+below one, or not positive; in C the count overflowed an int) and the moments a grid of more than 1e6 points (c beyond
+2.5e4). `dfl_det_local_power` checks its own level and c0, and the router's message of the level is that of the general
+engine, "the level must lie in (0, 1)".
+
+**Defects of the C interface (the R and Python wrappers).** `dfl_warning()` and `dfl_det_warning()` are cleared at the
+start of every `dfl_engine_*` function and of `dfl_design_from_matrix` (a warning of an earlier call was read again), and
+the new public functions `dfl_warning_clear()` and `dfl_det_warning_clear()` clear each; the router's quantile search
+kept its hold on the general engine's warnings when it refused p outside (0, 1), after which that thread's warnings were
+never cleared again (every return releases it now). ADFmax with a fixed start through the router computed the zero start of the classical ADFmax:
+it takes the general engine; ADFmax with GLS detrending or c0 != 0 (dropped without notice) and a case code with gls
+other than NaN are refused. The quantile functions of the general engine (`dfl_det_lin_quantile`,
+`dfl_det_adfmax_quantile`, `dfl_det_pt_quantile`) and the levels of the power functions refuse p outside (0, 1) instead
+of growing the bracket (`dfl_det_lin_quantile` at p = 1.5 had exhausted the memory). The law of V is 0 at b <= 0, the
+envelopes of the general engine are NaN at c = NaN, as the classical envelope, and MSB is NaN at NaN.
+
+**No NaN, hang or silently wrong value at a finite point** (November 26, 2026, as DFLimit.jl). Four causes. (1) Where
+0.001 |x| 4^m fell a few ulps short of 1/2, the geometric partitions of the C engine's fixed node layouts left a last
+panel a few ulps long whose nodes lay on the support edge of the kernel, X^{-1/2} = Inf times a vanishing weight: F and
+f were NaN at the one to four ulps above x = -500/4^k in every case at every c <= 0 (x = -7.8124999999999991 in case DK
+at c = 0 among them); now no panel ends within 1e-9 of the end of its partition (`dfl_nosliver`, in the layouts, the
+rays, the edge segments and the smooth parts; the same in `dfx_core.m`). (2) For 0 < |x| below about 1e-162 the
+Gaussian factor of the ray of the distribution function, e^{-|t| r^2/q^2}, underflowed to 0/0: F was NaN in the C engine
+and in `dfx_core.m` (cases DK, DU, DT, ...); now in (r/q)^2. (3) Far in the tails the C engine's fixed layouts lost
+accuracy (case DK at c = 0: F = 1 + 1.3e-6 at x = 31.25 and 1 + 2.1e-3 at 125, refused by the range check, F = -2.5e-3
+at x = -500; at c = -480 F = -2.9e-7 at x = -100; case DU at c = -10 F = 4.9e-7 at x = -250, returned): they now serve
+-50 <= x <= 15 (`DFL_BATCH_QMIN`, `DFL_BATCH_QMAX`), the adaptive rules beyond (the MATLAB programs have no fixed layouts).
+(4) The general engine's paths at a tiny x < 0, whose parabola has its root at -1/(2x): the asymptotic series of the
+incomplete Gaussian integrals never ended beyond |z| ~ 1e102 in C (the call hung: Perron's model C at c = -5,
+x = -1e-200; case DU at c = 1, x = -1e-100 by the paths), now with `<=` in its tests (also in the classical engine's copy,
+`dfl_gen.c`, and in `tr_contour.m`), and the density was NaN where an end's exponential underflowed (0 times Inf; in C and
+in `dfdet_contour.m`), now such an end contributes nothing but its flag. Elsewhere the values are unchanged (the existing
+tests pass unchanged). Tests: section 5 of `c/dfl_test_bounds.c`, section 14 of `ltratio_test`, and the checks of the
+paths at a tiny x in `dfdet_test`.
+
+**The LM statistic only for a design whose span contains the constant** (November 26, 2026, as DFLimit.jl). `lm_cdf`,
+`lm_quantile`, `lm_power` (`dfl_det_lm_cdf`, `dfl_det_lm_quantile`, `dfl_det_lm_power` in C) computed the limit
+-1/(2 sqrt V) for any design with a linear trend in its span; that limit holds only when the span also contains the
+constant (the LM regression estimates the level from the first observation). They now refuse such a design with an error
+(r alone, r and e^r, a level dummy with r gave the limit of the linear trend): the span is decided on the values of the
+piecewise polynomial design at Chebyshev points of each piece, by a least-squares fit of the constant (`det_span_has_constant`
+in C, a subfunction of `dfdet_lmpath` in MATLAB; exactly for polynomial trends, breaks and dummies, to 1e-6 for the
+interpolants of a function design and a design from a matrix). Tests: the group `lmspan` of `c/dfl_test_det.c` and the
+checks "LM refused" and "LM accepts" of `dfdet_test`.
+
+**`verified = true` with c0 > 0 far from the unit root** (November 26, 2026, as DFLimit.jl). The checked computation took
+the conditional integral for a zero start with c0 != 0 down to c = -100 inclusive; with c0 > 0 far from the unit root
+that integral with its checks was off by 2.4e-6 to 1e-5 in cases DU, DT (in DFLimit.jl), its agreement rule flagged
+most such points but not all, and at c = -100, c0 = 3 the checked value was off by 2.05e-8 in case DU at the 99% point
+in C (2.1e-8 in DU and 4.2e-8 in DT in DFLimit.jl), where the line integral agrees with the general engine to 3e-12.
+Below c = -20 a zero start with c0 > 0 now takes the line integral with `verified = true` as well, without the
+recomputation of the tails (`dfl_autodouble`, `DFL_DOUBLE_C0POS_CMAX`; `ltratio_method`; the default took the line
+integral there already; method 2 or `'double'` still forces the conditional integral). `dfl_automethod_verified` is the
+rule of the checked computation. Tests: the last section of `c/dfl_test_dbl.c`, section 12 of `ltratio_test`.
+
+**The general engine with c0 > 0 on the vertical line** (C, the MEX file): where the outer contour of the paths is the
+vertical line (above the unit root, beyond the hyperbolas) the paths do not resolve the two roots of the parabola of a
+point x < 0, and one evaluation was off by up to 1e-3 in the lower tail, below zero (refused by the range check) or NaN,
+with the line's warning (an intercept with a sine and a cosine at c = 5, c0 = 2: F(-26.7) = 1.3e-3 for 6.9e-14). Method
+auto now takes the line integral at these points where it covers the design (`det_line_vline`; the points x >= 0 and the
+quantiles keep the paths, where the line integral grows slow far out); the MATLAB programs, which have no line integral
+for general designs, keep the warning.
+
+**A warning far above the unit root.** For c > 5.5 the inversion on paths by one evaluation was off by more than 1e-5 in
+the upper tail for designs beyond the classical cases and for a fixed start with deterministic terms (Perron's model C at
+c = 7 by 1.5e-5 in F, at c = 8 by 6.3e-5; a linear trend with a fixed start at c = 7 by 8.7e-5), without a warning. The
+general engine now warns there where the paths compute (C `dfl_det_warning`, `far_above_warn` of `c/dfl_det_api.c`;
+MATLAB `dfdet:brittle`, `dfdet_farwarn`); `verified` checks the values.
+
+**The general engine's line integral far above the unit root at large x** (C, the MEX file; November 27, 2026). With
+engine general, case DU at c = 10 at the mean of the law (x = 7860) did not return (five minutes on one point): the outer
+panels of the line integral follow the phase of the saddle factor of its inner integrals, which grows like x^2, and
+their 67680 nodes went to the provider's memo of the general engine's transform in one call, with 65536 slots; the memo's
+search then never ended. The memo now fills at most half its slots, and the classical integrator checks the bound of its
+inner rules on the coarse points of its outer panels first where the model is a provider (`EARLY_MARGIN`, as
+`early_bound` of DFLimit.jl), so that the paths compute such points without the transform at all the outer nodes: 2 s at
+that point (the paths alone 2.1 s, the classical engine 0.1 s; one value). Test: `selftest_far_line` in
+`c/dfl_test_det.c` (the value against the classical engine and the paths within a time limit; a memo given more points
+than its slots). The MATLAB general engine (paths only) takes 27 s there and agrees with the classical programs to 1e-16.
+
+**The methods `'lines'` and `'mixture'` without a normal component** (rho = 1) are refused by the general engine's
+distribution function, density and quantiles (`dfl_det_dist`, `dfl_det_quantile`; `dfdet_cdf`, `dfdet_pdf`,
+`dfdet_icdf`) with the message of DFLimit.jl for a method other than `'auto'`, `'line'` and `'paths'` ("method must be
+'auto', 'line' (the line integral with the explicit kernel) or 'paths' (the inversion on paths around the roots)"),
+as DFLimit.jl refuses them; before, the C engine named them the methods of a normal component. Tests: the group `errors`
+of `c/dfl_test_ext.c` and of `ext_test`. The local build of the MEX file in `c/mex/README.md` lists `dfl_det_ext`.
+
+**The quantile searches.** A Newton step below half an ulp that landed on the end of the bracket sent the search into
+bisection (30 evaluations instead of 5); the bracket is closed now (`dfl_icdf`, the router, `newton_safe`, LTRATIO_NEWTON,
+ADFMAX_ICDF, DFDET_NEWTON).
+
+### Rules, timings and documentation
+
+**The devices of Bao and Kan** (C, the MEX file and MATLAB alike, a port of the module DFKan of DFLimit.jl at c9fecd6):
+the numerical devices of Yong Bao and Raymond Kan, "Exact Finite-Sample Distribution and Moments of the Least Squares
+Estimator in First-Order Autoregressions: O(1) Algorithms", for the limits of these programs (`c/dfl_kan.c` with the
+transform written once for numbers and jets in `c/dfl_kan_logcf.inc` and `c/dfl_kan_jet.inc`, `c/dfl_det_kan.c`;
+`matlab/kan_core.m`, `matlab/dfdet_kan.m`, `matlab/kan_route.m`). The joint characteristic function of the limit pair of
+the six classical cases in closed forms free of cancellation on both sides of the unit root, with the branch of the
+square root fixed at each point, in Taylor-mode arithmetic (jets); a statistic that rejects on a half-plane by one
+inversion along a ray, adaptive quadrature over decades (the algorithm of QuadGK.jl, so that the values are those of the
+Julia package to rounding) with the tail beyond S = 400/|w| completed by repeated integration by parts from a jet of order
+eight; the moments from one jet per node. By default, with the rules and constants of `merged.jl`:
+
+- the coefficient statistic (`coef_cdf`, `coef_icdf`, the new `coef_pdf` and `coef_mom`; `dfl_engine_coef`,
+  `dfl_engine_coef_icdf`, the new `dfl_engine_coef_pdf`, `dfl_engine_coef_mom`) in the cases DK, DU, DT (zero or fixed
+  start) and SK, SU, ST up to c = 20;
+- the linear form (`ltratio_lincdf`, `dfl_engine_lincdf`) in case DK for a != 0 and -100 <= c <= 4, and the six classical
+  cases through their designs (fixed and stationary starts included) for -100 <= c <= 2 (`dfl_engine_lincdf_x` takes a
+  design);
+- the power envelope (`power_envelope`, `dfl_engine_envelope`) in case DK for c <= -1e-4, the critical value by regula
+  falsi to 1e-12;
+- the moments of the t-ratio (`ltratio_mom`, `dfl_engine_mom`) from jets in the six cases up to c = 20 (and p = 31), any
+  c0 and fixed start;
+- the general engine's point-optimal statistic (`pt_cdf`, `pt_pdf`, `pt_quantile`, `pt_power`, `pt_envelope`;
+  `dfl_det_pt*`) up to c = 4 and `dfl_det_coef_cdf_gp` (zero or stationary start) up to c = 5, with the branch of the
+  square root of the determinant from the pivots of the precision matrix at each point (`det_detlog_piv`,
+  `dfdet_kan`); the quantile searches keep the transform values along the ray.
+
+The options: `method` (`'auto'`; `'inversion'`, `'jets'` for the moments, which forces them; `'engine'`, the computation of
+before, which reproduces those values; `'grid'` for the point-optimal functions and `coef_cdf_gp`; in C the codes
+`DFL_METHOD_INVERSION`, `DFL_METHOD_ENGINE`, `DFL_METHOD_GRID` of `dfl_inv_opts` and the `*_x` functions), `tol` (1e-12;
+1e-10 relative for the moments), `verified` (recomputes by the engines the values whose estimate exceeds the tolerance)
+and the error estimates (a second output in MATLAB and the MEX file, `errest` in C); a warning (`ltratio:inversion` in
+MATLAB, `dfl_det_warning` in C) names the values whose estimate exceeds the tolerance. Within 6e-15 of DFLimit.jl in C
+and MATLAB (`c/dfl_test_kan`, `matlab/kan_test`, 2812 and 2526 checks against `c/test/kan_ref.txt`, written by
+`c/test/kan_ref.jl`). Against `method = engine` the values move as in the Julia package (the coefficient statistic by up
+to 5.5e-13 in the cases timed, the quantiles of before stopped at a width of 1e-9, the envelope's bisection to 1e-9 by up to
+3.3e-10; with a fixed start above the unit root the engines' moments were off, by 0.39 relative at c = 2, c0 = -2, g0 = 1
+in case DK). Warm time per value in C, single inversion against `method = engine`: the coefficient statistic 0.005 to
+0.18, its quantiles 0.02, its density 0.03 (at the chi-square point y = -c0, where the transform decays like a power, 57
+times slower, about 0.9 s a value, as in the Julia package, with a warning), the linear form 0.07 to 0.24, the envelope
+0.13 to 0.16, the moments 0.013 to 0.23, the point-optimal statistic 0.08 to 0.15 (quantiles 0.3 to 0.4, envelope 0.2),
+`coef_cdf_gp` 0.05 to 0.1. In the MATLAB programs (warm, minima of three calls, against `opts.method = 'engine'` or
+`'grid'`): the coefficient statistic 0.02 to 0.10, its quantiles 0.013, its density 0.07, the linear form 0.5 to 1.05 (the
+engines' closed forms are as fast in case DK at c = 0), the envelope 0.31, the moments 0.08 to 1.08 (case DK at c = 0, where
+the classical circles are cheap), the point-optimal statistic 0.02 to 0.06 (quantiles 0.21, envelope 0.13; the grid with
+its cache cleared).
+
+**The branches at each point.** The classical engines' P(t), M_0(t) and the labels of the roots (`dfl_tparts`,
+`dfx_core('tparts')`) and the argument of log P(t) in the provider of the general engine's line integral
+(`c/dfl_det_line.c`) are fixed at each point, after Bao and Kan, in place of their continuation along the grids (removed:
+`line_continue`). The engines' values move by at most 4.2e-13 (the contour integral of case DT with g0 = 2 at c = -20;
+elsewhere below 1e-13) at the same cost (warm time new/old: median 0.95; in MATLAB the line and contour integrals within
+7.7e-13 at 0.97 to 1.05 of the time). `c/test/prim_ref.txt` regenerated: its
+continuation on a coarse grid of 13 points was on the wrong branch at its last point (t = 1 + 201.7i at c = -5, the sign of
+P).
+
+**The fixed node layouts of the C line integral.** `c/dfl_batch.c` ports the batched evaluation of the Julia engine
+(`DFExact.jl`): for c <= 0, c0 = 0 and |x| above about 0.034 the inner integrals of the line integral are sums over nodes
+that do not depend on t, on geometric panels (the chi-square kernel of case DK and case DG at tau = 1, the K_0 kernel's
+density at any tau and its distribution function at tau = 1). The option `batched` of `dfl_single_opts`, which was set and
+never read, now chooses them (true by default). The classical tests pass unchanged with and without them; against the
+adaptive rules they agree to 3.7e-13 for c > -20 and 3.2e-12 for -480 <= c <= -20 (as in the Julia engine,
+`c/dfl_test_batch`). Per value case DK is 8 to 20 times faster, the other cases 1.8 to 3.2 times. The C router takes the
+classical line integral again at c0 = 0 below c = -20 (it is now the faster there) and, for the quantiles of case DK below
+c = -20, the classical search.
+
+**The rules of one evaluation** (C, the MEX file and MATLAB alike, a port of DFLimit.jl fde1632 to 9c71860, merged at
+d95305c; the README, "The rules of one evaluation"). One evaluation, the default, takes thinner rules where they hold,
+with the rules, regions and constants of the Julia package:
+
+- the general engine's inversion on paths (`dfl_det_dist`, `dfl_det_quantile`; `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf`)
+  the outer hyperbola with 1.5 times the step and the U-shapes with 16 nodes per panel and 32 on the tails of their rays
+  (24 and 40 before; 32 and 48 for 48 and 64 with a fixed start), and by regions of the start, the deterministic terms, c
+  and c0 the present rule or a finer one (`dfl_det_path_region`, `dfdet_rules`; near the unit root with c0 < 0 and a
+  fixed start without deterministic terms the present step itself was off by up to 0.86 in the upper tail, the new step
+  within 7e-12 of the classical engine). New: `dfl_det_opts.rule` (`DFL_RULE_*`), `n`, `ntail`, and `hfac` NaN (by the
+  rule) unless given; `opts.rule` of `dfdet_cdf`, `dfdet_pdf`, `dfdet_icdf` and of `ltratio('det', ...)`. `verified`
+  takes the rule of before. The guard on the U-shapes counts the nodes of the present rule;
+- the classical contour integral (`dfl_ctr_rule`, `dfl_contour_rule`; `ltratio_rules('contour')`, `opts.rule`,
+  `opts.n1`, `opts.hfac` of `tr_contour`): 32 nodes for 64 and the outer step 1.5 times as long where they hold; the
+  conditional integral (`dfl_cond_rule`; `ltratio_rules('conditional')`): 48 or 64 nodes for 96 in its regions, `Nv`,
+  `Nl` override it (in C now 0 by default, the rule; 96 with `verified` and in `dfl_adfmax`, `dfl_region`);
+- the fixed start: its U-shapes count the growth of the v-kernels of the upper tail at every c (in case DK near the unit
+  root one evaluation of the general engine was off by 3e-7 at x = 9.7, 7e-3 at x = 12 and 1e39 at x = 20 at c = 0, g0 =
+  1, where the final check refused); the C router takes the classical engine for case DK with c0 < 0 near the unit root
+  (`ltratio_cdf(45.11, 'DK', 0.5, struct('c0', -10, 'g0', 1))` was refused by the final check, now 0.99981515720), and
+  both rules take the general engine for the fixed start of cases DU, DT far from the unit root (c0 > 0 below c = -20,
+  below -10 where |c g0| > 20; any c0 below c = -20 where |c g0| > 60), where the contour integral's one evaluation was
+  off by up to 2.2e-2 of the peak of the density; `dfl_brittle` and `ltratio_brittle` warn there of the classical one
+  evaluation and say "may be off by more than 1e-5" with c0 > 0 below c = -15;
+- the quantile searches start from the moments from jets of Bao and Kan (`dfl_mom_start`; `mom_start` in
+  `ltratio_icdf.m`) and take F and f from one pass of the general engine's paths where the rule gives a Newton step's
+  point to it (`dfl_det_dist_both`, `dfdet_dist(..., 'both')`), the quantiles bit for bit those of the two evaluations;
+  `DFL_MOM_START`, `DFL_DIST2`, `ltratio_switch`, `ltratio('switch', ...)` and `ltratio_mex('switch', ...)` restore the
+  computation of before.
+
+Against DFLimit.jl d95305c (`c/test/det_ref.txt` and `matlab/validation/det_ref.txt` regenerated, with a section of the
+rules): C within 3.7e-14 (paths), 2.3e-14 (contour), 7.1e-13 (conditional), 5.6e-11 (quantiles; the search tolerance is
+1e-10); the MATLAB programs within 2e-14, 1.6e-14, 2.1e-12 and 1.9e-11. The earlier reference values of the general
+engine move by at most 3.4e-11 under the thinner rules, the fixed-start value of case DT at c = -5 (`dfl_test_dbl`) by
+1.3e-11. Warm time new/old in C (minima of seven calls, ten threads): the paths 0.47 to 0.71 (1.4 to 1.7 in the cells of
+the finer steps), the contour integral 0.39 to 0.69, the conditional integral 0.55 to 0.84, the router's quantiles 0.26
+to 0.31 with c0 != 0 (0.80 to 0.98 where the classical search computes). In the MATLAB programs: warm calls (minima of
+five after a first, one MATLAB session each): the paths 0.48 to 0.78 (1.6 in the cells of the finer steps), the contour
+integral 0.44 to 0.83, the conditional integral 0.87 to 0.98, the quantiles of `ltratio_icdf` 0.34 to 0.48 where the
+general engine computes some of their points, 1.01 with the classical engine.
+
+**The rules far from the unit root from c = -60 on (C and MATLAB, as in DFLimit.jl).** On -100 <= c < -60 the outer
+contour of the general engine was the 45-degree hyperbola, on which the terms grow far from the unit root: the
+distribution function was off by 1e-11 at c = -70 and by up to 1.4e-9 at c = -100 against the line integral (cases DU,
+DT, SK, SU at c0 = 0, case DU at c0 = 2), the linear form of the envelope by up to 9e-10. The angle of `fixed_phi` (with
+every start) and the caps 20/min(A, 40/|sigma|) of the segments of the U-shapes now apply from c = -60 on
+(`DET_FAR_CMIN`), and the contour ends at the larger of 1e5 and 20 c^2 for every c: within 5e-13 there (case DK 3e-11, as
+below c = -100), values elsewhere unchanged bit for bit, and on that range the C general engine at c0 = 0 takes 0.6 to 0.9
+times the classical engine's time in cases DU, DT, SU (1.4 to 1.7 in case DK, as below c = -100; in DFLimit.jl the
+general engine takes 0.2 to 0.95 times its former time there in cases DU, DT and 1.3 to 1.5 times in cases DK, SU).
+The MATLAB rule (`ltratio_engine`) no longer keeps the
+classical programs on that range; `dfl_test_det` and `dfdet_test` check it (the general engine within 1e-10 of the line
+integral at c = -70, -85, -100).
+
+**The choice of engine re-derived** (`dfl_autoengine`, `ltratio_engine`, November 26, 2026), after the thinner rules of
+one evaluation, which halved the time of the general engine's paths: from interleaved timings of the two C engines in each
+cell (a cell moved where the other engine was at least 1.5 times faster) and checks of the new choice's one evaluation
+against the other engine's checked computation from the 0.01% to the 99.99% point (within 1e-7; measured in Julia, whose
+general engine the C engine ports to 1e-12). The C router takes the general engine also with a zero start and c0 > 0 at
+c = -100 (2 to 4.4 times faster) and in case DT up to c = 2 (3.6 to 6.8 times); with c0 < 0 in case DK for -5 < c <= 0
+(6.7 to 8.7 times) and in case DT at every c <= 0 (1.7 to 3.5 times); at c0 = 0 in cases DU, DT just above the unit
+root, 0 < c <= 0.5, by its paths (1.75 to 2.1 times), and in case DT with a zero start below c = -20 (1.6 to 1.9 times);
+with a fixed start in case DK also where |g0| <= 1 with |c g0| <= 50 and c >= -100 (1.8 to 3.9 times; the rule now takes
+the absolute value of g0, which the law depends on); the quantiles of case ST from c = -0.5 on (1.7 times); and the
+parabola of `dfl_engine_region` at c0 = 0 for -20 <= c <= 0 (3.5 to 45 times). The general engine's method auto takes its
+paths at c0 = 0 just above the unit root, 0 < c <= 0.5, for designs with deterministic terms (1.5 to 2.3 times faster than
+the line integral). The Julia rule, whose costs differ, moves further in some cells (the paths up to c = 1.5 and 2, case
+DK with c0 < 0 up to c = 2, |g0| <= 1.5, the quantiles of case SU); the C cells whose gains lay between 1.3 and 1.5 were
+left alone. The MATLAB rule (`ltratio_engine`) follows the C rule in these cells (c0 > 0 in case DT up to c = 2, c0 < 0
+in case DT at every c <= 0, the fixed start of case DK, the quantiles with a zero start up to c = 2 and of case ST from
+c = -0.5 on, where nearer zero the general search is off) and keeps its own cells elsewhere; its regions stay with the
+classical programs. Where the rule now takes the other engine, values move by less than 1e-7.
+
+**The coefficient statistic's engine.** At x = 0, the points of `coef_cdf` and `coef_icdf`, the rules of C and MATLAB take
+the classical line integral for c0 > 0 (2 to 17 times faster there) and, in C, the general engine for c0 < 0 in case DK at
+c > -5 and the classical engine in case DU (`coef_cdf` of case DU at c = -5 had become three times slower in the R and
+Python packages).
+
+**MATLAB: the line integral with a stationary start in cases SU, ST for c0 <= -1 at c >= -20** (`ltratio_method`,
+November 27, 2026). One evaluation took the conditional integral there, where the MATLAB line integral is 1.7 to 3.4
+times faster in both tails (F and f at the 5% and the 95% point, c from -0.01 to -20, one thread; at c0 = -0.5 1.29 to
+1.33, with c0 > 0 within a factor of 1.3 in one tail or the other, in case SK the conditional integral as fast or
+faster). The router's tails below 1e-3 keep the conditional integral (the argument `cond` of `ltratio_method`,
+`ltratio_dist`, `ltratio_icdf`). The C rule is unchanged (the line integral in cases SU, ST at every c0); measured the same
+way, the C conditional integral is the faster one there, by 1.3 to 7.7 times (not changed for 0.5.0).
+
+**Timings re-measured for 0.5.0** (November 26, 2026, after the thinner rules of one evaluation): the two tables of
+`c/mex/README.md` (the first now written by `c/mex/timing_table.m`, which also runs `timing_fixed.m`), the cost of the
+MATLAB programs in README, the manual and the help of `adfmax_cdf`, `ltratio_region`, `ltratio_lincdf` and
+`power_envelope` (which still gave the times of before the devices of Bao and Kan: 0.5 s and 3 s a value of the
+envelope, now 0.02 s by the default in case DK and 0.14 s in case DG), the line integral against the paths in C
+(`c/test/line_timing.c`: 1.1 to 1.7 times faster per value for -20 <= c <= 0, no longer 2.2 to 3.5, and at c = 2
+slower for the designs with deterministic terms) and in MATLAB, the counts and durations of `ltratio_test` (314
+checks, about six minutes) and `dfdet_test` (1330 checks, about seven minutes). The rules are unchanged.
+
+**The engine table of the C router labels the regions as the router takes them** (`c/test/engine_table.c`): it asked
+`dfl_autoengine` with x = 0 for every region and labelled the parabola of case DK at c0 = 0, c = -7 classical, where the
+router (x = 1 and the parabola's c0) takes the general engine; the committed table's row is relabelled without re-timing.
+
+**The two papers.** The programs cite the lead paper, Bao, Broda and Kan, "The Exact Limiting Distribution of the
+Dickey-Fuller t-Ratio with General Deterministic Terms" (SSRN 7745921), the paper of the general engine and of the
+inversion formula on paths, and, for the classical programs and their representations, its companion, "Low-Rank
+Representations of the Classical Dickey-Fuller Limits, with an Extension to Predictive Regressions" (SSRN 7725619,
+the posting that carried the former title "... and Some Related Statistics"): README, `Contents.m`, the help of the
+routines that named the paper, the manual (rebuilt), `CITATION.cff` (the companion under `references`) and
+`.zenodo.json`.
+
+**Tests.** `c/dfl_test_det` compares the general engine and the router with reference values of the Julia engine
+(`c/test/det_ref.jl`, `c/test/det_ref.txt`): every constructor, one to three breaks, polynomial degrees 0 to 4, the three
+starts, GLS detrending, a local null value, the tails and the edge of the support, every companion, and the three settings
+of the router; it is built by `c/build.sh` and run by the workflow of the C engine.
+
+**The templates of the devices of Bao and Kan are headers.** `c/dfl_kan_jet.inc` and `c/dfl_kan_logcf.inc`, which
+`c/dfl_kan.c` includes several times with different types, are now `c/dfl_kan_jet.h` and `c/dfl_kan_logcf.h`: `R CMD
+check` of the R package, whose `src/` copies them, gave a WARNING for the unlikely file names `.inc` in `src/`, which
+CRAN does not accept. The sources are otherwise unchanged (the C tests pass as before); the R and Python packages
+copy the new names. The README's list of the C tests names `dfl_test_batch`, which the workflow runs.
 
 ## 0.4.1
 
