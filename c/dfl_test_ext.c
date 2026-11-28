@@ -7,7 +7,9 @@
  * limiting cases (one regime is the engine itself, a dummy regime boundary changes nothing, also for the three variants,
  * the transform at a constant variance is the engine's, the transfer matrices of the regimes without deterministic terms,
  * the density against the distribution function, the checked computation, the refusal of a fixed start under regimes,
- * the reflection and the endpoints of rho, the residues of the seasonal t-ratio against the doubled transform).  Each value line
+ * the outer contour under regimes with a root near the imaginary axis far out (the groups upper and upperphi: the default
+ * rule against the checked computation into the far upper tail, the 70-degree start of the regime path), the reflection
+ * and the endpoints of rho, the residues of the seasonal t-ratio against the doubled transform).  Each value line
  * carries its tolerance; the program reports the number of comparisons and the largest deviation of each group, and fails
  * if any value is outside its tolerance. */
 #include "dflimit.h"
@@ -620,6 +622,56 @@ int main(int argc, char **argv)
             check("rrefuse", rc ? NAN : a1, b1, 0, "one regime with a fixed start is the engine itself");
         }
         dfl_design_free(&Pb4); dfl_design_free(&Pc6); dfl_design_free(&Fb4); dfl_design_free(&F3);
+    }
+    /* the outer contour under regimes: a root near the imaginary axis far out (the testset of test/extensions/regimes.jl of
+     * DFLimit.jl; cases in which the thin step on the 45-degree hyperbola lost 1.4e-6 to 3.8e-4 at every x, and in the far
+     * upper tail the range check of dist_cdf refused the value: an early regime of high variance with a break in the
+     * deterministic terms or a persistence that changes; DET_VOL_PHI).  The default distribution function against the
+     * checked computation, nondecreasing, at one at x = 5, the density not negative, no call refused */
+    {
+        double xs[10] = {-4, -2, -1, 0, 0.5, 1, 1.5, 2, 3, 5}, F[10], Fv[10], f[10];
+        double l5[1] = {0.5}, l4[1] = {0.4}, l3[1] = {0.3};
+        dfl_design B5, C4, B3;
+        dfl_design_perron('B', 1, l5, &B5, err, sizeof err); dfl_design_perron('C', 1, l4, &C4, err, sizeof err); dfl_design_perron('B', 1, l3, &B3, err, sizeof err);
+        double b27[2] = {0.2, 0.7}, om3[3] = {2, 1, 0.5}, b3[1] = {0.3}, om31[2] = {3, 1}, b2[1] = {0.2}, om51[2] = {5, 1};
+        double c1[3] = {-5, 0, -10}, c2[2] = {-5, -5}, c3[2] = {-5, -20}, c4[3] = {-20, 0, -10};
+        struct { const dfl_design *D; dfl_vol v; int start; double c0; const char *name; } uc[4] = {
+            {&B5, {3, b27, om3, c1}, DFL_START_ZERO, 0, "model B at 0.5, sd 2, 1, 0.5 ending at 0.2, 0.7, c = (-5, 0, -10)"},
+            {&C4, {2, b3, om31, c2}, DFL_START_STAT, 0, "model C at 0.4, sd 3, 1 ending at 0.3, c = (-5, -5), stationary"},
+            {&B3, {2, b2, om51, c3}, DFL_START_ZERO, 0, "model B at 0.3, sd 5, 1 ending at 0.2, c = (-5, -20)"},
+            {&B5, {3, b27, om3, c4}, DFL_START_ZERO, 1, "model B at 0.5, sd 2, 1, 0.5 ending at 0.2, 0.7, c = (-20, 0, -10), c0 = 1"}};
+        for (int i = 0; i < 4; i++) {
+            dfl_det_opts o; dfl_det_defaults(&o); o.vol = &uc[i].v; o.start = uc[i].start; o.c0 = uc[i].c0;
+            int rc = dfl_det_dist(2, uc[i].D, 10, xs, uc[i].v.c[0], &o, F, err, sizeof err);
+            snprintf(what, sizeof what, "%s: dist_cdf%s%s", uc[i].name, rc ? ": " : "", rc ? err : "");
+            check("upper", rc, 0, 0, what);      /* (not refused, by the range check of the upper tail or otherwise) */
+            o.verified = 1; int rv = dfl_det_dist(2, uc[i].D, 10, xs, uc[i].v.c[0], &o, Fv, err, sizeof err); o.verified = 0;
+            for (int j = 0; j < 10; j++) { snprintf(what, sizeof what, "%s: F against verified at x = %g%s%s", uc[i].name, xs[j], rv ? ": " : "", rv ? err : ""); check("upper", rc || rv ? NAN : F[j], Fv[j], 1e-10, what); }
+            double dmn = INFINITY; for (int j = 0; j + 1 < 10; j++) dmn = fmin(dmn, F[j + 1] - F[j]);
+            snprintf(what, sizeof what, "%s: F nondecreasing (the smallest step %.3g)", uc[i].name, dmn);
+            check("upper", rc ? NAN : (dmn > -1e-11 ? 0.0 : 1.0), 0, 0, what);
+            snprintf(what, sizeof what, "%s: 1 - F(5) = %.3g", uc[i].name, 1 - F[9]);
+            check("upper", rc ? NAN : (1 - F[9] < 1e-11 ? 0.0 : 1.0), 0, 0, what);
+            int rp = dfl_det_dist(1, uc[i].D, 10, xs, uc[i].v.c[0], &o, f, err, sizeof err);
+            double fmn = INFINITY; for (int j = 0; j < 10; j++) fmn = fmin(fmn, f[j]);
+            snprintf(what, sizeof what, "%s: the density above -1e-11 (smallest %.3g)%s%s", uc[i].name, fmn, rp ? ": " : "", rp ? err : "");
+            check("upper", rp ? NAN : (fmn > -1e-11 ? 0.0 : 1.0), 0, 0, what);
+        }
+        /* the regime path's angle (DET_VOL_PHI) and step factors (det_vol_hfac); the engine's designs keep 45 degrees */
+        det_vmodel *VM = det_vol_model(&B5, &uc[0].v, c1, 0, NAN, NAN, err, sizeof err);
+        det_path *CP = VM ? det_vol_path(VM, NAN, 1.0, err, sizeof err) : NULL;
+        check("upperphi", CP ? CP->phi : NAN, 70 * M_PI / 180, 0, "the regime path of case 1 starts at 70 degrees");
+        check("upperphi", DET_VOL_PHI, 70 * M_PI / 180, 0, "DET_VOL_PHI");
+        check("upperphi", det_vol_hfac(1.5, DFL_RULE_THIN), 2.0, 0, "det_vol_hfac of the thin rule");
+        check("upperphi", det_vol_hfac(1.5, DFL_RULE_OUTER), 2.0, 0, "det_vol_hfac of the rule outer");
+        check("upperphi", det_vol_hfac(1.0, DFL_RULE_PRESENT), 1.0, 0, "det_vol_hfac of the present rule");
+        check("upperphi", det_vol_hfac(0.7, -1), 0.7, 0, "det_vol_hfac of a given hfac");
+        if (CP) det_path_release(CP);
+        det_vol_release(VM);
+        det_path *CE = det_path_cached(&DS[3], NAN, DFL_START_ZERO, 0.0, -5.0, NAN, 1.0, err, sizeof err);
+        check("upperphi", CE ? CE->phi : NAN, M_PI / 4, 0, "the engine's path of trend(1) at c = -5 starts at 45 degrees");
+        if (CE) det_path_release(CE);
+        dfl_design_free(&B5); dfl_design_free(&C4); dfl_design_free(&B3);
     }
     if (!SKIP_RHO) {
         /* the endpoints and the reflection of rho */
