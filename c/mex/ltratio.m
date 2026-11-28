@@ -41,8 +41,10 @@ function varargout = ltratio(what,varargin)
 %                                      t-ratio of Hylleberg, Engle, Granger and Yoo, any design, with opts.c0, opts.vol)
 %   The extensions of the limit (cdf, pdf, icdf with a case or a design, and 'det'): opts.vol a volatility path, a
 %   structure with the fields breaks (the regime boundaries in (0, 1)) and omega (the standard deviations; VOLPATH of
-%   the MATLAB programs makes one), c then a number or a vector of one value per regime (zero start, least squares
-%   detrending, every c in [-480, 0], opts.method 'auto' or 'paths'); opts.rho a normal component, the limit
+%   the MATLAB programs makes one), c then a number or a vector of one value per regime (every c in [-480, 0],
+%   opts.method 'auto' or 'paths'; opts.gls, a design that detrends first and the stationary start, cases SU, ST and
+%   opts.start = 'stationary', as without it, the stationary start being that of the first regime, which needs c < 0
+%   there; a fixed start, g0 ~= 0, is refused with more than one regime); opts.rho a normal component, the limit
 %   rho tau_c0 + sqrt(1 - rho^2) Z of the covariate-augmented t-ratio (c0 = CADF_C0(c, rho, R)) and of the predictive
 %   regression (c0 = PREDICTIVE_C0(c, rho, b)), rho in [-1, 1], opts.method 'auto', 'lines' or 'mixture'; computed by
 %   the general engine for the case or the design (opts.engine = 'classical' refuses them).
