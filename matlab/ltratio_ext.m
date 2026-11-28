@@ -3,9 +3,12 @@ function varargout = ltratio_ext(op,varargin)
 %
 %   tf = LTRATIO_EXT('has',c,opts): whether the call of LTRATIO_CDF,
 %   LTRATIO_PDF or LTRATIO_ICDF has an extension of the limit: a volatility path
-%   opts.vol (VOLPATH; c a number or a vector of one value per regime) or a
-%   normal component opts.rho ~= 1 (the covariate-augmented t-ratio, the
-%   predictive regression: CADF_C0, PREDICTIVE_C0).
+%   opts.vol (VOLPATH; c a number or a vector of one value per regime; with
+%   the start and the detrending of the case string, SU and ST the stationary
+%   start of the first regime and DG GLS detrending, or those of opts.start
+%   and opts.gls for a design) or a normal component opts.rho ~= 1 (the
+%   covariate-augmented t-ratio, the predictive regression: CADF_C0,
+%   PREDICTIVE_C0).
 %   [F,info] = LTRATIO_EXT('dist',x,cas,c,opts,mode) and [q,info] =
 %   LTRATIO_EXT('icdf',p,cas,c,opts): the general engine computes them for the
 %   case string or the design cas (ext_dist, ext_icdf of merged.jl), on the C

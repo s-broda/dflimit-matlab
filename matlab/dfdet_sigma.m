@@ -15,11 +15,14 @@ function [S,h] = dfdet_sigma(P,theta,nq)
 %   at most 24/|theta| while |e^{-2 theta y}| > e^{-80}.  Var J(1) in closed
 %   form.  h = F(0): the functionals applied to the path e^{-theta r} (the
 %   fixed and the stationary start).  All nodes of one theta are evaluated
-%   together.
+%   together.  For a volatility model P (DFDET_VOL) theta holds the theta_j of
+%   the pieces, S is the covariance of the extended ell under the regimes and
+%   h the same functionals of the path exp(-int_0^r theta) (the stationary
+%   start of the first regime).
 %
-%   See also DFDET_PREP, DFDET_MGF.
+%   See also DFDET_PREP, DFDET_MGF, DFDET_VOL.
 if nargin < 3 || isempty(nq), nq = 24; end
-if isfield(P,'vm'), S = sigma_vol(P,theta,nq); h = []; return, end
+if isfield(P,'vm'), [S,h] = sigma_vol(P,theta,nq,nargout > 1); return, end
 [zq,wq] = glrule(nq);
 N = P.N; p = P.p; nj = P.nj; br = P.br; np = numel(br) - 1; Dg = P.deg;
 Ib = complex(zeros(max(p,1),np));
@@ -171,13 +174,16 @@ if any(lg)
 end
 end
 
-function S = sigma_vol(VM,th,nq)
+function [S,h] = sigma_vol(VM,th,nq,wanth)
 % the covariance (bilinear in theta, no conjugation) of ell under dJ = -theta_j J dr + omega_j dW on piece j of the design
 % refined at the regime boundaries, J(0) = 0, the theta_j in th (sigma_vol! of DFDet_vol.jl): on piece j = (a, b] with
 % y = b - u, F(u)/omega_j = (the part of z inside the piece) + e^{-theta_j y} R_j, R_j the same functionals of the path
 % started at b by a backward recursion over the pieces; the integral over y on the panels of the engine's sigma (which this
 % is with one regime); the entries among J(1) and the J(b) then replaced by their closed forms from the variances at the
-% right ends of the pieces
+% right ends of the pieces.  With wanth the start vector h (vol_start! of DFDet_vol.jl): the mean of ell under the tilted
+% process started at one, the functionals of the path exp(-int_0^r theta), its values at one and at the boundaries in
+% ell and int g(r) exp(-int_0^r theta) dr piece by piece in closed form, from the integrals Ib of g against e^{-theta_j y}
+% over the pieces (so that nothing is lost far out on a contour)
 [zq,wq] = glrule(nq);
 P = VM.P; N = VM.Ne; p = P.p; nj = P.nj; br = P.br; np = VM.np; Dg = P.deg; iz0 = 1 + nj;
 Ib = complex(zeros(max(p,1),np));
@@ -247,5 +253,14 @@ for j = 1:np
         if pk == 0, continue, end
         S(pj,pk) = v(j)*dec; S(pk,pj) = S(pj,pk);
     end
+end
+h = [];
+if nargin < 4 || ~wanth, return, end
+h = complex(zeros(N,1)); E = 1;
+for m = 1:np
+    if p > 0, h(iz0+1:iz0+p) = h(iz0+1:iz0+p) + E*Ib(:,m); end
+    E = E*exp(-th(m)*VM.L(m));
+    if m == np, pos = 1; else, pos = VM.bpos(m); end
+    if pos > 0, h(pos) = E; end
 end
 end

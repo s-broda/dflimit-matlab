@@ -123,15 +123,16 @@ ev = sort(eig((Kw + Kw')/2));
 l1 = ev(end); l2 = ev(end-1);
 end
 
-function [l1,l2] = eigtop_q(P,c,m)
+function [l1,l2] = eigtop_q(P,c,m,kern)
 % the two largest eigenvalues of the operator of the quadratic form V = int J^2 + ell' B ell for any prepared design
 % (GLS detrending): the vector X = (J at the nodes, J(1), J(lambda_i)) with its covariance C (zero start), ell = Lambda X
 % (z by the quadrature of int g J), V = X' (W + Lambda' B Lambda) X, and the eigenvalues of C^{1/2} (W + Lambda' B
-% Lambda) C^{1/2}
+% Lambda) C^{1/2} (kern: another covariance kernel K(r, u) of a column r and a row u in place of the Ornstein-Uhlenbeck
+% one, the volatility model's)
 [rs,ws,pj] = nystrom(P.br,m);
 n = numel(rs);
 pts = [rs; 1; P.jl(:)]; M = numel(pts);
-C = oukernel(c,pts,pts',0);
+if nargin < 4, C = oukernel(c,pts,pts',0); else, C = kern(pts,pts'); end
 Lam = zeros(P.N,M); Lam(1,n+1) = 1;
 for i = 1:P.nj, Lam(1+i,n+1+i) = 1; end
 for q = 1:n
@@ -155,11 +156,14 @@ end
 
 function [ts,mult] = vol_tstar(VM)
 % t_* of the volatility model (vol_tstar of DFDet_vol.jl): the Nystrom estimate te = 1/(2 lambda_1) with the covariance of
-% the regimes; D_V on 81 points of [0.98 te, 1.02 te], bisection at the first change of sign, the golden section for a
-% double zero; where the estimate is off, D_V scanned from zero in steps te/1000 (at most 8000) for its first change of
-% sign or a double zero
+% the regimes (with the stationary start's term; with GLS detrending, where V is not the norm of a projection of the path,
+% the operator of the quadratic form itself, eigtop_q, on the nodes of the least squares designs, since the scan from zero
+% below covers an estimate that is off); D_V on 81 points of [0.98 te, 1.02 te], bisection at the first change of sign,
+% the golden section for a double zero; where the estimate is off, D_V scanned from zero in steps te/1000 (at most 8000)
+% for its first change of sign or a double zero
 f = @(t) real(exp(ldv(VM,0,t)));
-[l1,l2] = eigtop(VM.P,min(VM.c),16,false,@(r,u) dfdet_vol('kernel',VM,r,u));
+kern = @(r,u) dfdet_vol('kernel',VM,r,u);
+if isnan(VM.P.cbar), [l1,l2] = eigtop(VM.P,min(VM.c),16,false,kern); else, [l1,l2] = eigtop_q(VM.P,min(VM.c),16,kern); end
 te = 1/(2*l1);
 grid = linspace(0.98*te,1.02*te,81);
 vals = zeros(size(grid));

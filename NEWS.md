@@ -91,6 +91,27 @@ unchanged. Tests: `c/dfl_test_ext.c` and `matlab/ext_test.m` against the referen
 (`c/test/ext_ref.txt`, `matlab/validation/ext_ref.txt`) and the limiting cases. The second seasonal t-ratio and the F
 statistic are not part of 0.5.0 (their lines left the reference files).
 
+**The regimes with GLS detrending, with the statistic that detrends first and with a stationary start** (November 28,
+2026), as in DFLimit.jl (`src/DFDet_vol.jl`): the option `vol` now goes with GLS detrending (`gls = cbar`), with the
+statistic that detrends first (a design from `dfdet_detrend_first`) and with a stationary start, that of the first regime
+(J(0) ~ N(0, omega_1^2/(-2 c_1)), which needs c < 0 on the first regime), in the C engine, the MEX file and the plain
+MATLAB programs, where it was the zero start with least squares detrending in the one-step regression; the case strings
+SU, ST and DG take `vol` with their start and detrending. GLS detrending and detrending first change the matrices of the
+numerator and the denominator alone, on the design refined at the regime boundaries; the stationary start makes J(0)
+one more functional, whose covariance with the others follows from their mean under the tilted process started at one,
+as in the engine, and adds its term to the covariance kernel of the estimate of t_* (with GLS detrending that estimate
+takes the quadratic form itself). In MATLAB the model, the tilt and the checks are in `dfdet_vol` (`'model'` takes
+the start, the detrending and the variance of a normal start), the start vector in `dfdet_sigma`, the estimate of t_*
+in `dfdet_tstar`. A fixed start (g0 ~= 0) with more than one regime is refused, with the message of DFLimit.jl: the
+engine's paths of a fixed start are laid for a constant variance and persistence, and under regimes they fail or lose
+accuracy for starts of moderate size (the Julia package computes its transform, `DFDet.vol_qf`, and not its
+distribution; the ports have neither). The seasonal statistic keeps the zero start and least squares. The values of the
+regimes that were computed before are unchanged. Tests: the reference files have the transform, its roots and t_*,
+the distribution functions, densities and quantiles of ten variants, the case strings with `vol`, the warning on the
+vertical line with GLS detrending at cbar = -2 and five new argument errors (two that asserted the lifted refusals are
+gone); `matlab/ext_test.m` checks them, the three variants with a dummy regime boundary against the engine itself, and
+the refusal of the fixed start.
+
 ### Repairs
 
 Four errors are repaired first, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB

@@ -172,8 +172,10 @@
 % The extensions of the limit (the general engine; the options vol and rho of dfdet_cdf, dfdet_pdf, dfdet_icdf,
 % ltratio_cdf, ltratio_pdf, ltratio_icdf)
 %   volpath       - volatility (and persistence) regimes between known dates: opts.vol, with c a number or a
-%                   vector of one value per regime (zero start, least squares, every c in [-480, 0]; the
-%                   inversion on paths of the volatility transform)
+%                   vector of one value per regime (every c in [-480, 0]; least squares or GLS detrending, the
+%                   statistic that detrends first, a zero or a stationary start, that of the first regime; a
+%                   fixed start refused with more than one regime; the inversion on paths of the volatility
+%                   transform)
 %   cadf_c0, predictive_c0 - the local null values of the covariate-augmented t-ratio of Hansen (1995) and of
 %                   the t-ratio of the slope in a predictive regression, with opts.rho: the limit
 %                   rho tau_c0 + sqrt(1 - rho^2) Z (opts.method 'auto', 'lines' or 'mixture')

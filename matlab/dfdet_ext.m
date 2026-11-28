@@ -6,14 +6,21 @@ function varargout = dfdet_ext(op,varargin)
 %   [F,f] = DFDET_EXT('dist',x,D,c,opts,mode): DFDET_CDF ('cdf'), DFDET_PDF
 %   ('pdf') or both ('both') with the extensions (ext_eval of DFDet_cov.jl): a
 %   volatility path (VOLPATH; c a number or a vector of one value per regime;
-%   one regime with a scalar c is the engine itself) by the inversion on
+%   one regime is the engine itself; least squares or GLS detrending, the
+%   statistic that detrends first, a zero or a stationary start, that of the
+%   first regime, as DFDET_VOL 'args' admits them) by the inversion on
 %   paths of the volatility transform on its outer contour by the rule of one
 %   evaluation of the inner model at the smallest c, or the checked
 %   computation (opts.verified); or a normal component (DFDET_COV).
 %   q = DFDET_EXT('icdf',p,D,c,opts): DFDET_ICDF with them, Newton's method
 %   from opts.x0 or from the normal approximation with the moments of the
-%   t-ratio at the mean of the c of the regimes, the step limited to 1, then
-%   the safeguarded search.
+%   t-ratio at the mean of the c of the regimes with the start of the call
+%   (from -2 with GLS detrending and for the statistic that detrends first),
+%   the step limited to 1, then the safeguarded search.  With opts.vol the
+%   start ('zero' or 'stationary', that of the first regime), GLS detrending
+%   (opts.gls) and the statistic that detrends first (DFDET_DETREND_FIRST)
+%   as without it (DFDET_VOL 'args'); a fixed start is refused with more than
+%   one regime.
 %
 %   See also VOLPATH, DFDET_VOL, DFDET_COV, DFDET_CDF.
 switch op
@@ -95,10 +102,11 @@ c0 = getf(opts,'c0',0);
 if ~(isnumeric(c0) && isscalar(c0) && isreal(c0) && isfinite(c0)), error('dfdet:args','%s: opts.c0 must be a finite real scalar.',fn); end
 tol = getf(opts,'tol',1e-10); x0 = getf(opts,'x0',[]);
 mu = -2; sd = 1;
-if isempty(x0)
-    % (the normal approximation with the moments of the t-ratio at the mean of the c of the regimes, ext_icdf of merged.jl)
+if isempty(x0) && isempty(gls) && ~strcmp(D.detrend,'first')
+    % (the normal approximation with the moments of the t-ratio at the mean of the c of the regimes with the start of the
+    % call, ext_icdf of merged.jl; with GLS detrending and for the statistic that detrends first the start at -2)
     try
-        mo = struct('c0',c0); m = dfdet_mom(2,D,mean(VM.cr),mo);
+        mo = struct('c0',c0,'start',VM.start); m = dfdet_mom(2,D,mean(VM.cr),mo);
         mu = m(1); sd = sqrt(max(m(2) - m(1)^2,1e-6));
     catch ME
         if ~strncmp(ME.identifier,'dfdet:',6), rethrow(ME); end

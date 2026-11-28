@@ -114,10 +114,9 @@ function [thl,ld,mu] = vol_parts(VM,t,light)
 % the volatility transform at t (mgfparts of a VolModel): theta_j = sqrt(c_j^2 - 2 t omega_j^2), the tilt Gamma (g_last at
 % J(1), g_j - g_{j+1} at the boundary between pieces j and j + 1, g_j = (c_j + theta_j)/(2 omega_j^2)), log D_V(t) =
 % sum_j (c_j + theta_j) L_j + log det{I - 2 (t B + Gamma) Sigma} and the reciprocal roots mu, the eigenvalues of
-% 2 Dv L' Sigma M0^{-1} L
-[th,gam,ex] = dfdet_vol('tilt',VM,t);
-S = dfdet_sigma(VM,th);
-M0 = eye(VM.Ne) - 2*((t*VM.B + diag(gam))*S);
+% 2 Dv L' Sigma M0^{-1} L (with the stationary start B, Gamma and Sigma those of (ell, J(0)): DFDET_VOL 'tilt')
+[th,gam,ex,S] = dfdet_vol('tilt',VM,t);
+M0 = eye(VM.N) - 2*((t*VM.B + diag(gam))*S);
 ld = ex + ldet(M0); thl = th(end); mu = [];
 if light, return, end
 X = M0\VM.Lx;

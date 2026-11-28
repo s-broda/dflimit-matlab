@@ -170,9 +170,14 @@ paths in `c/dfl_det_path.c`) and to the plain MATLAB programs, with the same nam
   process is dJ = c(r) J dr + omega(r) dW, with `c` a number or a vector of one value per regime (changing
   persistence). The transform is the general engine's determinant with a diagonal tilt at the regime boundaries and the
   covariance of the functionals under the regimes; the outer contour, the inner integrals, the rules of one evaluation,
-  the checked computation and the quantile search are the engine's. Zero start, least squares detrending, the one-step
-  regression, every `c` in [-480, 0], `opts.method` `'auto'` or `'paths'`; one regime with a scalar `c` is the engine
-  itself.
+  the checked computation and the quantile search are the engine's. Every `c` in [-480, 0], `opts.method` `'auto'` or
+  `'paths'`; one regime is the engine itself. The detrending and the start are those of the engine: least squares or GLS
+  detrending (`opts.gls = cbar`), the one-step regression or the statistic that detrends first
+  (`dfdet_detrend_first(D)`), and a zero start or, with least squares in the one-step regression, the stationary start
+  of the first regime (`opts.start = 'stationary'`: J(0) ~ N(0, omega_1^2/(-2 c_1)), which needs c < 0 on the first
+  regime); the case strings `'SU'`, `'ST'` and `'DG'` take `opts.vol` with their start and detrending. A fixed start
+  (`opts.g0 ~= 0`) is refused with more than one regime: the engine's paths of a fixed start are laid for a constant
+  variance and persistence, and under regimes they fail or lose accuracy for starts of moderate size.
 - **A normal component.** `opts.rho`: the limit rho tau_c0 + sqrt(1 - rho^2) Z, Z standard normal and independent of
   the t-ratio's limit tau_c0, which is the limit of the covariate-augmented t-ratio of Hansen (1995) at
   `c0 = cadf_c0(c, rho, R)` and of the t-ratio of the slope in a predictive regression with a regressor local to unity
@@ -203,6 +208,8 @@ a 5% quantile 69 to 381 ms; `hegy_t3_*` (single-threaded) F and f 0.09 to 0.15 m
 V = volpath(0.3, [1 3]);                                        % the standard deviation triples at 30% of the sample
 dfdet_cdf(-2.86, dfdet_trend(0), 0, struct('vol', V))
 dfdet_icdf(0.05, dfdet_trend(1), [-3 0 -10], struct('vol', volpath([0.2 0.7], [2 1 0.5])))
+dfdet_cdf(-2.86, dfdet_trend(1), 0, struct('vol', V, 'gls', -13.5))   % GLS detrending under the variance break
+ltratio_icdf(0.05, 'SU', -5, struct('vol', V))                        % the stationary start of the first regime
 ltratio_cdf(1.645, 'DU', 0, struct('rho', -0.95, 'c0', predictive_c0(0, -0.95)))   % the predictive regression
 dfdet_cdf(-2.5, dfdet_trend(1), -5, struct('rho', sqrt(0.6), 'c0', cadf_c0(-5, sqrt(0.6), sqrt(0.4))))
 hegy_t3_quantile(0.05, dfdet_trend(0))                          % the 5% critical value with seasonal dummies

@@ -13,13 +13,23 @@ function V = volpath(breaks,omega)
 %   LTRATIO_PDF, LTRATIO_ICDF and HEGY_T3_CDF, HEGY_T3_PDF, HEGY_T3_QUANTILE:
 %   the limit (U - c0 V)/sqrt(V) of the t-ratio when the process is
 %   dJ = c(r) J dr + omega(r) dW with omega and, through a vector c of one value
-%   per regime, the local-to-unity parameter piecewise constant (zero start,
-%   least squares detrending, the one-step regression, every c in [-480, 0]).
+%   per regime, the local-to-unity parameter piecewise constant (every c in
+%   [-480, 0]).  Beside it the options of the detrending and the start as
+%   without it: least squares or GLS detrending (opts.gls = cbar), the one-step
+%   regression or the statistic that detrends first (DFDET_DETREND_FIRST),
+%   and a zero or, with least squares in the one-step regression, a stationary
+%   start (opts.start = 'stationary'), that of the first regime, J(0) ~
+%   N(0, omega_1^2/(-2 c_1)), which needs c < 0 on the first regime; the case
+%   strings SU, ST and DG of LTRATIO_CDF with their start and detrending.  A
+%   fixed start (g0 ~= 0) is refused with more than one regime.  The seasonal
+%   statistics keep the zero start and least squares.
 %
 %   Examples
 %      V = volpath(0.3, [1 3]);          % the standard deviation triples at 30% of the sample
 %      V = volpath(0.5);                 % two regimes of equal variance (changing persistence: c a vector)
 %      dfdet_cdf(-2.86, dfdet_trend(0), 0, struct('vol', volpath(0.1, [1 5])))
+%      dfdet_cdf(-2.86, dfdet_trend(1), 0, struct('vol', volpath(0.1, [1 5]), 'gls', -13.5))
+%      ltratio_cdf(-2.86, 'SU', -5, struct('vol', volpath(0.5, [1 2])))
 %
 %   See also DFDET_CDF, LTRATIO_CDF, HEGY_T3_CDF.
 if nargin < 1, breaks = []; end

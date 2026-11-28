@@ -8,20 +8,26 @@ function nfail = ext_test(strict)
 %   DFLimit.jl; the tags in its header): the volatility transform D(s,t), its
 %   roots and t_*, the distribution functions, densities and quantiles with
 %   volatility regimes, with a normal component (both routes, the predictive
-%   regression) and of the first seasonal t-ratio, with the tolerance of each
+%   regression) and of the first seasonal t-ratio, and the regime variants
+%   (GLS detrending, the statistic that detrends first, the stationary start of
+%   the first regime: the transform, its roots and t_*, the distribution
+%   functions, densities and quantiles, the case strings SU, ST and DG with
+%   opts.vol, and the warning of a brittle spot), with the tolerance of each
 %   line (1e-9 for distribution functions and densities, 1e-10 for the
-%   transforms and t3, 1e-7 for quantiles); the argument errors of the file;
+%   transforms and t3, 1e-7 for quantiles); the argument errors of the file
+%   (and a fixed start under regimes refused with the message of DFLimit.jl);
 %   the limiting cases (one regime is the engine itself, a dummy regime
-%   boundary changes nothing, the transform at a constant variance is the
-%   engine's, the transfer matrices without deterministic terms, the endpoints
-%   and the reflection of rho); and, where the MEX file ltratio_mex is found
-%   (the folder c/mex of the repository is appended to the path for the
-%   test), the MATLAB programs against the C engine.  It prints each group
+%   boundary changes nothing, also for the three variants, the transform at a
+%   constant variance is the engine's, the transfer matrices without
+%   deterministic terms, the endpoints and the reflection of rho); and, where
+%   the MEX file ltratio_mex is found (the folder c/mex of the repository is
+%   appended to the path for the test), the MATLAB programs against the C
+%   engine, the regime variants included.  It prints each group
 %   with its count and largest deviation and returns the number of failures;
 %   EXT_TEST(true) raises an error at the end when a check has failed.  (The
 %   second seasonal t-ratio and the F statistic are not part of the release
 %   0.5.0; their lines left the reference file on November 27, 2026.)
-%   About two minutes.
+%   About three minutes.
 %
 %   See also DFDET_TEST, VOLPATH, HEGY_T3_CDF.
 if nargin < 1 || isempty(strict), strict = false; end
@@ -40,6 +46,13 @@ cl = onCleanup(@() warning([ws wc wv]));
         if ~isKey(G,g_), G(g_) = [0 0 0]; end
         gv_ = G(g_); gv_(1) = gv_(1) + 1; gv_(2) = max(gv_(2),dd_);
         if ~(dd_ <= tol_), nfail = nfail + 1; gv_(3) = gv_(3) + 1; fprintf('FAIL %-10s %s: deviation %.3g (tolerance %.1g)\n',g_,what_,dd_,tol_); end
+        G(g_) = gv_;
+    end
+    function chkwarn(g_,msg_,frag_,what_)
+        % (the message of the last warning holds the fragment)
+        if ~isKey(G,g_), G(g_) = [0 0 0]; end
+        gv_ = G(g_); gv_(1) = gv_(1) + 1;
+        if isempty(strfind(msg_,frag_)), nfail = nfail + 1; gv_(3) = gv_(3) + 1; fprintf('FAIL %-10s %s: warning "%s" without "%s"\n',g_,what_,msg_,frag_); end
         G(g_) = gv_;
     end
     function chkerr(g_,f_,frag_,what_)
@@ -93,6 +106,67 @@ for i = 1:numel(L)
                     q = dfdet_icdf(num(2),D,c,struct('vol',V,'c0',num(1)));
                     chk('vquant',q,num(3),num(4),l(1:min(end,60)));
             end
+        case {'rdval','rroots','rtstar','rval','rquant','rwarn'}
+            % the regime variants: <var> = did vid nc c.. start gls first (start 0 zero, 2 stationary; gls cbar or NaN;
+            % first 1 for the statistic that detrends first of the design)
+            frag = ''; ll = l;
+            if strcmp(tag,'rwarn'), b_ = strfind(ll,' | '); frag = strtrim(ll(b_(1)+3:end)); ll = ll(1:b_(1)-1); end
+            w = strsplit(ll,' ');
+            k0 = 2; fn = '';
+            if strcmp(tag,'rval'), fn = w{2}; k0 = 3; end
+            D = Ds{str2double(w{k0})}; V = Vs{str2double(w{k0+1})}; nc = str2double(w{k0+2}); c = str2double(w(k0+3:k0+2+nc)); k = k0 + 3 + nc;
+            st = str2double(w{k}); gl = str2double(w{k+1}); fi = str2double(w{k+2});
+            num = str2double(w(k+3:end));
+            if fi == 1, D = dfdet_detrend_first(D); end
+            stn = {'zero','fixed','stationary'}; stv = stn{st + 1};
+            if isnan(gl), glv = []; else, glv = gl; end
+            o = struct('vol',V,'start',stv,'gls',glv);
+            switch tag
+                case 'rdval'
+                    VM = dfdet_vol('model',D,V,c,stv,0,glv);
+                    d = dfdet_vol('dval',VM,complex(num(1),num(2)),complex(num(3),num(4)));
+                    chk('rdval',abs(d - complex(num(5),num(6))),0,num(7),l(1:min(end,60)));
+                case 'rroots'
+                    VM = dfdet_vol('model',D,V,c,stv,0,glv);
+                    [~,ld,mu] = dfdet_mgf(VM,0,complex(num(1),num(2)));
+                    r = num(4); ref = complex(num(5:2:4+2*r),num(6:2:5+2*r));
+                    chk('rroots',real(ld),num(3),num(end),l(1:min(end,60)));
+                    mu = sortc(mu); ref = sortc(ref(:));
+                    chk('rroots',abs(mu - ref),0,num(end)*max(abs(ref)),[l(1:min(end,60)) ' roots']);
+                case 'rtstar'
+                    VM = dfdet_vol('model',D,V,c,stv,0,glv);
+                    chk('rtstar',dfdet_tstar(VM,min(c)),num(1),num(2),l(1:min(end,60)));
+                case 'rval'
+                    c0 = num(1); n = num(2); x = num(3:2+n); ref = num(4+n:3+2*n); tol = num(end);
+                    o.c0 = c0;
+                    if strcmp(fn,'cdf'), v = dfdet_cdf(x,D,c,o); else, v = dfdet_pdf(x,D,c,o); end
+                    chk(['r' fn],v,ref,tol,l(1:min(end,60)));
+                    if hasmex, chk(['mexr' fn],v,mexdet(fn,D,x,c(1),[c0 st 0 gl 0 NaN NaN NaN NaN NaN NaN numel(V.om) V.lam(2:end-1) V.om c]),1e-12,l(1:min(end,60))); end
+                case 'rquant'
+                    o.c0 = num(1);
+                    chk('rquant',dfdet_icdf(num(2),D,c,o),num(3),num(4),l(1:min(end,60)));
+                case 'rwarn'
+                    % (the distribution function at one point, which warns with a message that holds the fragment)
+                    o.c0 = num(1);
+                    lastwarn(''); wb_ = warning('off','backtrace');
+                    v = dfdet_cdf(num(2),D,c,o);
+                    warning(wb_); msg = lastwarn;
+                    chk('rwarn',v,num(3),num(4),l(1:min(end,60)));
+                    chkwarn('rwarn',msg,frag,[l(1:min(end,60)) ' warns']);
+            end
+        case 'rcase'
+            % a case string with opts.vol: cdf, pdf, icdf (x the probabilities)
+            fn = w{2}; cas = w{3}; V = Vs{str2double(w{4})}; nc = str2double(w{5}); c = str2double(w(6:5+nc));
+            num = str2double(w(6+nc:end)); c0 = num(1); n = num(2); x = num(3:2+n); ref = num(4+n:3+2*n); tol = num(end);
+            o = struct('vol',V,'c0',c0);
+            switch fn
+                case 'cdf', v = ltratio_cdf(x,cas,c,o);
+                case 'pdf', v = ltratio_pdf(x,cas,c,o);
+                otherwise, v = ltratio_icdf(x,cas,c,o);
+            end
+            chk(['rcase' fn],v,ref,tol,l(1:min(end,60)));
+            % (1e-11: with GLS detrending and c0 < 0 the two engines differ by 1.3e-12 in the density of case DG)
+            if hasmex, chk(['mexrcase' fn],v,mexcase(fn,cas,x,c,c0,V),tern(strcmp(fn,'icdf'),1e-9,1e-11),l(1:min(end,60))); end
         case {'cval','cquant'}
             if strcmp(tag,'cval')
                 fn = w{2}; D = Ds{str2double(w{3})}; st = str2double(w{4}); num = str2double(w([5:8 10:end]));
@@ -136,8 +210,12 @@ chkerr('errors',@() volpath([0.5 0.3]),'strictly increasing','volpath, break dat
 chkerr('errors',@() volpath(0.5,1),'one standard deviation omega per regime','volpath, one omega for two regimes');
 chkerr('errors',@() volpath(0.5,[1 -1]),'finite and positive','volpath, omega -1');
 chkerr('errors',@() dfdet_cdf(-2,T0,2,struct('vol',V2)),'must be at most 0','dfdet_cdf vol, c = 2');
-chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('vol',V2,'start','stationary')),'zero start only','dfdet_cdf vol, stationary start');
-chkerr('errors',@() dfdet_cdf(-2,T1,-5,struct('vol',V2,'gls',-13.5)),'GLS detrending','dfdet_cdf vol, gls = -13.5');
+% (the fixed start under regimes: the message of DFLimit.jl with g0 ~= 0 for gamma0 != 0)
+chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('vol',V2,'start','fixed','g0',1)),'fixed start (g0 ~= 0) is not computed','dfdet_cdf vol, fixed start g0 = 1');
+chkerr('errors',@() dfdet_cdf(-2,T0,[0 -5],struct('vol',V2,'start','stationary')),'needs c < 0 on the first regime','dfdet_cdf vol, stationary start, c = 0 on the first regime');
+chkerr('errors',@() dfdet_cdf(-2,dfdet_detrend_first(T1),-5,struct('vol',V2,'gls',-13.5)),'detrends first already','dfdet_cdf vol, detrend_first and gls = -13.5');
+chkerr('errors',@() dfdet_cdf(-2,T1,-5,struct('vol',V2,'gls',-13.5,'start','stationary')),'zero start only','dfdet_cdf vol, gls = -13.5 and a stationary start');
+chkerr('errors',@() dfdet_cdf(-2,dfdet_detrend_first(T1),-5,struct('vol',V2,'start','stationary')),'zero start only','dfdet_cdf vol, detrend_first and a stationary start');
 chkerr('errors',@() dfdet_cdf(-2,T0,[0 -1 0],struct('vol',V2)),'one value per regime','dfdet_cdf vol, three c for two regimes');
 chkerr('errors',@() dfdet_cdf(-2,T0,[0 -1]),'needs a volatility path','dfdet_cdf c a vector without vol');
 chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('vol',V2,'rho',0.5)),'rho and vol together','dfdet_cdf vol and rho = 0.5');
@@ -162,6 +240,16 @@ chkerr('errors',@() hegy_t3_cdf(1,T0,1),'must be at most 0','hegy_t3_cdf c = 1')
 chkerr('errors',@() dfdet_cdf(-2,T0,-5,struct('vol',V2,'method','line')),'method must be ''auto'' or ''paths''','dfdet_cdf vol, method line');
 chkerr('errors',@() ltratio_cdf(-2,'DU',0,struct('vol',V2,'engine','classical')),'engine = ''classical''','ltratio_cdf vol, engine classical');
 chkerr('errors',@() ltratio_cdf(-2,'DU',[0 -1]),'needs a volatility path','ltratio_cdf c a vector without vol');
+% the fixed start under regimes, refused with the message of DFLimit.jl (VOL_FIXED_MSG) by every route; with one regime the
+% engine itself computes it
+VF_ = dfdet_msg('vol_fixed');
+chkerr('vfixed',@() dfdet_cdf(-2,T0,-5,struct('vol',V2,'g0',1)),VF_,'dfdet_cdf vol, g0 = 1 (start fixed by default)');
+chkerr('vfixed',@() dfdet_pdf(-2,T1,[-5 0],struct('vol',V2,'start','fixed','g0',-2)),VF_,'dfdet_pdf vol, fixed start g0 = -2');
+chkerr('vfixed',@() dfdet_icdf(0.05,T0,-5,struct('vol',V2,'start','fixed','g0',1)),VF_,'dfdet_icdf vol, fixed start g0 = 1');
+chkerr('vfixed',@() ltratio_cdf(-2,'DU',-5,struct('vol',V2,'g0',1)),VF_,'ltratio_cdf DU vol, g0 = 1');
+chkerr('vfixed',@() ltratio_icdf(0.05,T1,-5,struct('vol',V2,'g0',1)),VF_,'ltratio_icdf of a design, vol, g0 = 1');
+chkerr('vfixed',@() dfdet_vol('model',T0,V2,[-5 -5],'fixed',1),VF_,'the model with a fixed start');
+chk('vfixed',dfdet_cdf([-3 -2],T0,-5,struct('vol',volpath([]),'g0',1)),dfdet_cdf([-3 -2],T0,-5,struct('g0',1)),0,'one regime with a fixed start: the engine');
 % the limiting cases
 xs = [-4 -2.86 -1 0.5];
 for D = {T0, dfdet_perron('B',0.5)}
@@ -175,6 +263,28 @@ for D = {dfdet_trend(-1), T0, T1, dfdet_perron('C',0.6)}
         V = volpath(0.4,[1 1]);
         chk('vdummy',dfdet_cdf(xs,D{1},c,struct('vol',V)),dfdet_cdf(xs,D{1},c,struct('method','paths')),1e-12,sprintf('a dummy boundary, c = %g: F',c));
         chk('vdummy',dfdet_pdf(xs,D{1},c,struct('vol',V)),dfdet_pdf(xs,D{1},c,struct('method','paths')),1e-12,sprintf('a dummy boundary, c = %g: f',c));
+    end
+end
+% the three variants with a dummy boundary at a constant variance and persistence: the engine itself with the same start,
+% GLS detrending or design that detrends first (its inversion on paths), and the transform at a constant variance
+Vd = volpath(0.4,[1 1]);
+var_ = {T1,'zero',-13.5,[0 -10]; T0,'zero',-7,[0 -5]; dfdet_perron('C',0.6),'zero',-13.5,-5; ...
+        dfdet_detrend_first(T1),'zero',[],[0 -10]; dfdet_detrend_first(dfdet_perron('B',0.5)),'zero',[],[0 -5]; ...
+        dfdet_detrend_first(dfdet_trend(2)),'zero',[],-3; ...
+        T0,'stationary',[],[-5 -10]; T1,'stationary',[],-5; dfdet_trend(-1),'stationary',[],-2; dfdet_perron('A',0.3),'stationary',[],-10};
+for i_ = 1:size(var_,1)
+    [D,stv,glv,cs_] = var_{i_,:};
+    for c = cs_
+        w_ = sprintf('%s, start %s, gls %s, c = %g',D.name,stv,num2str(glv),c);
+        oe = struct('start',stv,'gls',glv,'method','paths'); ov = struct('vol',Vd,'start',stv,'gls',glv);
+        chk('rdummy',dfdet_cdf(xs,D,c,ov),dfdet_cdf(xs,D,c,oe),1e-12,['a dummy boundary: F, ' w_]);
+        chk('rdummy',dfdet_pdf(xs,D,c,ov),dfdet_pdf(xs,D,c,oe),1e-12,['a dummy boundary: f, ' w_]);
+        VM = dfdet_vol('model',D,Vd,[c c],stv,0,glv); Mo = dfdet_startmodel(D,c,stv,0,glv);
+        for st = [0.3 -2; 0.2+0.7i 0.3-4i; 0.1 -50+20i].'
+            a = dfdet_vol('dval',VM,st(1),st(2)); b = dfdet_dval(Mo,c,st(1),st(2));
+            chk('rconst',abs(a - b)/abs(b),0,1e-10,['the transform at a constant variance, ' w_]);
+        end
+        chk('rconst',dfdet_tstar(VM,c),dfdet_tstar(Mo,c),1e-12*dfdet_tstar(Mo,c),['t_* at a constant variance, ' w_]);
     end
 end
 for D = {dfdet_trend(-1), T0, T1, dfdet_perron('A',0.3)}
@@ -217,6 +327,15 @@ end
 function v = mexdet(fn,D,x,c,o)
 d = ltratio_croute('design',D);
 v = ltratio_mex('det',fn,d{:},x,c,o);
+end
+function v = mexcase(fn,cas,x,c,c0,V)
+% a case string with a volatility path on the C router of the MEX file (as LTRATIO_EXT: the case as [model start g0],
+% the extensions as [verified rho nreg breaks omega c])
+cs = upper(cas);
+if strcmp(cs,'DG'), spec = [4 0 0]; else, st = 0; if cs(1) == 'S', st = 2; end, spec = [find('KUT' == cs(2)) st 0]; end
+ev = [0 1 numel(V.om) V.lam(2:end-1) V.om c(:).'];
+if strcmp(fn,'icdf'), v = ltratio_mex('route','icdf',0,spec,x,c(1),c0,1e-10,0,ev);
+else, v = ltratio_mex('route',fn,0,spec,x,c(1),c0,0,ev); end
 end
 function z = sortc(z)
 [~,i] = sortrows([real(z(:)) imag(z(:))]); z = z(i);

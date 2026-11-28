@@ -104,8 +104,9 @@ CP = inner(CP,Mo);
 end
 
 function CP = inner(CP,Mo)
-% the path of a volatility model (DFDET_VOL) holds the inner model, the zero-start model of the refined design whose shift
-% and root counts the inner integrals use, and the model itself in TM (for the variants of the checked computation)
+% the path of a volatility model (DFDET_VOL) holds the inner model, the engine's model of the refined design with the start
+% (zero or stationary) and the detrending, whose shift and root counts the inner integrals use, and the model itself in TM
+% (for the variants of the checked computation)
 if isfield(Mo,'vm'), CP.Mo = Mo.Mi; CP.TM = Mo; end
 end
 
