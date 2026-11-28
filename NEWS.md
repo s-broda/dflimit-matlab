@@ -112,6 +112,26 @@ vertical line with GLS detrending at cbar = -2 and five new argument errors (two
 gone); `matlab/ext_test.m` checks them, the three variants with a dummy regime boundary against the engine itself, and
 the refusal of the fixed start.
 
+**The outer contour under regimes starts at 70 degrees** (November 28, 2026), as in DFLimit.jl (`VOL_PHI`, `VOL_HFAC`,
+`start_phi` and `vol_hfac` of `src/DFDet_vol.jl`), in the C engine, the MEX file and the plain MATLAB programs. Under
+regimes a root of the transform can come close to the imaginary axis far out on the engine's 45-degree hyperbola (an
+early regime of high variance with a break in the deterministic terms or a persistence that changes); its part of the
+outer integrand is then not damped and turns faster than the outer step resolves. The default rule of one evaluation
+lost the same amount at every x, more than 1e-5 in 17 of 1456 cases (3.8e-4 at most), and in the far upper tail the
+distribution function refused the value with its range error. The hyperbola of the volatility model now starts at 70
+degrees, from where it is steepened as before, with a thin outer step (the rules `thin` and `outer`) of twice its own
+(`DET_VOL_PHI`, `DET_VOL_HFAC`, `det_vol_hfac` in `c/dfl_det_int.h`, used by `cpath` and `rule_path_x`; `dfdet_vol`
+`'startphi'` and `'hfac'`, used by `dfdet_cpath` and `dfdet_ext`); an angle or a step factor given by the caller is
+taken as given, and the seasonal statistic under regimes takes the new contour too. The largest error on those cases is
+1.7e-8, on 195 nodes on average against 140; in C one value takes 1.3 to 1.6 times as long (195 nodes against 134 to
+155 on the cases timed; 1.2 to 1.4 times in Julia), and the times of the README are measured again. The values under
+regimes move by the error they had: up to 4e-10 in F, 1.2e-8 in f and 5e-10 in the quantiles on the cases of the
+reference files, which are written anew. The engine's own designs keep their contour, bit for bit. Tests:
+`c/dfl_test_ext.c` and `matlab/ext_test.m` check the four cases of DFLimit.jl in which the thin step on the 45-degree
+hyperbola failed (the default distribution function against the checked computation from x = -4 to 5, nondecreasing,
+at one at x = 5, the density not negative, no range error; `ext_test` against the MEX file too) and the angles of a
+regime path (70 degrees) and of an engine path (45 degrees).
+
 ### Repairs
 
 Four errors are repaired first, in the C engine (and with it the MEX file and the R and Python packages) and in the MATLAB

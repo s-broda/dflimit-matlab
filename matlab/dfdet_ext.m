@@ -63,6 +63,7 @@ if strcmp(mode,'both'), F(x == Inf) = 1; end
 if ~any(fin(:)), return, end
 o = pathfields(opts); verified = logical(getf(o,'verified',false)); cm = min(VM.cr);
 [hf,n,nt,rl] = dfdet_rules('rule',getf(o,'rule','auto'),verified,VM,cm,c0,o);
+hf = dfdet_vol('hfac',hf,rl);      % (under regimes the thin outer step is twice the step: vol_hfac)
 CP = dfdet_rules('path',VM,cm,getf(o,'phi',[]),hf,rl,c0);
 xf = x(fin); xf = xf(:).';
 switch mode, case 'cdf', which = 1; case 'pdf', which = 2; otherwise, which = 3; end
@@ -114,6 +115,7 @@ if isempty(x0) && isempty(gls) && ~strcmp(D.detrend,'first')
 end
 o = pathfields(opts); cm = min(VM.cr);
 [hf,n,nt,rl] = dfdet_rules('rule',getf(o,'rule','auto'),false,VM,cm,c0,o);
+hf = dfdet_vol('hfac',hf,rl);
 CP = dfdet_rules('path',VM,cm,getf(o,'phi',[]),hf,rl,c0);
 co = struct('c0',c0,'n',n,'ntail',nt);
 for fl = {'alpha','filon','warn'}, if isfield(o,fl{1}), co.(fl{1}) = o.(fl{1}); end, end

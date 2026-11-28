@@ -34,7 +34,10 @@ function varargout = dfdet_rules(op,varargin)
 %   vertical line (above the unit root) hfac does not apply and the line keeps
 %   its 24 nodes per panel.  opts.verified = true takes 'present' (and the
 %   variants of DFDET_VERIFY); opts.hfac, opts.n and opts.ntail override the
-%   rule.
+%   rule.  Under volatility and persistence regimes (opts.vol) the outer
+%   hyperbola starts at 70 degrees, where the engine's designs start at 45,
+%   and 'thin' and 'outer' take twice the step of that hyperbola (DFDET_VOL
+%   'startphi' and 'hfac'); a given opts.phi or opts.hfac is taken as given.
 %
 %   r = DFDET_RULES('region',Mo,c,c0): the rule of 'auto' for the model Mo
 %   (DFDET_STARTMODEL) at c with the local null value c0 (path_region).

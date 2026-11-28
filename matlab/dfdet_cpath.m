@@ -14,9 +14,10 @@ function CP = dfdet_cpath(Mo,c,opts)
 %   step, evaluated only where a step is not safe (a root moves by 0.45 times
 %   its distance to the nearest other root, or the increment of the phase of
 %   log P differs from the prediction by more than pi/4).  phi: pi/4 by
-%   default; with a fixed start and below c = -60 the smallest of the angles
-%   45 to 88 degrees at which every term |M_V(t_k) e^{g0^2 cf(t_k)} t'/t_k|
-%   h/pi of the outer rule is at most 2.  Where the positive group leaves
+%   default (70 degrees for a volatility model, DFDET_VOL 'startphi'); with a
+%   fixed start and below c = -60 the smallest of the angles 45 to 88 degrees
+%   at which every term |M_V(t_k) e^{g0^2 cf(t_k)} t'/t_k| h/pi of the outer
+%   rule is at most 2 (at least the default).  Where the positive group leaves
 %   Re s > 0 the hyperbola is steepened by 5 degrees up to 88; beyond, the
 %   vertical line t = tau + i w with Gauss-Legendre panels in w (the first of
 %   length min(tau,1)/4, doubling; 24 nodes each), on which the root groups
@@ -75,7 +76,11 @@ ts = dfdet_tstar(Mo,c);
 if isempty(tau), tau = min(1,ts/2); end
 auto = isempty(phi);
 if auto
-    if strcmp(Mo.start,'fixed') || c < -60, phi = fixed_phi(Mo,c,ts,tau,hfac,rmax); else, phi = pi/4; end
+    % (the angle at which the hyperbola starts, start_phi: 45 degrees for the engine's designs, 70 for the volatility model,
+    % DFDET_VOL 'startphi'; fixed_phi starts at 45 degrees, so that the larger of the two is fixed_phi itself for the
+    % engine's designs)
+    if isfield(Mo,'vm'), phi0 = dfdet_vol('startphi'); else, phi0 = pi/4; end
+    if strcmp(Mo.start,'fixed') || c < -60, phi = max(fixed_phi(Mo,c,ts,tau,hfac,rmax),phi0); else, phi = phi0; end
 end
 while true
     [a,b,h,K] = hyperbola(ts,phi,hfac,rmax,tau);

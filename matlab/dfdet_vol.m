@@ -45,9 +45,21 @@ function varargout = dfdet_vol(op,varargin)
 %   K = DFDET_VOL('kernel',VM,r,u): the covariance of the path with the
 %   regimes, with the term of the stationary start (the Nystrom estimate of
 %   t_*).
+%   phi = DFDET_VOL('startphi'): the angle at which the outer hyperbola of the
+%   volatility model starts (70 degrees, where the engine's designs start at
+%   45; DFDET_CPATH steepens it from there); hf = DFDET_VOL('hfac',hf,r): the
+%   factor of the outer step of the rule r under regimes, 2 for the rules
+%   with the thin outer step ('thin' and 'outer', 1.5 for the engine's
+%   designs) and hf otherwise (VOL_PHI, VOL_HFAC, start_phi and vol_hfac of
+%   DFDet_vol.jl; the reason in the comment of vol_consts).
 %
 %   See also VOLPATH, DFDET_CDF.
 switch op
+    case 'startphi', varargout = {vol_consts()};
+    case 'hfac'
+        [~,hf] = vol_consts(); r = varargin{2};
+        if ~any(strcmp(r,{'thin','outer'})), hf = varargin{1}; end
+        varargout = {hf};
     case 'model', varargout = {vol_model(varargin{:})};
     case 'tilt'
         if nargout > 3, [a,b,c,d] = vol_tilt(varargin{:}); varargout = {a,b,c,d};
@@ -57,6 +69,26 @@ switch op
     case 'kernel', varargout = {vol_kernel(varargin{:})};
     otherwise, error('dfdet:args','dfdet_vol: unknown operation %s.',op);
 end
+end
+
+function [phi,hfac] = vol_consts()
+% VOL_PHI, VOL_HFAC of DFDet_vol.jl: the outer hyperbola of the volatility model starts at 70 degrees (start_phi; the
+% engine's designs at 45, and DFDET_CPATH steepens either while a root group leaves its side of the imaginary axis), and
+% the thin outer step of the rules 'thin' and 'outer' (hfac 1.5 for the engine's designs) is 2 times the step of that
+% hyperbola (vol_hfac).  Under regimes a root of the transform can come close to the imaginary axis far out on a flat
+% hyperbola (an early regime of high variance with a break in the deterministic terms or a persistence that changes: the
+% smallest real part of the positive group fell from 15 at the vertex to 1.2 at |t| = 1200 with a break in the trend at
+% 0.5, three regimes of standard deviations 2, 1, 0.5 and c = -5, 0, -10); its part of the outer integrand is then not
+% damped while its phase turns faster than the outer step resolves, and the trapezoidal rule loses the same amount at
+% every x.  On 1456 cases (14 designs, 13 paths of two or three regimes, c constant and changing, zero and stationary
+% start; November 2026, against the 80-degree hyperbola with half the step and the inner nodes of the present rule) the
+% 45-degree hyperbola with the thin step was off by more than 1e-5 in 17 cases and more than 1e-8 in 71 (3.8e-4 at most;
+% in the far upper tail the range check of the distribution function then refused values above 1 + 1e-8), with the
+% present step by more than 1e-5 in 2 (6.8e-5); starting at 70 degrees with the factor 2 the largest error was 1.7e-8 on
+% 195 nodes on average, against 140 of the 45-degree hyperbola with the thin step and 209 with the present one (the
+% factor 2.5 lost 2.6e-6 in one case; 65 degrees with the factor 2 lost 2.3e-5).  Without regimes the thin step on the
+% 45-degree hyperbola is within 1e-13 of the same reference on these designs.
+phi = 70*pi/180; hfac = 2;
 end
 
 function VM = vol_model(D,V,cr,start,g0,gls,v0)

@@ -170,7 +170,10 @@ paths in `c/dfl_det_path.c`) and to the plain MATLAB programs, with the same nam
   process is dJ = c(r) J dr + omega(r) dW, with `c` a number or a vector of one value per regime (changing
   persistence). The transform is the general engine's determinant with a diagonal tilt at the regime boundaries and the
   covariance of the functionals under the regimes; the outer contour, the inner integrals, the rules of one evaluation,
-  the checked computation and the quantile search are the engine's. Every `c` in [-480, 0], `opts.method` `'auto'` or
+  the checked computation and the quantile search are the engine's, except that the outer hyperbola starts at 70
+  degrees (45 for the engine's designs) with a thin outer step of twice its own (1.5 times for the engine's designs):
+  under regimes a root of the transform can come close to the imaginary axis far out on the flatter hyperbola, where
+  the default rule lost up to 3.8e-4 at every x. Every `c` in [-480, 0], `opts.method` `'auto'` or
   `'paths'`; one regime is the engine itself. The detrending and the start are those of the engine: least squares or GLS
   detrending (`opts.gls = cbar`), the one-step regression or the statistic that detrends first
   (`dfdet_detrend_first(D)`), and a zero start or, with least squares in the one-step regression, the stationary start
@@ -197,12 +200,14 @@ paths in `c/dfl_det_path.c`) and to the plain MATLAB programs, with the same nam
 
 The costs of the extensions in the C engine (warm calls on four threads of an M4 laptop on mains power, November 27,
 2026, on the cells of the documentation pages of DFLimit.jl; F and f are two calls): with `vol`, F and f at one point
-3.5 to 9.6 ms and a 5% quantile 9 to 40 ms (10 to 52 ms with the outer contour built; no deterministic terms, an
-intercept, a linear trend with the variance tripling at mid-sample, a break in level and slope with the variance falling);
-with `rho` (rho^2 = 0.5 and 0.9; no deterministic terms, an intercept, a linear trend, a level break), F and f at one
-point by the lines 28 to 80 ms and by the mixture 70 to 530 ms at c0 = 0 (6.4 s with an intercept at c = -5, c0 = 5),
-a 5% quantile 69 to 381 ms; `hegy_t3_*` (single-threaded) F and f 0.09 to 0.15 ms on a cached contour and a 5% quantile
-0.2 to 0.7 ms. On one thread these times are 2 to 4 times longer (`hegy_t3_*` the same).
+5.1 to 14.7 ms and a 5% quantile 12 to 60 ms (14 to 75 ms with the outer contour built; no deterministic terms, an
+intercept, a linear trend with the variance tripling at mid-sample, a break in level and slope with the variance falling;
+measured again on November 28, 2026, on the 70-degree hyperbola, 1.5 times the 3.5 to 9.6 ms and 9 to 40 ms of the
+45-degree hyperbola); with `rho` (rho^2 = 0.5 and 0.9; no deterministic terms, an intercept, a linear trend, a level
+break), F and f at one point by the lines 28 to 80 ms and by the mixture 70 to 530 ms at c0 = 0 (6.4 s with an
+intercept at c = -5, c0 = 5), a 5% quantile 69 to 381 ms; `hegy_t3_*` (single-threaded) F and f 0.09 to 0.15 ms on a
+cached contour and a 5% quantile 0.2 to 0.7 ms. On one thread these times are 2 to 4 times longer (`hegy_t3_*` the
+same).
 
 ```matlab
 V = volpath(0.3, [1 3]);                                        % the standard deviation triples at 30% of the sample

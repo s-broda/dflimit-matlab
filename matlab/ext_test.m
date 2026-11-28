@@ -316,6 +316,38 @@ chk('vdensity',(F(2) - F(1))/(2*h),dfdet_pdf(-2,T1,[-3 0 -10],struct('vol',volpa
 q = ltratio_icdf(0.05,'DU',0,struct('vol',V2));
 chk('vclassical',ltratio_cdf(q,'DU',0,struct('vol',V2)),0.05,1e-9,'ltratio_icdf with vol: F at the quantile');
 chk('vclassical',ltratio_cdf([-3 -2],'DU',-5,struct('vol',V2)),dfdet_cdf([-3 -2],T0,-5,struct('vol',V2)),0,'ltratio_cdf with vol is dfdet_cdf of the design');
+% the outer contour under regimes: a root near the imaginary axis far out (the testset of test/extensions/regimes.jl of
+% DFLimit.jl; cases in which the thin step on the 45-degree hyperbola lost 1.4e-6 to 3.8e-4 at every x, and in the far
+% upper tail the range check of the distribution function refused the value: an early regime of high variance with a
+% break in the deterministic terms or a persistence that changes; DFDET_VOL 'startphi').  The default distribution
+% function against the checked computation, nondecreasing, at one at x = 5, the density not negative, no call refused
+% (and against the MEX file)
+xu = [-4 -2 -1 0 0.5 1 1.5 2 3 5];
+Vu = volpath([0.2 0.7],[2 1 0.5]);
+up_ = {dfdet_perron('B',0.5),Vu,[-5 0 -10],struct(),'model B at 0.5, c = (-5, 0, -10)'; ...
+       dfdet_perron('C',0.4),volpath(0.3,[3 1]),[-5 -5],struct('start','stationary'),'model C at 0.4, stationary'; ...
+       dfdet_perron('B',0.3),volpath(0.2,[5 1]),[-5 -20],struct(),'model B at 0.3, c = (-5, -20)'; ...
+       dfdet_perron('B',0.5),Vu,[-20 0 -10],struct('c0',1),'model B at 0.5, c = (-20, 0, -10), c0 = 1'};
+for i_ = 1:size(up_,1)
+    [D,V,c,ou,w_] = up_{i_,:}; ou.vol = V; ov = ou; ov.verified = true;
+    F = NaN(size(xu)); f = NaN(size(xu)); msg_ = '';
+    try, F = dfdet_cdf(xu,D,c,ou); f = dfdet_pdf(xu,D,c,ou); catch ME_, msg_ = ME_.message; end
+    chk('upper',double(~isempty(msg_)),0,0,[w_ ': no call refused ' msg_]);
+    chk('upper',F,dfdet_cdf(xu,D,c,ov),1e-10,[w_ ': F against verified']);
+    chk('upper',double(~(all(diff(F) > -1e-11) && 1 - F(end) < 1e-11)),0,0,[w_ ': F nondecreasing and at one at x = 5']);
+    chk('upper',double(~(min(f) > -1e-11)),0,0,[w_ ': the density above -1e-11']);
+    if hasmex
+        st_ = 0; if isfield(ou,'start'), st_ = 2; end
+        c0_ = 0; if isfield(ou,'c0'), c0_ = ou.c0; end
+        chk('mexupper',F,mexdet('cdf',D,xu,c(1),[c0_ st_ 0 NaN 0 NaN NaN NaN NaN NaN NaN numel(V.om) V.lam(2:end-1) V.om c]),1e-12,[w_ ': F against the MEX file']);
+    end
+end
+% (the regime path's angle and step factors; the engine's designs keep 45 degrees)
+VM = dfdet_vol('model',dfdet_perron('B',0.5),Vu,[-5 0 -10]); CP = dfdet_cpath(VM,min(VM.cr));
+chk('upperphi',CP.phi,70*pi/180,0,'the regime path of case 1 starts at 70 degrees');
+chk('upperphi',[dfdet_vol('startphi') dfdet_vol('hfac',1.5,'thin') dfdet_vol('hfac',1.5,'outer') dfdet_vol('hfac',1,'present') dfdet_vol('hfac',0.7,'given')],[70*pi/180 2 2 1 0.7],0,'the constants of the regime path');
+CP = dfdet_cpath(dfdet_startmodel(T1,-5,'zero',0,[]),-5);
+chk('upperphi',CP.phi,pi/4,0,'the engine''s path of trend(1) at c = -5 starts at 45 degrees');
 % the summary
 fprintf('%-12s %8s %8s %12s\n','group','values','failed','largest dev');
 ks = keys(G);
